@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiFetch } from '../services/api';
+import { apiFetch, clearApiCache } from '../services/api';
 import { useCartStore } from './cartStore';
 import { useWishlistStore } from './wishlistStore';
 import { useActivityStore } from './activityStore';
@@ -14,6 +14,7 @@ export function clearSessionAndUserData() {
   try { useActivityStore.getState().clearActivity(); } catch {}
   try { useNotificationStore.getState().clearAll(); } catch {}
   try { useOrderStore.getState().clearActive(); } catch {}
+  try { clearApiCache(); } catch {}
 }
 
 export function isUserAuthenticated(user: User | null): boolean {

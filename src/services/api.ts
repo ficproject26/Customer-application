@@ -7,10 +7,9 @@ const CONFIGURED_API_URL = Platform.select({
   default: 'https://api.ficapp.in/api',
 }) || 'https://api.ficapp.in/api';
 
-const CANDIDATE_URLS = [
-  CONFIGURED_API_URL,
-  'https://api.ficapp.in/api',
-];
+const CANDIDATE_URLS = Array.from(
+  new Set([CONFIGURED_API_URL, 'https://api.ficapp.in/api'].filter(Boolean))
+);
 
 let activeBackendUrl = CANDIDATE_URLS[0];
 let hasDiscoveredHost = false;
@@ -125,11 +124,12 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
   const method = (options.method || 'GET').toUpperCase();
   const isGetOrHead = method === 'GET' || method === 'HEAD';
 
-  // SWR: For GET requests, if fresh in cache (<= 15s old), return immediately
+  // SWR: For GET requests, if fresh in cache, return immediately
   const cacheKey = `${method}:${endpoint}`;
+  const cacheTtl = typeof options.cacheTtl === 'number' ? options.cacheTtl : 45000;
   if (isGetOrHead && !options.skipCache) {
     const cached = apiMemoryCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 15000) {
+    if (cached && Date.now() - cached.timestamp < cacheTtl) {
       return cached.data;
     }
   }
@@ -140,6 +140,11 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
   }
 
   const executeFetch = async () => {
+    // Immediate check if request was already cancelled
+    if (options.signal?.aborted) {
+      return Promise.reject(new Error('Request aborted'));
+    }
+
     const fetchOptions: any = {
       ...options,
       method,
@@ -165,10 +170,24 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
     let lastError: any = null;
 
     for (const baseUrl of urlsToTry) {
+      if (options.signal?.aborted) {
+        return Promise.reject(new Error('Request aborted'));
+      }
+
       const fullUrl = `${baseUrl}${endpoint}`;
       const controller = new AbortController();
       // 12000ms timeout per host for reliable network transport over mobile/HTTPS
       const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      // Forward external abort signal if provided
+      let onExternalAbort: (() => void) | null = null;
+      if (options.signal) {
+        onExternalAbort = () => {
+          clearTimeout(timeoutId);
+          controller.abort();
+        };
+        options.signal.addEventListener('abort', onExternalAbort, { once: true });
+      }
 
       try {
         const res = await fetch(fullUrl, {
@@ -176,6 +195,9 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
           ...fetchOptions,
         });
         clearTimeout(timeoutId);
+        if (onExternalAbort && options.signal) {
+          options.signal.removeEventListener('abort', onExternalAbort);
+        }
 
         // Successfully connected: cache working host
         activeBackendUrl = baseUrl;
@@ -210,6 +232,9 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
         return responseData;
       } catch (err: any) {
         clearTimeout(timeoutId);
+        if (onExternalAbort && options.signal) {
+          options.signal.removeEventListener('abort', onExternalAbort);
+        }
         lastError = err;
         if (err.message && err.message.startsWith('HTTP')) {
           return { success: false, error: true, message: err.message };
@@ -239,4 +264,9 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
   apiMemoryCache.clear();
   return executeFetch();
 };
+
+export function clearApiCache(): void {
+  apiMemoryCache.clear();
+}
+
 

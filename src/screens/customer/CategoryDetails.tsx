@@ -3057,7 +3057,15 @@ export default function CategoryDetails() {
     selectedSrvSort,
   ]);
 
-  const [apiProducts, setApiProducts] = useState<any[]>([]);
+  const [apiProducts, setApiProducts] = useState<any[]>(() => {
+    try {
+      const { useProductStore } = require('../../store/productStore');
+      const prods = useProductStore.getState().products;
+      return Array.isArray(prods) && prods.length > 0 ? prods : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Travel / Bus Booking Specific Filter States (Applied & Draft)
   const isTravelCategory = (categoryName || '').toLowerCase().includes('travel') || (categoryName || '').toLowerCase().includes('bus');

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Image, useWindowDimensions, Alert, Animated, Modal, TextInput, Dimensions, RefreshControl, PermissionsAndroid, Platform, ActivityIndicator, Linking, BackHandler, StatusBar } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import {
@@ -19,7 +19,7 @@ import { useUIStore } from '../../store/uiStore';
 import MembershipCard from '../../components/MembershipCard';
 import * as Icons from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SIDEBAR_DATA } from './sidebarData';
+import { getRecommendedProducts, normalizeMainCategoryName } from '../../services/categoryService';
 import { useOrderStore } from '../../store/orderStore';
 import { apiFetch, resolveImageUrl } from '../../services/api';
 import { useCartStore, isCartableCategory } from '../../store/cartStore';
@@ -40,12 +40,102 @@ import { useNotificationStore } from '../../store/notificationStore';
 import { getRelevantProductImage } from '../../utils/productImages';
 import { openRespectivePage } from '../../utils/navigationHelpers';
 import { useAuthGuardStore } from '../../store/authGuardStore';
-
-
+import { useProductStore } from '../../store/productStore';
 
 const { width, height } = Dimensions.get('window');
 
 type HomeDashboardProp = StackNavigationProp<CustomerStackParamList, 'CustomerTabs'>;
+
+const SkeletonCard = React.memo(({ isLightActive }: { isLightActive: boolean }) => (
+  <View
+    style={{
+      width: 160,
+      marginRight: 12,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: isLightActive ? '#F1EAD8' : 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+      padding: 10,
+    }}
+  >
+    <View
+      style={{
+        width: '100%',
+        height: 112,
+        borderRadius: 10,
+        backgroundColor: isLightActive ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',
+        marginBottom: 8,
+      }}
+    />
+    <View
+      style={{
+        width: '75%',
+        height: 12,
+        borderRadius: 4,
+        backgroundColor: isLightActive ? '#E2E8F0' : 'rgba(255, 255, 255, 0.12)',
+        marginBottom: 6,
+      }}
+    />
+    <View
+      style={{
+        width: '45%',
+        height: 10,
+        borderRadius: 4,
+        backgroundColor: isLightActive ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',
+        marginBottom: 8,
+      }}
+    />
+    <View
+      style={{
+        width: '50%',
+        height: 14,
+        borderRadius: 4,
+        backgroundColor: isLightActive ? '#E2E8F0' : 'rgba(255, 255, 255, 0.12)',
+      }}
+    />
+  </View>
+));
+
+const SkeletonGridCard = React.memo(({ isLightActive, cardWidth }: { isLightActive: boolean; cardWidth: number }) => (
+  <View
+    style={{
+      width: cardWidth,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: isLightActive ? '#F1EAD8' : 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+      padding: 10,
+      marginBottom: 12,
+    }}
+  >
+    <View
+      style={{
+        width: '100%',
+        height: 120,
+        borderRadius: 10,
+        backgroundColor: isLightActive ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',
+        marginBottom: 10,
+      }}
+    />
+    <View
+      style={{
+        width: '80%',
+        height: 12,
+        borderRadius: 4,
+        backgroundColor: isLightActive ? '#E2E8F0' : 'rgba(255, 255, 255, 0.12)',
+        marginBottom: 6,
+      }}
+    />
+    <View
+      style={{
+        width: '50%',
+        height: 14,
+        borderRadius: 4,
+        backgroundColor: isLightActive ? '#E2E8F0' : 'rgba(255, 255, 255, 0.12)',
+      }}
+    />
+  </View>
+));
 
 const DISCOVERY_CATEGORIES = [
   { name: 'All', icon: 'LayoutGrid', color: '#F5B800', bg: 'rgba(245, 184, 0, 0.12)' },
@@ -154,11 +244,12 @@ export default function HomeDashboard() {
   // Dynamic Banners
   const banners = useBannerStore((state) => state.banners);
 
-  // Live MongoDB Atlas Data State (with Fallback Catalogs)
-  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  // Live Catalog Data from Persistent productStore (0ms hydration from AsyncStorage)
+  const dbProducts = useProductStore((state) => state.products);
+  const isProductsLoading = useProductStore((state) => state.isLoading);
+  const hasLoadedInitial = useProductStore((state) => state.hasLoadedInitial);
   const [dbVendors, setDbVendors] = useState<any[]>([]);
   const [dbOffers, setDbOffers] = useState<any[]>([]);
-  const [isLoadingHome, setIsLoadingHome] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Theme Store Hooks
@@ -226,62 +317,18 @@ export default function HomeDashboard() {
     return () => backHandler.remove();
   }, [isSidebarOpen, isSidebarLanguageView, isSidebarLocationView, setIsSidebarOpen]);
 
-  const loadHomeData = useCallback(async () => {
+  const loadHomeData = useCallback(async (force = false) => {
     try {
-      let dynamicProds: any[] = [];
-      const prodResVal: any = await apiFetch('/products', { skipCache: true }).catch(() => null);
-      if (prodResVal) {
-        if (Array.isArray(prodResVal.data) && prodResVal.data.length > 0) dynamicProds = prodResVal.data;
-        else if (Array.isArray(prodResVal.products) && prodResVal.products.length > 0) dynamicProds = prodResVal.products;
-        else if (Array.isArray(prodResVal.items) && prodResVal.items.length > 0) dynamicProds = prodResVal.items;
-        else if (Array.isArray(prodResVal) && prodResVal.length > 0) dynamicProds = prodResVal;
-      }
-
-      if (dynamicProds.length === 0) {
-        const vendorProdVal: any = await apiFetch('/vendor/products', { skipCache: true }).catch(() => null);
-        if (vendorProdVal) {
-          if (Array.isArray(vendorProdVal.data) && vendorProdVal.data.length > 0) dynamicProds = vendorProdVal.data;
-          else if (Array.isArray(vendorProdVal.products) && vendorProdVal.products.length > 0) dynamicProds = vendorProdVal.products;
-          else if (Array.isArray(vendorProdVal) && vendorProdVal.length > 0) dynamicProds = vendorProdVal;
-        }
-      }
-
-      if (dynamicProds.length > 0) {
-        setDbProducts(dynamicProds);
-      } else {
-        setDbProducts([]);
-      }
-
-      const results = await Promise.allSettled([
-        apiFetch('/vendors'),
-        apiFetch('/offers'),
-        useBannerStore.getState().loadBanners(),
-      ]);
-
-      const vendorRes = results[0];
-      if (vendorRes.status === 'fulfilled' && vendorRes.value?.data && Array.isArray(vendorRes.value.data) && vendorRes.value.data.length > 0) {
-        setDbVendors(vendorRes.value.data);
-      } else {
-        setDbVendors([]);
-      }
-
-      const offerRes = results[1];
-      if (offerRes.status === 'fulfilled' && offerRes.value?.data && Array.isArray(offerRes.value.data)) {
-        setDbOffers(offerRes.value.data);
-      }
+      await useProductStore.getState().loadAllCatalogData(force);
     } catch (err) {
-      console.warn('[HomeDashboard] Error loading API data:', err);
-      setDbProducts([]);
-      setDbVendors([]);
-    } finally {
-      setIsLoadingHome(false);
+      console.warn('[HomeDashboard] Error loading catalog data:', err);
     }
   }, []);
 
-  // Auto-refresh silently in background whenever screen comes into focus
+  // Auto-refresh silently in background with SWR freshness check (no duplicate hits on tab switch)
   useFocusEffect(
     useCallback(() => {
-      loadHomeData();
+      loadHomeData(false);
       useOrderStore.getState().loadAllOrders().catch(() => {});
     }, [loadHomeData])
   );
@@ -311,8 +358,8 @@ export default function HomeDashboard() {
     setRefreshing(true);
     try {
       await Promise.all([
-        loadHomeData(),
-        useOrderStore.getState().loadAllOrders(),
+        loadHomeData(true),
+        useOrderStore.getState().loadAllOrders(true),
       ]);
     } catch {
       // Fallback
@@ -692,6 +739,39 @@ export default function HomeDashboard() {
       actionType: item.actionType,
     };
   };
+
+  // Curated Recommended products across Food, Stay, Daily Needs, Products, Services, Travel
+  const recommendedItems = useMemo(() => getRecommendedProducts(dbProducts), [dbProducts]);
+
+  // Dynamic category showcases from live backend items
+  const productsList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Products');
+  }, [dbProducts]);
+
+  const servicesList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Services');
+  }, [dbProducts]);
+
+  const dailyNeedsList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Daily Needs');
+  }, [dbProducts]);
+
+  const foodList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Food');
+  }, [dbProducts]);
+
+  const stayList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Stay');
+  }, [dbProducts]);
+
+  const travelList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Travel');
+  }, [dbProducts]);
+
+  // Memoized cards for 2-column personalized Picked For You feed
+  const pickedForYouCards = useMemo(() => {
+    return (dbProducts || []).slice(0, 20).map(formatCardItem);
+  }, [dbProducts]);
 
 
   const handlePlaceOrder = (name: string, price: string, category: string) => {
@@ -1347,61 +1427,135 @@ export default function HomeDashboard() {
           </ScrollView>
         </View>
 
-        {/* 2. "What's happening near you" (Visually Strong Deck) */}
+        {/* 2. "RECOMMENDED FOR YOU" Deck (Matches Image 1) */}
         <View style={[styles.sectionContainer, { marginTop: 20 }]}>
           <View style={styles.sectionHeaderRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icons.Compass color="#F5B800" size={16} />
-              <Text style={[styles.sectionHeader, { color: colors.text }]}>{t("What's happening near you")}</Text>
+              <Icons.Star color="#F5B800" size={16} fill="#F5B800" />
+              <Text style={[styles.sectionHeader, { color: colors.text, letterSpacing: 0.5, fontWeight: '800' }]}>
+                {t('RECOMMENDED FOR YOU')}
+              </Text>
             </View>
             <TouchableOpacity onPress={() => navigation.navigate('CustomerTabs', { screen: 'Categories' })}>
               <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
             </TouchableOpacity>
           </View>
-          {dbOffers.length === 0 ? (
+          {isProductsLoading && dbProducts.length === 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              <SkeletonCard isLightActive={isLightActive} />
+              <SkeletonCard isLightActive={isLightActive} />
+              <SkeletonCard isLightActive={isLightActive} />
+            </ScrollView>
+          ) : recommendedItems.length === 0 ? (
             <View style={{ paddingVertical: 18, paddingHorizontal: 16, alignItems: 'center' }}>
-              <Text style={{ color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.5)', fontSize: 13 }}>{t('No active offers near you')}</Text>
+              <Text style={{ color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.5)', fontSize: 13 }}>
+                {t('No recommendations available')}
+              </Text>
             </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {dbOffers.map((card) => (
-                <TouchableOpacity
-                  key={card.id || card._id}
-                  style={[
-                    styles.happeningCard,
-                    {
-                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+              {recommendedItems.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹499');
+                const isStay = normalizeMainCategoryName(prod.mainCategory || prod.subNavbarCategory) === 'Stay' || (prod.category || '').toLowerCase().includes('hotel') || (prod.category || '').toLowerCase().includes('resort');
+                const displayPrice = isStay && !numPrice.includes('/night') ? `${numPrice}/night` : numPrice;
+                const displayCategory = prod.category || prod.subcategory || 'General';
+
+                return (
+                  <TouchableOpacity
+                    key={`rec_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
                       borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
-                    },
-                  ]}
-                  activeOpacity={0.88}
-                  onPress={() => {
-                    navigation.navigate('CategoryDetails', { categoryName: card.category || 'Services' });
-                  }}
-                >
-                  <Image source={{ uri: card.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=80' }} style={styles.happeningImg} resizeMode="cover" />
-                  <View style={styles.happeningBody}>
-                    <View style={styles.happeningTagRow}>
-                      <Text style={styles.happeningTagText}>{t(card.category || 'OFFER')}</Text>
-                      <Text style={[styles.happeningRatingText, { color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)' }]}>
-                        {card.discount || 'Special'}
-                      </Text>
-                    </View>
-                    <Text style={[styles.happeningTitle, { color: colors.text }]} numberOfLines={1}>
-                      {t(card.title)}
-                    </Text>
-                    <View style={styles.happeningFooter}>
-                      <Text style={[styles.happeningOffer, { color: isLightActive ? '#0F172A' : '#F5B800' }]}>
-                        {t(card.vendor || card.code || '')}
-                      </Text>
-                      <View style={styles.happeningCtaBtn}>
-                        <Text style={styles.happeningCtaText}>{t('Explore')}</Text>
-                        <Icons.ChevronRight color="#0F172A" size={11} />
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => {
+                      if (isStay) {
+                        navigation.navigate('StayDetails', { stay: prod });
+                      } else if (normalizeMainCategoryName(prod.mainCategory || prod.subNavbarCategory) === 'Travel') {
+                        navigation.navigate('CategoryDetails', { categoryName: 'Travel' });
+                      } else {
+                        const cardItem = formatCardItem(prod);
+                        navigation.navigate('ProductDetails', { item: cardItem, category: cardItem.category });
+                      }
+                    }}
+                  >
+                    {/* Top Row: Rating Badge & Wishlist Heart */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.5'}
+                        </Text>
                       </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(formatCardItem(prod))}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+
+                    {/* Image Area */}
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Bottom Details */}
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {displayCategory}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {displayPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           )}
         </View>
@@ -1418,115 +1572,643 @@ export default function HomeDashboard() {
             </TouchableOpacity>
           </View>
 
-          {dbProducts.length === 0 ? (
+          {isProductsLoading && dbProducts.length === 0 ? (
+            <View style={styles.feedGrid}>
+              <SkeletonGridCard isLightActive={isLightActive} cardWidth={(width - 44) / 2} />
+              <SkeletonGridCard isLightActive={isLightActive} cardWidth={(width - 44) / 2} />
+              <SkeletonGridCard isLightActive={isLightActive} cardWidth={(width - 44) / 2} />
+              <SkeletonGridCard isLightActive={isLightActive} cardWidth={(width - 44) / 2} />
+            </View>
+          ) : dbProducts.length === 0 ? (
             <View style={{ paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center' }}>
               <Text style={{ color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.5)', fontSize: 13 }}>{t('No products available at the moment')}</Text>
             </View>
           ) : (
             <View style={styles.feedGrid}>
-              {dbProducts
-                .slice(0, 20)
-                .map(formatCardItem)
-                .map((item) => (
-                  <ProductCard
-                    key={`pfy_${item.id}`}
-                    item={item}
-                    onPress={() => navigation.navigate('ProductDetails', { item, category: item.category })}
-                    onPlaceOrder={handlePlaceOrder}
-                  />
-                ))}
+              {pickedForYouCards.map((item) => (
+                <ProductCard
+                  key={`pfy_${item.id}`}
+                  item={item}
+                  onPress={() => navigation.navigate('ProductDetails', { item, category: item.category })}
+                  onPlaceOrder={handlePlaceOrder}
+                />
+              ))}
             </View>
           )}
         </View>
 
-        {/* 5. Popular Partner Hubs / Nearby Sellers */}
-        <View style={[styles.sectionContainer, { marginTop: 22 }]}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icons.MapPin color="#F5B800" size={16} />
-              <Text style={[styles.sectionHeader, { color: colors.text }]}>{t('popular_near_you')}</Text>
+        {/* Category Showcases: Products, Services, Daily Needs, Food, Stay, Travel */}
+        
+        {/* Category Showcase: Products */}
+        {productsList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Package color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Products')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Products' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => setIsPartnersModalVisible(true)}>
-              <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {dbVendors.length === 0 ? (
-            <View style={{ paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center' }}>
-              <Text style={{ color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.5)', fontSize: 13 }}>{t('No verified partners available in this area')}</Text>
-            </View>
-          ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {dbVendors
-                .slice(0, 6)
-                .map((vendor, idx) => (
-                  <GlassCard
-                    key={idx}
-                    style={styles.vendorCard}
-                    backgroundColor={isDark ? '#0D1636' : '#FFFFFF'}
-                    borderColor={isDark ? 'rgba(255, 255, 255, 0.12)' : '#F1EAD8'}
+              {productsList.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹499');
+                const cardItem = formatCardItem(prod);
+                return (
+                  <TouchableOpacity
+                    key={`prod_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('ProductDetails', { item: cardItem, category: 'Products' })}
                   >
-                    <Image source={{ uri: vendor.image }} style={styles.vendorImg} />
-                    <View style={[styles.vendorInfo, { backgroundColor: isDark ? '#0D1636' : '#FFFFFF' }]}>
-                      <Text style={[styles.vendorName, { color: isDark ? '#FFFFFF' : '#0F172A' }]} numberOfLines={1}>
-                        {vendor.name}
-                      </Text>
-                      <View style={styles.vendorMeta}>
-                        <View style={styles.metaCol}>
-                          <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
-                          <Text style={[styles.metaVal, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
-                            {vendor.rating || '4.8'}
-                          </Text>
-                        </View>
-                        <View style={styles.metaCol}>
-                          <Icons.MapPin color="#F5B800" size={11} />
-                          <Text style={[styles.metaVal, { color: isDark ? '#CBD5E1' : '#64748B' }]}>
-                            {vendor.distance || '1.2 km'}
-                          </Text>
-                        </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.5'}
+                        </Text>
                       </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(cardItem)}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
                     </View>
-                  </GlassCard>
-                ))}
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || 'Products'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {numPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
-          )}
-        </View>
-
-        {/* 6. Continue Browsing - Recently Viewed / Catalog Feed */}
-        <View style={[styles.sectionContainer, { marginTop: 22, marginBottom: 40 }]}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icons.Clock color="#F5B800" size={16} />
-              <Text style={[styles.sectionHeader, { color: colors.text }]}>{t('continue_browsing')}</Text>
-            </View>
-            <TouchableOpacity onPress={() => navigation.navigate('CustomerTabs', { screen: 'Categories', params: { category: 'All' } })}>
-              <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('explore_all')}</Text>
-            </TouchableOpacity>
           </View>
+        )}
 
-          {useActivityStore.getState().recentViews.length === 0 ? (
-            <View style={{ paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center' }}>
-              <Text style={{ color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.5)', fontSize: 13 }}>{t('No recently viewed items yet')}</Text>
+        {/* Category Showcase: Services */}
+        {servicesList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Wrench color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Services')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Services' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.feedGrid}>
-              {useActivityStore.getState().recentViews
-                .slice(0, 6)
-                .map(formatCardItem)
-                .map((item) => (
-                  <ProductCard
-                    key={`cb_${item.id}`}
-                    item={item}
-                    onPress={() => navigation.navigate('ProductDetails', { item, category: item.category })}
-                    onPlaceOrder={handlePlaceOrder}
-                  />
-                ))}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              {servicesList.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹499');
+                const cardItem = formatCardItem(prod);
+                return (
+                  <TouchableOpacity
+                    key={`srv_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('ProductDetails', { item: cardItem, category: 'Services' })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.6'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(cardItem)}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || 'Services'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {numPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Category Showcase: Daily Needs */}
+        {dailyNeedsList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.ShoppingBag color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Daily Needs')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Daily Needs' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              {dailyNeedsList.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹99');
+                const cardItem = formatCardItem(prod);
+                return (
+                  <TouchableOpacity
+                    key={`dn_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('ProductDetails', { item: cardItem, category: 'Daily Needs' })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.5'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(cardItem)}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || 'Daily Needs'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {numPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
+        {/* Category Showcase: Food */}
+        {foodList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Utensils color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Food')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Food' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              {foodList.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹199');
+                const cardItem = formatCardItem(prod);
+                return (
+                  <TouchableOpacity
+                    key={`food_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('ProductDetails', { item: cardItem, category: 'Food' })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.5'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(cardItem)}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || 'Food'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {numPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
+        {/* Category Showcase: Stay */}
+        {stayList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Bed color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Stay')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Stay' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              {stayList.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const rawPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹1,500');
+                const displayPrice = rawPrice.includes('/night') ? rawPrice : `${rawPrice}/night`;
+                return (
+                  <TouchableOpacity
+                    key={`stay_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('StayDetails', { stay: prod })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.6'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(formatCardItem(prod))}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || 'Hotels & Resorts'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {displayPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
+        {/* Category Showcase: Travel */}
+        {travelList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22, marginBottom: 40 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Compass color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Travel')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Travel' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              {travelList.map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹799');
+                return (
+                  <TouchableOpacity
+                    key={`trv_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Travel' })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.7'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(formatCardItem(prod))}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Image size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || 'Travel & Bus'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {numPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
       </ScrollView>
 

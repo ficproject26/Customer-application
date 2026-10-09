@@ -54,10 +54,8 @@ try {
     }
   }
 } catch (_) {}
-
-if (!args.includes('--active-arch-only')) {
-  args.push('--active-arch-only');
-}
+// Do not force --active-arch-only so universal device architectures are preserved
+// (caller can still pass --active-arch-only explicitly if desired for quick emulator dev)
 
 // Ensure Metro packager runs from physical rootDir, not the virtual drive
 let isMetroRunning = false;

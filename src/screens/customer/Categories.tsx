@@ -540,8 +540,16 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       isFilterModalOpen = _useState62[0],
       setIsFilterModalOpen = _useState62[1];
 
-    // Dynamic Vendor Products/Items State
-    var _useState63 = (0, _react.useState)([]),
+    // Dynamic Vendor Products/Items State (hydrated from ProductStore if available)
+    var _useState63 = (0, _react.useState)(function() {
+      try {
+        var ps = require('../../store/productStore');
+        var prods = ps.useProductStore.getState().products;
+        return (prods && prods.length > 0) ? prods : [];
+      } catch (_e) {
+        return [];
+      }
+    }),
       _useState64 = (0, _slicedToArray2.default)(_useState63, 2),
       apiProducts = _useState64[0],
       setApiProducts = _useState64[1];
@@ -688,6 +696,13 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
             if (isMounted && list && list.length > 0) {
               setApiProducts(list);
             }
+            try {
+              var ps = require('../../store/productStore');
+              var hier = yield ps.useProductStore.getState().loadCategoryHierarchy(false);
+              if (hier && SidebarDataModule.updateSidebarData) {
+                SidebarDataModule.updateSidebarData(hier);
+              }
+            } catch (_he) {}
           } catch (err) {
             console.warn('[Categories] Error loading dynamic products:', err);
           }
@@ -1379,8 +1394,11 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
           });
         });
       }
+      var seenSubKeys = new Set();
       Object.keys(SidebarDataModule.SIDEBAR_DATA).forEach(catKey => {
-        if (targetMainCat !== 'All' && catKey !== targetMainCat) return;
+        if (targetMainCat !== 'All' && catKey !== targetMainCat && getMappedCategoryRoute(catKey) !== getMappedCategoryRoute(targetMainCat)) return;
+        if (targetMainCat === 'All' && (catKey === 'Product' || catKey === 'Job' || catKey === 'Service')) return;
+        if (targetMainCat !== 'All' && (catKey === 'Product' || catKey === 'Job' || catKey === 'Service') && targetMainCat !== catKey && SidebarDataModule.SIDEBAR_DATA[targetMainCat]) return;
         var catData = SidebarDataModule.SIDEBAR_DATA[catKey];
         var categoryName = getMappedCategoryRoute(catKey);
         if (catData.subcategories) {
@@ -1473,6 +1491,9 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
                   if (!subLow.includes(sec)) return;
                 }
               }
+              var subUniqueKey = `${categoryName}_${subName}`;
+              if (seenSubKeys.has(subUniqueKey)) return;
+              seenSubKeys.add(subUniqueKey);
               var isJobCat = catKey === 'Job' || targetMainCat === 'Job' || categoryName === 'Jobs';
               var displayName = isJobCat ? subName === 'IT' ? 'IT Jobs' : subName.endsWith('Jobs') ? subName : `${subName} Jobs` : subName;
               var subItemCount = subData.items?.length || 0;
@@ -1486,7 +1507,7 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
                 name: displayName,
                 subKey: subName,
                 count: countLabel,
-                image: SUBCAT_IMAGES[displayName] || SUBCAT_IMAGES[subName] || imgUri,
+                image: subData.banner || SUBCAT_IMAGES[displayName] || SUBCAT_IMAGES[subName] || imgUri,
                 rating,
                 priceNum,
                 distanceKm,

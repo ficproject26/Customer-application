@@ -296,7 +296,7 @@ function CustomerNavigator() {
     <>
       <StatusBar
         barStyle={colors.statusBarStyle}
-        backgroundColor={colors.background}
+        backgroundColor={colors.headerBackground}
         translucent={false}
       />
       <CustomerStack.Navigator detachInactiveScreens={true} screenOptions={{ headerShown: false, cardStyle: { backgroundColor: colors.background } }}>

@@ -38,15 +38,24 @@ export default function App() {
       });
     }
 
-    // Initialize Real-time Socket Connection
-    socketService.connect();
+    // Defer non-critical background services slightly to give the main thread 0ms contention on first paint
+    const bgTimer = setTimeout(() => {
+      // Initialize Real-time Socket Connection
+      socketService.connect();
 
-    // Initialize FCM Push Notifications and Listeners
-    setNavigationRef(navigationRef);
-    (async () => {
-      await registerFcmToken();
-      setupFcmListeners(navigationRef);
-    })();
+      // Initialize FCM Push Notifications and Listeners
+      setNavigationRef(navigationRef);
+      (async () => {
+        try {
+          await registerFcmToken();
+          setupFcmListeners(navigationRef);
+        } catch (e) {
+          console.warn('[App] FCM init warning:', e);
+        }
+      })();
+    }, 400);
+
+    return () => clearTimeout(bgTimer);
   }, [navigationRef]);
 
   const baseTheme = isDark ? DarkTheme : DefaultTheme;
