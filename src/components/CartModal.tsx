@@ -32,41 +32,13 @@ export default function CartModal({ visible, onClose, navigation }: CartModalPro
     }, 0);
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (cartItems.length === 0) return;
-
-    try {
-      // Loop over items and create simulated orders
-      for (const item of cartItems) {
-        const numericPrice = parseInt(item.price.replace(/[^\d]/g, ''), 10) || 500;
-        const isBooking = ['Services', 'Service', 'Stay', 'Travel', 'Food', 'Jobs'].includes(item.category);
-        await apiFetch('/orders', {
-          method: 'POST',
-          body: JSON.stringify({
-            vendor_id: 'v1',
-            customer_name: 'Amit Verma',
-            customer_phone: '+91 98888 88888',
-            customer_address: 'Koramangala 5th Block, Bangalore',
-            customer_latitude: 12.9498,
-            customer_longitude: 77.6289,
-            product_details: `${item.name} x ${item.quantity}`,
-            amount: numericPrice * item.quantity,
-            order_type: isBooking ? 'booking' : 'order'
-          })
-        });
-      }
-
-      await loadAllOrders();
-      clearCart();
-      onClose();
-      navigation.navigate('CustomerTabs', { screen: 'Orders' });
-    } catch (err) {
-      // Offline fallback
-      await loadAllOrders();
-      clearCart();
-      onClose();
-      navigation.navigate('CustomerTabs', { screen: 'Orders' });
-    }
+    onClose();
+    navigation.navigate('Checkout', {
+      items: cartItems,
+      subtotal: calculateTotal(),
+    });
   };
 
   return (
@@ -92,9 +64,9 @@ export default function CartModal({ visible, onClose, navigation }: CartModalPro
           {/* Cart Content */}
           {cartItems.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Icons.ShoppingBag color={colors.text} size={64} style={{ marginBottom: 16, opacity: 0.1 }} />
+              <Icons.ShoppingBag color={colors.subtext} size={64} style={{ marginBottom: 16, opacity: 0.3 }} />
               <Text style={[styles.emptyText, { color: colors.text }]}>Your cart is empty</Text>
-              <Text style={[styles.emptySubText, { color: colors.text, opacity: 0.4 }]}>Add premium products and services to get started.</Text>
+              <Text style={[styles.emptySubText, { color: colors.subtext }]}>Add premium products and services to get started.</Text>
             </View>
           ) : (
             <View style={{ flex: 1 }}>
@@ -106,7 +78,7 @@ export default function CartModal({ visible, onClose, navigation }: CartModalPro
                       <Image source={{ uri: item.image || defaultImg }} style={[styles.itemImg, { backgroundColor: colors.grayDark }]} />
                       <View style={styles.itemDetails}>
                         <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                        <Text style={[styles.itemCategory, { color: colors.text, opacity: 0.4 }]}>{item.category}</Text>
+                        <Text style={[styles.itemCategory, { color: colors.subtext }]}>{item.category}</Text>
                         <Text style={[styles.itemPrice, { color: colors.primary }]}>{item.price}</Text>
                       </View>
                       <View style={styles.rightActions}>
@@ -142,7 +114,7 @@ export default function CartModal({ visible, onClose, navigation }: CartModalPro
               {/* Summary Footer */}
               <View style={[styles.footer, { borderColor: colors.cardBorder, backgroundColor: colors.background }]}>
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: colors.text, opacity: 0.5 }]}>Total Amount:</Text>
+                  <Text style={[styles.totalLabel, { color: colors.subtext }]}>Total Amount:</Text>
                   <Text style={[styles.totalPrice, { color: colors.primary }]}>₹{calculateTotal().toLocaleString('en-IN')}</Text>
                 </View>
                 <TouchableOpacity 

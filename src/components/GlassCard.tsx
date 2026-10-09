@@ -9,7 +9,7 @@ interface GlassCardProps {
   backgroundColor?: string;
 }
 
-export default function GlassCard({ children, style, borderColor, backgroundColor }: GlassCardProps) {
+function GlassCard({ children, style, borderColor, backgroundColor }: GlassCardProps) {
   const colors = useThemeStore((state) => state.colors);
 
   return (
@@ -25,6 +25,8 @@ export default function GlassCard({ children, style, borderColor, backgroundColo
     </View>
   );
 }
+
+export default React.memo(GlassCard);
 
 const styles = StyleSheet.create({
   card: {

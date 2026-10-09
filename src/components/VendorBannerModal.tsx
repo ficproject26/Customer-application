@@ -95,38 +95,38 @@ export default function VendorBannerModal({ visible, onClose }: VendorBannerModa
           </View>
 
           <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={[styles.sectionSubtitle, { color: colors.subtext }]}>
               Publish a custom promotional banner to highlight your store's products, services, or discounts.
             </Text>
 
             {/* Vendor Name */}
             <Text style={[styles.label, { color: colors.text }]}>Store / Vendor Name</Text>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }]}
               value={vendorName}
               onChangeText={setVendorName}
               placeholder="e.g. ABC Electronics"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
 
             {/* Banner Title */}
             <Text style={[styles.label, { color: colors.text }]}>Banner Main Title *</Text>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }]}
               value={title}
               onChangeText={setTitle}
               placeholder="e.g. Grand Festive Tech Sale 50% OFF"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
 
             {/* Subtitle */}
             <Text style={[styles.label, { color: colors.text }]}>Subtitle / Short Description</Text>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }]}
               value={subtitle}
               onChangeText={setSubtitle}
               placeholder="e.g. Latest smartphones and accessories with official warranty"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
 
             {/* Category Select */}
@@ -137,6 +137,7 @@ export default function VendorBannerModal({ visible, onClose }: VendorBannerModa
                   key={idx}
                   style={[
                     styles.catChip,
+                    { borderColor: colors.border, backgroundColor: colors.cardBgSecondary },
                     selectedCategoryIdx === idx && styles.catChipSelected,
                   ]}
                   onPress={() => {
@@ -146,7 +147,7 @@ export default function VendorBannerModal({ visible, onClose }: VendorBannerModa
                     }
                   }}
                 >
-                  <Text style={[styles.catChipText, selectedCategoryIdx === idx && styles.catChipTextSelected]}>
+                  <Text style={[styles.catChipText, { color: colors.text }, selectedCategoryIdx === idx && styles.catChipTextSelected]}>
                     {cat.label}
                   </Text>
                 </TouchableOpacity>
@@ -156,38 +157,38 @@ export default function VendorBannerModal({ visible, onClose }: VendorBannerModa
             {/* Badge Text */}
             <Text style={[styles.label, { color: colors.text }]}>Badge Text</Text>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }]}
               value={badgeText}
               onChangeText={setBadgeText}
               placeholder="★ VERIFIED STORE DISCOUNT"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
 
             {/* Checklist Points */}
             <Text style={[styles.label, { color: colors.text }]}>Feature Highlights / Bullet Points</Text>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder, marginBottom: 8 }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg, marginBottom: 8 }]}
               value={point1}
               onChangeText={setPoint1}
               placeholder="Point 1 (e.g., Direct Vendor Price)"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }]}
               value={point2}
               onChangeText={setPoint2}
               placeholder="Point 2 (e.g., Free Express Shipping)"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
 
             {/* Button Text */}
             <Text style={[styles.label, { color: colors.text }]}>Button CTA Text</Text>
             <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.cardBorder }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.inputBg }]}
               value={buttonText}
               onChangeText={setButtonText}
               placeholder="e.g. CLAIM DISCOUNT"
-              placeholderTextColor="rgba(156, 163, 175, 0.6)"
+              placeholderTextColor={colors.placeholderText}
             />
 
             {/* Image Preset Select */}
@@ -198,11 +199,12 @@ export default function VendorBannerModal({ visible, onClose }: VendorBannerModa
                   key={idx}
                   style={[
                     styles.imgPresetChip,
+                    { borderColor: colors.border, backgroundColor: colors.cardBgSecondary },
                     selectedImageUrl === img.url && styles.imgPresetChipSelected,
                   ]}
                   onPress={() => setSelectedImageUrl(img.url)}
                 >
-                  <Text style={[styles.imgPresetText, selectedImageUrl === img.url && styles.imgPresetTextSelected]}>
+                  <Text style={[styles.imgPresetText, { color: colors.text }, selectedImageUrl === img.url && styles.imgPresetTextSelected]}>
                     {img.name}
                   </Text>
                 </TouchableOpacity>

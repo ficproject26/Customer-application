@@ -2,22 +2,14 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Text, Dimensions } from 'react-native';
 import Svg, { Circle, Line, Path, Rect, G } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
+import { useThemeStore } from '../store/themeStore';
 
 const { width } = Dimensions.get('window');
 
-// Try loading native react-native-maps
+// Force custom Simulated Vector Map mode for rock-solid stability and zero-crash live tracking
 let NativeMapView: any = null;
 let NativeMarker: any = null;
 let NativePolyline: any = null;
-
-try {
-  const Maps = require('react-native-maps');
-  NativeMapView = Maps.default || Maps;
-  NativeMarker = Maps.Marker;
-  NativePolyline = Maps.Polyline;
-} catch (e) {
-  console.log('[MapComponent]: Operating in custom Simulated Vector Map mode.');
-}
 
 interface MapComponentProps {
   riderLat: number;
@@ -47,6 +39,24 @@ export default function MapComponent({
   customerName = 'Customer'
 }: MapComponentProps) {
 
+  // Helper for safe coordinate parsing
+  const safeNum = (val: any, fallback: number) => {
+    const num = Number(val);
+    return !isNaN(num) && isFinite(num) && num !== 0 ? num : fallback;
+  };
+
+  const sVendorLat = safeNum(vendorLat, 12.9348);
+  const sVendorLng = safeNum(vendorLng, 77.6189);
+  const sCustomerLat = safeNum(customerLat, 12.9716);
+  const sCustomerLng = safeNum(customerLng, 77.6412);
+  const sRiderLat = safeNum(riderLat, 12.9498);
+  const sRiderLng = safeNum(riderLng, 77.6289);
+  const safeDistance = safeNum(distance, 4.2);
+  const safeEta = safeNum(eta, 15);
+  const safeRoute = Array.isArray(route)
+    ? route.filter((c) => Array.isArray(c) && c.length >= 2 && !isNaN(Number(c[0])) && !isNaN(Number(c[1])))
+    : [];
+
   // Reanimated values for simulated pulse rings on pins
   const pulse = useSharedValue(0.4);
 
@@ -67,16 +77,18 @@ export default function MapComponent({
 
   // If react-native-maps is available, render Google Maps
   if (NativeMapView && NativeMarker) {
+    const latDiff = Math.abs(sVendorLat - sCustomerLat);
+    const lngDiff = Math.abs(sVendorLng - sCustomerLng);
     const initialRegion = {
-      latitude: (vendorLat + customerLat) / 2 || 12.9348,
-      longitude: (vendorLng + customerLng) / 2 || 77.6189,
-      latitudeDelta: Math.abs(vendorLat - customerLat) * 2 || 0.05,
-      longitudeDelta: Math.abs(vendorLng - customerLng) * 2 || 0.05,
+      latitude: (sVendorLat + sCustomerLat) / 2,
+      longitude: (sVendorLng + sCustomerLng) / 2,
+      latitudeDelta: Math.max(latDiff * 1.5, 0.04),
+      longitudeDelta: Math.max(lngDiff * 1.5, 0.04),
     };
 
-    const nativeCoordsRoute = route.map(coord => ({
-      latitude: coord[0],
-      longitude: coord[1]
+    const nativeCoordsRoute = safeRoute.map((coord) => ({
+      latitude: Number(coord[0]),
+      longitude: Number(coord[1]),
     }));
 
     return (
@@ -87,21 +99,21 @@ export default function MapComponent({
           customMapStyle={darkMapStyle}
         >
           {/* Vendor Marker */}
-          <NativeMarker coordinate={{ latitude: vendorLat, longitude: vendorLng }} title="Vendor (ABC Electronics)">
+          <NativeMarker coordinate={{ latitude: sVendorLat, longitude: sVendorLng }} title="Vendor / Origin">
             <View style={[styles.markerPin, { backgroundColor: '#8B5CF6' }]}>
               <Text style={styles.markerEmoji}>🏪</Text>
             </View>
           </NativeMarker>
 
           {/* Customer Marker */}
-          <NativeMarker coordinate={{ latitude: customerLat, longitude: customerLng }} title={`Deliver to ${customerName}`}>
+          <NativeMarker coordinate={{ latitude: sCustomerLat, longitude: sCustomerLng }} title={`Destination (${customerName})`}>
             <View style={[styles.markerPin, { backgroundColor: '#10B981' }]}>
               <Text style={styles.markerEmoji}>🏠</Text>
             </View>
           </NativeMarker>
 
           {/* Rider Marker */}
-          <NativeMarker coordinate={{ latitude: riderLat, longitude: riderLng }} title={`${riderName} (Rider)`}>
+          <NativeMarker coordinate={{ latitude: sRiderLat, longitude: sRiderLng }} title={`${riderName} (Rider)`}>
             <View style={[styles.markerPin, { backgroundColor: '#F4C400' }]}>
               <Text style={styles.markerEmoji}>🚲</Text>
             </View>
@@ -122,41 +134,58 @@ export default function MapComponent({
   }
 
   // --- VECTOR SIMULATED MAP FALLBACK ---
-  // Map coordinates to pixel spaces on a 300x300 canvas
-  const getCanvasCoords = (lat: number, lng: number) => {
-    // Bangalore bounding box coordinates for linear interpolation
-    const minLat = 12.9100;
-    const maxLat = 12.9600;
-    const minLng = 77.6000;
-    const maxLng = 77.6500;
+  // Map coordinates dynamically to pixel spaces on a 300x300 canvas
+  const allLats = [sVendorLat, sCustomerLat, sRiderLat, ...(safeRoute.map(c => Number(c[0])).filter(n => !isNaN(n) && n !== 0))];
+  const allLngs = [sVendorLng, sCustomerLng, sRiderLng, ...(safeRoute.map(c => Number(c[1])).filter(n => !isNaN(n) && n !== 0))];
+  const bMinLat = Math.min(...allLats) - 0.004;
+  const bMaxLat = Math.max(...allLats) + 0.004;
+  const bMinLng = Math.min(...allLngs) - 0.004;
+  const bMaxLng = Math.max(...allLngs) + 0.004;
 
-    const x = ((lng - minLng) / (maxLng - minLng)) * 260 + 20;
-    const y = 300 - (((lat - minLat) / (maxLat - minLat)) * 260 + 20); // invert Y for screen space
+  const getCanvasCoords = (lat: number, lng: number) => {
+    const safeL = safeNum(lat, sVendorLat);
+    const safeG = safeNum(lng, sVendorLng);
+
+    const latSpan = Math.max(bMaxLat - bMinLat, 0.008);
+    const lngSpan = Math.max(bMaxLng - bMinLng, 0.008);
+
+    const rawX = ((safeG - bMinLng) / lngSpan) * 240 + 30;
+    const rawY = 300 - (((safeL - bMinLat) / latSpan) * 240 + 30);
+
+    const x = Math.min(Math.max(isNaN(rawX) ? 140 : rawX, 24), 276);
+    const y = Math.min(Math.max(isNaN(rawY) ? 140 : rawY, 24), 276);
 
     return { x, y };
   };
 
-  const vCoord = getCanvasCoords(vendorLat, vendorLng);
-  const cCoord = getCanvasCoords(customerLat, customerLng);
-  const rCoord = getCanvasCoords(riderLat, riderLng);
+  const vCoord = getCanvasCoords(sVendorLat, sVendorLng);
+  const cCoord = getCanvasCoords(sCustomerLat, sCustomerLng);
+  const rCoord = getCanvasCoords(sRiderLat, sRiderLng);
+
+  const colors = useThemeStore((state) => state.colors);
+  const isDark = useThemeStore((state) => state.isDark);
 
   // Translate route arrays to SVG Polyline points
-  const svgRoutePoints = route
-    .map(c => {
+  const svgRoutePoints = safeRoute
+    .map((c) => {
       const p = getCanvasCoords(c[0], c[1]);
       return `${p.x},${p.y}`;
     })
     .join(' ');
 
+  const mapBgColor = isDark ? '#050B1E' : '#F6EFE2';
+  const gridColor = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(16, 24, 39, 0.05)';
+  const pinBorderColor = isDark ? '#050B1E' : '#FFFFFF';
+
   return (
-    <View style={styles.simContainer}>
-      {/* Space Theme Star Grid */}
+    <View style={[styles.simContainer, { backgroundColor: mapBgColor, borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : (colors.cardBorder || '#E8DEC8') }]}>
+      {/* Dynamic Themed Grid & Paths */}
       <View style={StyleSheet.absoluteFill}>
         <Svg width="100%" height="100%" viewBox="0 0 300 300">
-          <Rect width="300" height="300" fill="#050B1E" />
+          <Rect width="300" height="300" fill={mapBgColor} />
           
-          {/* Cyber Constellation Background Grid */}
-          <G stroke="rgba(255, 255, 255, 0.03)" strokeWidth="1">
+          {/* Constellation / Street Grid */}
+          <G stroke={gridColor} strokeWidth="1">
             <Line x1="50" y1="0" x2="50" y2="300" />
             <Line x1="100" y1="0" x2="100" y2="300" />
             <Line x1="150" y1="0" x2="150" y2="300" />
@@ -169,11 +198,11 @@ export default function MapComponent({
             <Line x1="0" y1="250" x2="300" y2="250" />
           </G>
 
-          {/* Dotted Route Constellation Path */}
+          {/* Dotted Route Path */}
           {svgRoutePoints ? (
             <Path
               d={`M ${svgRoutePoints}`}
-              stroke="#3B82F6"
+              stroke="#2563EB"
               strokeWidth="3.5"
               strokeDasharray="5,6"
               fill="none"
@@ -182,51 +211,51 @@ export default function MapComponent({
             <Line
               x1={vCoord.x} y1={vCoord.y}
               x2={cCoord.x} y2={cCoord.y}
-              stroke="#3B82F6"
+              stroke="#2563EB"
               strokeWidth="3.5"
               strokeDasharray="5,6"
             />
           )}
 
           {/* Vendor Node */}
-          <Circle cx={vCoord.x} cy={vCoord.y} r="16" fill="rgba(139, 92, 246, 0.15)" stroke="#8B5CF6" strokeWidth="1.5" />
+          <Circle cx={vCoord.x} cy={vCoord.y} r="16" fill="rgba(139, 92, 246, 0.18)" stroke="#8B5CF6" strokeWidth="1.8" />
           
           {/* Customer Node */}
-          <Circle cx={cCoord.x} cy={cCoord.y} r="16" fill="rgba(16, 185, 129, 0.15)" stroke="#10B981" strokeWidth="1.5" />
+          <Circle cx={cCoord.x} cy={cCoord.y} r="16" fill="rgba(16, 185, 129, 0.18)" stroke="#10B981" strokeWidth="1.8" />
         </Svg>
       </View>
 
       {/* Simulated Pulsating Glows and Pins */}
       {/* Vendor */}
-      <View style={[styles.simPin, { left: vCoord.x - 14, top: vCoord.y - 14, backgroundColor: '#8B5CF6' }]}>
+      <View style={[styles.simPin, { left: vCoord.x - 14, top: vCoord.y - 14, backgroundColor: '#8B5CF6', borderColor: pinBorderColor }]}>
         <Text style={styles.simEmoji}>🏪</Text>
       </View>
 
       {/* Customer */}
-      <View style={[styles.simPin, { left: cCoord.x - 14, top: cCoord.y - 14, backgroundColor: '#10B981' }]}>
+      <View style={[styles.simPin, { left: cCoord.x - 14, top: cCoord.y - 14, backgroundColor: '#10B981', borderColor: pinBorderColor }]}>
         <Text style={styles.simEmoji}>🏠</Text>
       </View>
 
       {/* Rider with Pulse Rings */}
       <View style={{ position: 'absolute', left: rCoord.x - 16, top: rCoord.y - 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View style={[styles.pulseRing, animatedPulseStyle]} />
-        <View style={[styles.simPin, { position: 'relative', left: 0, top: 0, backgroundColor: '#F4C400' }]}>
+        <View style={[styles.simPin, { position: 'relative', left: 0, top: 0, backgroundColor: '#F59E0B', borderColor: pinBorderColor }]}>
           <Text style={styles.simEmoji}>🚲</Text>
         </View>
       </View>
 
       {/* Dashboard Metrics Overlay */}
-      <View style={styles.metricsBox}>
-        <Text style={styles.metricsTitle}>GPS Live Constellation Map</Text>
+      <View style={[styles.metricsBox, { backgroundColor: isDark ? 'rgba(5, 11, 30, 0.88)' : 'rgba(255, 255, 255, 0.94)', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0' }]}>
+        <Text style={[styles.metricsTitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>GPS Live Delivery Route Map</Text>
         <View style={styles.metricsRow}>
           <View>
-            <Text style={styles.metricsLabel}>Distance</Text>
-            <Text style={styles.metricsVal}>{distance.toFixed(2)} KM</Text>
+            <Text style={[styles.metricsLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>Distance</Text>
+            <Text style={[styles.metricsVal, { color: isDark ? '#FFFFFF' : '#101827' }]}>{safeDistance.toFixed(2)} KM</Text>
           </View>
-          <View style={styles.verticalBorder} />
+          <View style={[styles.verticalBorder, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0' }]} />
           <View>
-            <Text style={styles.metricsLabel}>ETA</Text>
-            <Text style={styles.metricsVal}>{eta} MINS</Text>
+            <Text style={[styles.metricsLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>ETA</Text>
+            <Text style={[styles.metricsVal, { color: isDark ? '#FFFFFF' : '#101827' }]}>{safeEta} MINS</Text>
           </View>
         </View>
       </View>

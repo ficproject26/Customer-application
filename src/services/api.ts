@@ -1,27 +1,77 @@
 import { Platform } from 'react-native';
 import { API_URL_ANDROID, API_URL_IOS } from './env';
 
-const CANDIDATE_URLS = Platform.select({
-  android: [
-    'http://localhost:5000/api',
-    'http://192.168.0.127:5000/api',
-    API_URL_ANDROID,
-    'http://10.0.2.2:5000/api',
-  ],
-  ios: [
-    API_URL_IOS,
-    'http://localhost:5000/api',
-    'http://192.168.0.127:5000/api',
-  ],
-  default: [
-    API_URL_IOS,
-    'http://localhost:5000/api',
-    'http://192.168.0.127:5000/api',
-  ],
-}) || ['http://localhost:5000/api', 'http://192.168.0.127:5000/api'];
+const CONFIGURED_API_URL = Platform.select({
+  android: API_URL_ANDROID || 'https://api.ficapp.in/api',
+  ios: API_URL_IOS || 'https://api.ficapp.in/api',
+  default: 'https://api.ficapp.in/api',
+}) || 'https://api.ficapp.in/api';
 
+const CANDIDATE_URLS = [
+  CONFIGURED_API_URL,
+  'https://api.ficapp.in/api',
+];
 
 let activeBackendUrl = CANDIDATE_URLS[0];
+let hasDiscoveredHost = false;
+
+export function getActiveBackendUrl(): string {
+  return activeBackendUrl;
+}
+
+export function resolveImageUrl(url: any): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:image')) return trimmed;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.includes('/uploads/')) {
+    const origin = (activeBackendUrl || 'https://api.ficapp.in/api').replace(/\/api\/?$/, '');
+    const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return `${origin}${cleanPath}`;
+  }
+  return trimmed;
+}
+
+// Fast in-memory SWR cache for GET responses
+const apiMemoryCache = new Map<string, { data: any; timestamp: number }>();
+// In-flight request deduplication map
+const inFlightRequests = new Map<string, Promise<any>>();
+
+/**
+ * Background concurrent probe to discover the fastest reachable host
+ */
+async function probeFastestHost(): Promise<string> {
+  const probePromises = CANDIDATE_URLS.map(async (url) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    try {
+      const res = await fetch(`${url}/public/banners`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return url;
+      }
+    } catch {
+      clearTimeout(timeoutId);
+    }
+    throw new Error(`Unreachable: ${url}`);
+  });
+
+  try {
+    const fastest = await Promise.any(probePromises);
+    activeBackendUrl = fastest;
+    hasDiscoveredHost = true;
+    return fastest;
+  } catch {
+    hasDiscoveredHost = true;
+    return activeBackendUrl;
+  }
+}
+
+// Kick off probe immediately in background
+probeFastestHost().catch(() => {});
 
 // Haversine distance formula
 export function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -68,83 +118,125 @@ export function generateInterpolatedRoute(lat1: number, lon1: number, lat2: numb
 }
 
 /**
- * Main API Fetch function that routes directly to MongoDB Atlas Backend with multi-host fallback
+ * Main API Fetch function that routes directly to MongoDB Atlas Backend with multi-host fallback,
+ * in-memory SWR caching, request deduplication, and zero UI-blocking latency.
  */
 export const apiFetch = async (endpoint: string, options: any = {}) => {
   const method = (options.method || 'GET').toUpperCase();
   const isGetOrHead = method === 'GET' || method === 'HEAD';
 
-  const fetchOptions: any = {
-    ...options,
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(options.headers || {})
-    },
-  };
-
-  if (isGetOrHead) {
-    delete fetchOptions.body;
-  } else if (options.body && typeof options.body !== 'string') {
-    fetchOptions.body = JSON.stringify(options.body);
-  }
-
-  // Ordered list of URLs to try: active host first, then other candidates
-  const urlsToTry = [
-    activeBackendUrl,
-    ...CANDIDATE_URLS.filter((u) => u !== activeBackendUrl),
-  ];
-
-  let lastError: any = null;
-
-  for (const baseUrl of urlsToTry) {
-    const fullUrl = `${baseUrl}${endpoint}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-
-    try {
-      const res = await fetch(fullUrl, {
-        signal: controller.signal,
-        ...fetchOptions,
-      });
-      clearTimeout(timeoutId);
-
-      // Successfully connected: cache working host
-      activeBackendUrl = baseUrl;
-
-      const contentType = res.headers.get('content-type') || '';
-      let responseData: any = null;
-
-      if (contentType.includes('application/json')) {
-        const text = await res.text();
-        try {
-          responseData = text ? JSON.parse(text) : {};
-        } catch {
-          responseData = { message: text };
-        }
-      } else {
-        const text = await res.text();
-        responseData = { message: text };
-      }
-
-      if (!res.ok) {
-        throw new Error(responseData.message || responseData.error || `HTTP ${res.status}`);
-      }
-
-      return responseData;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      lastError = err;
-      // If error is HTTP error from server (i.e. server reached and responded 4xx/5xx), don't retry other hosts
-      if (err.message && err.message.startsWith('HTTP')) {
-        throw err;
-      }
-      // Connection failed on this baseUrl, loop to next candidate
+  // SWR: For GET requests, if fresh in cache (<= 15s old), return immediately
+  const cacheKey = `${method}:${endpoint}`;
+  if (isGetOrHead && !options.skipCache) {
+    const cached = apiMemoryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 15000) {
+      return cached.data;
     }
   }
 
-  console.warn(`[API Warning] All backend hosts unreachable for ${method} ${endpoint}:`, lastError?.message || lastError);
-  throw lastError || new Error('Backend server unreachable');
+  // Deduplicate identical concurrent GET requests
+  if (isGetOrHead && inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey);
+  }
+
+  const executeFetch = async () => {
+    const fetchOptions: any = {
+      ...options,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(options.headers || {}),
+      },
+    };
+
+    if (isGetOrHead) {
+      delete fetchOptions.body;
+    } else if (options.body && typeof options.body !== 'string') {
+      fetchOptions.body = JSON.stringify(options.body);
+    }
+
+    // Prioritize activeBackendUrl first, then others
+    const urlsToTry = [
+      activeBackendUrl,
+      ...CANDIDATE_URLS.filter((u) => u !== activeBackendUrl),
+    ];
+
+    let lastError: any = null;
+
+    for (const baseUrl of urlsToTry) {
+      const fullUrl = `${baseUrl}${endpoint}`;
+      const controller = new AbortController();
+      // 12000ms timeout per host for reliable network transport over mobile/HTTPS
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      try {
+        const res = await fetch(fullUrl, {
+          signal: controller.signal,
+          ...fetchOptions,
+        });
+        clearTimeout(timeoutId);
+
+        // Successfully connected: cache working host
+        activeBackendUrl = baseUrl;
+
+        const contentType = res.headers.get('content-type') || '';
+        let responseData: any = null;
+
+        if (contentType.includes('application/json')) {
+          const text = await res.text();
+          try {
+            responseData = text ? JSON.parse(text) : {};
+          } catch {
+            responseData = { message: text };
+          }
+        } else {
+          const text = await res.text();
+          responseData = { message: text };
+        }
+
+        if (!res.ok) {
+          return responseData || { success: false, error: true, message: `HTTP ${res.status}` };
+        }
+
+        // Cache successful GET response in memory
+        if (isGetOrHead && responseData) {
+          apiMemoryCache.set(cacheKey, {
+            data: responseData,
+            timestamp: Date.now(),
+          });
+        }
+
+        return responseData;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        lastError = err;
+        if (err.message && err.message.startsWith('HTTP')) {
+          return { success: false, error: true, message: err.message };
+        }
+      }
+    }
+
+    // Return legitimate error response when network or server request fails. No mock fallbacks.
+    return {
+      status: 'error',
+      success: false,
+      error: true,
+      message: lastError?.message || 'Network request failed. Unable to connect to backend server.',
+      data: null,
+    };
+  };
+
+  if (isGetOrHead) {
+    const reqPromise = executeFetch().finally(() => {
+      inFlightRequests.delete(cacheKey);
+    });
+    inFlightRequests.set(cacheKey, reqPromise);
+    return reqPromise;
+  }
+
+  // Invalidate related cache entries on mutations
+  apiMemoryCache.clear();
+  return executeFetch();
 };
+

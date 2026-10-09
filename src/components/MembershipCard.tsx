@@ -8,6 +8,7 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import Svg, { Rect, Defs, LinearGradient, Stop, Path } from 'react-native-svg';
+import { useAuthStore } from '../store/authStore';
 
 const CARD_HEIGHT = 200;
 
@@ -19,7 +20,12 @@ interface MembershipCardProps {
   validity: string;
 }
 
-export default function MembershipCard({ name, type, number, points, validity }: MembershipCardProps) {
+function MembershipCardComponent({ name, type, number, points, validity }: MembershipCardProps) {
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.name.toLowerCase().includes('guest') || (name || '').toLowerCase().includes('guest');
+  const cardDisplayName = isGuestUser ? 'Guest User' : (name || currentUser?.name || 'Guest User');
+  const cardNumber = isGuestUser ? `CN-${type.toUpperCase()}-GUEST` : number;
+
   const { width } = useWindowDimensions();
   const CARD_WIDTH = width - 32;
   const shimmer = useSharedValue(-1.5);
@@ -114,7 +120,7 @@ export default function MembershipCard({ name, type, number, points, validity }:
         <View style={styles.middleRow}>
           <View style={styles.detailsCol}>
             <Text style={styles.cardNoLabel}>CARD NUMBER</Text>
-            <Text style={styles.cardNoValue}>{number}</Text>
+            <Text style={styles.cardNoValue}>{cardNumber}</Text>
 
             <Text style={styles.pointsLabel}>REWARD BALANCE</Text>
             <Text style={styles.pointsValue}>{points.toLocaleString()} PTS</Text>
@@ -141,7 +147,7 @@ export default function MembershipCard({ name, type, number, points, validity }:
         <View style={styles.footer}>
           <View>
             <Text style={styles.footerLabel}>MEMBER NAME</Text>
-            <Text style={styles.footerValue}>{name}</Text>
+            <Text style={styles.footerValue}>{cardDisplayName}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.footerLabel}>VALID THRU</Text>
@@ -275,3 +281,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
 });
+
+export default React.memo(MembershipCardComponent);

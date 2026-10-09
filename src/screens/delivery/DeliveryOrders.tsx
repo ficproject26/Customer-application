@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useOrderStore } from '../../store/orderStore';
 import { useAuthStore } from '../../store/authStore';
@@ -17,15 +17,39 @@ export default function DeliveryOrders() {
   const claimOrder = useOrderStore((state) => state.claimOrder);
   const currentUser = useAuthStore((state) => state.currentUser);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(allOrders.length === 0);
+  const [refreshing, setRefreshing] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+
+  const fetchOrdersSilently = useCallback(async () => {
+    try {
+      await loadAllOrders();
+    } catch (err) {
+      console.warn('Silent shipment load err:', err);
+    }
+  }, [loadAllOrders]);
 
   useEffect(() => {
     if (isFocused) {
-      setLoading(true);
-      loadAllOrders().finally(() => setLoading(false));
+      if (allOrders.length === 0) {
+        setLoading(true);
+      }
+      fetchOrdersSilently().finally(() => setLoading(false));
+
+      // Silent auto-refresh every 6 seconds while screen is active
+      const interval = setInterval(() => {
+        fetchOrdersSilently();
+      }, 6000);
+
+      return () => clearInterval(interval);
     }
-  }, [isFocused]);
+  }, [isFocused, fetchOrdersSilently]);
+
+  const onPullToRefresh = async () => {
+    setRefreshing(true);
+    await fetchOrdersSilently();
+    setRefreshing(false);
+  };
 
   const handleClaim = async (orderId: string) => {
     if (!currentUser) return;
@@ -34,7 +58,6 @@ export default function DeliveryOrders() {
     setClaimingId(null);
     if (ok) {
       Alert.alert('Order Claimed', 'Go to dashboard to start navigation.');
-      // Navigate to Dashboard tab
       navigation.navigate('Dashboard' as any);
     } else {
       Alert.alert('Error', 'Unable to claim order at this moment.');
@@ -51,9 +74,9 @@ export default function DeliveryOrders() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Available Shipments</Text>
-        <TouchableOpacity onPress={() => loadAllOrders()}>
-          <Icons.RefreshCw color="#F4C400" size={16} />
-        </TouchableOpacity>
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{claimable.length} available</Text>
+        </View>
       </View>
 
       {loading && allOrders.length === 0 ? (
@@ -61,7 +84,18 @@ export default function DeliveryOrders() {
           <ActivityIndicator color="#F4C400" size="large" />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onPullToRefresh}
+              tintColor="#F4C400"
+              colors={['#F4C400']}
+            />
+          }
+        >
           {claimable.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Icons.Inbox color="rgba(255,255,255,0.2)" size={48} />
@@ -135,6 +169,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFF',
+  },
+  countBadge: {
+    backgroundColor: 'rgba(244, 196, 0, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 196, 0, 0.25)',
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#F4C400',
   },
   scrollContent: {
     padding: 16,

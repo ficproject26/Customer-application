@@ -1,6 +1,20 @@
-import { AppRegistry, InteractionManager } from 'react-native';
+import { AppRegistry, InteractionManager, LogBox } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
+
+LogBox.ignoreAllLogs(true);
+
+// Top-level FCM Background Message Handler (executes when app is in background or closed)
+try {
+  const messaging = require('@react-native-firebase/messaging').default;
+  if (messaging) {
+    messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+      console.log('FCM Message Handled in Background/Closed State:', remoteMessage);
+    });
+  }
+} catch (e) {
+  console.warn('[index.js] FCM Messaging background handler fallback:', e?.message || e);
+}
 
 // Polyfill/Override InteractionManager.runAfterInteractions to use requestIdleCallback
 // in order to avoid deprecation warnings and handle the future removal of InteractionManager.

@@ -9,12 +9,11 @@ import { useLanguageStore, LANGUAGES_LIST } from '../store/languageStore';
 
 const { height } = Dimensions.get('window');
 
-type LanguageSelectionProp = StackNavigationProp<AuthStackParamList, 'LanguageSelection'>;
-
 export default function LanguageSelection() {
-  const navigation = useNavigation<LanguageSelectionProp>();
+  const navigation = useNavigation<any>();
   const currentLanguage = useLanguageStore((state) => state.currentLanguage);
   const setLanguage = useLanguageStore((state) => state.setLanguage);
+  const t = useLanguageStore((state) => state.t);
 
   const handleSelectLanguage = (name: string) => {
     setLanguage(name);
@@ -30,15 +29,15 @@ export default function LanguageSelection() {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Icons.ChevronLeft color="#FFF" size={20} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Language</Text>
+        <Text style={styles.headerTitle}>{t('select_language')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Intro */}
         <View style={styles.introBox}>
-          <Text style={styles.title}>Choose your language</Text>
-          <Text style={styles.subtitle}>Select your preferred interface language. All UI content remains in English.</Text>
+          <Text style={styles.title}>{t('select_language')}</Text>
+          <Text style={styles.subtitle}>{t('choose_language_desc')}</Text>
         </View>
 
         {/* List */}
@@ -57,7 +56,9 @@ export default function LanguageSelection() {
                       <Icons.Globe color={isSelected ? '#F4C400' : '#94A3B8'} size={18} />
                     </View>
                     <View style={styles.langNames}>
-                      <Text style={[styles.langName, isSelected && styles.langNameActive]}>{lang.name}</Text>
+                      <Text style={[styles.langName, isSelected && styles.langNameActive]}>
+                        {lang.name} {lang.nativeName !== lang.name ? `(${lang.nativeName})` : ''}
+                      </Text>
                     </View>
                   </View>
 

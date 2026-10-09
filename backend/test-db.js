@@ -1,6 +1,8 @@
-const mongoose = require('mongoose');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const uri = "mongodb+srv://karthikeyanb25_db_user:pqbZxh0jH0zNGyKf@cluster0.2gix8jn.mongodb.net/connect_db?retryWrites=true&w=majority&appName=Cluster0";
+const uri = process.env.MONGODB_URI || "mongodb+srv://Connect-app:Connect123@cluster0.fzj1k5l.mongodb.net/?appName=Cluster0";
 
 async function testConn() {
   try {

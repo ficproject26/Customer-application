@@ -14,13 +14,17 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   PermissionsAndroid,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
 import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
 import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../services/api';
+import { useTranslation } from '../../store/languageStore';
+import { useToastStore } from '../../store/toastStore';
 
 const { width } = Dimensions.get('window');
 
@@ -61,50 +65,55 @@ const requestCameraPermission = async (): Promise<boolean> => {
 const requestGalleryPermission = async (): Promise<boolean> => {
   if (Platform.OS !== 'android') return true;
   try {
-    const permission =
-      (Platform.Version as number) >= 33
+    const granted = await PermissionsAndroid.request(
+      Platform.Version >= 33
         ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-        : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-
-    const granted = await PermissionsAndroid.request(permission, {
-      title: 'Photo Gallery Access',
-      message: 'Connect Mobile needs permission to choose a photo from your gallery.',
-      buttonNeutral: 'Ask Me Later',
-      buttonNegative: 'Cancel',
-      buttonPositive: 'OK',
-    });
-    return granted === PermissionsAndroid.RESULTS.GRANTED || granted === 'never_ask_again';
+        : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      {
+        title: 'Gallery Permission',
+        message: 'Connect Mobile needs access to your gallery to upload a profile photo.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
+      }
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
   } catch (err) {
     console.warn('Gallery permission error:', err);
-    return true;
+    return false;
   }
 };
 
 export default function EditProfile() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((state) => state.currentUser);
   const fetchProfile = useAuthStore((state) => state.fetchProfile);
   const updateProfile = useAuthStore((state) => state.updateProfile);
+  const colors = useThemeStore((state) => state.colors);
+  const isDark = useThemeStore((state) => state.isDark);
+  const isLight = !isDark;
+  const showToast = useToastStore((state) => state.showToast);
 
-  // Initial Load & Error States
-  const [screenLoading, setScreenLoading] = useState(true);
-  const [screenError, setScreenError] = useState<string | null>(null);
+  // Form Fields initialized directly from currentUser
+  const [name, setName] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [dob, setDob] = useState(currentUser?.dob || '');
+  const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>((currentUser?.gender as any) || 'Male');
+  const [avatar, setAvatar] = useState(currentUser?.avatar || '');
 
-  // Form Fields
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [dob, setDob] = useState('');
-  const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Other');
-  const [avatar, setAvatar] = useState('');
-
-  // Verification states directly from backend
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  // Verification states directly from backend/currentUser
+  const [emailVerified, setEmailVerified] = useState(Boolean(currentUser?.emailVerified ?? true));
+  const [phoneVerified, setPhoneVerified] = useState(Boolean(currentUser?.phoneVerified ?? true));
 
   // Original snapshot from backend
-  const [initialSnapshot, setInitialSnapshot] = useState<any>(null);
+  const [initialSnapshot, setInitialSnapshot] = useState<any>(currentUser || null);
+
+  // Screen Loading & Error States (never block if currentUser is available)
+  const [screenLoading, setScreenLoading] = useState(!currentUser);
+  const [screenError, setScreenError] = useState<string | null>(null);
 
   // UI Action States
   const [saveLoading, setSaveLoading] = useState(false);
@@ -122,7 +131,9 @@ export default function EditProfile() {
 
   // Load actual authenticated profile from backend
   const loadCustomerProfile = useCallback(async () => {
-    setScreenLoading(true);
+    if (!currentUser) {
+      setScreenLoading(true);
+    }
     setScreenError(null);
     try {
       const profile = await fetchProfile();
@@ -131,16 +142,16 @@ export default function EditProfile() {
         setEmail(profile.email || '');
         setPhone(profile.phone || '');
         setDob(profile.dob || '');
-        setGender((profile.gender as any) || 'Other');
+        setGender((profile.gender as any) || 'Female');
         setAvatar(profile.avatar || '');
-        setEmailVerified(Boolean(profile.emailVerified));
-        setPhoneVerified(Boolean(profile.phoneVerified));
+        setEmailVerified(Boolean(profile.emailVerified ?? true));
+        setPhoneVerified(Boolean(profile.phoneVerified ?? true));
         setInitialSnapshot(profile);
-      } else {
-        setScreenError('Unable to load your profile details.');
       }
     } catch (err: any) {
-      setScreenError(err?.message || 'Unable to load your profile details.');
+      if (!currentUser) {
+        setScreenError(err?.message || 'Unable to load your profile details.');
+      }
     } finally {
       setScreenLoading(false);
     }
@@ -160,19 +171,28 @@ export default function EditProfile() {
       avatar !== (initialSnapshot.avatar || '') ||
       emailVerified !== Boolean(initialSnapshot.emailVerified) ||
       phoneVerified !== Boolean(initialSnapshot.phoneVerified)
-    : false;
+    : true;
 
   // Validation
-  const isValid =
-    name.trim().length > 0 &&
-    email.trim().length > 0 &&
-    email.includes('@') &&
-    phone.trim().length >= 10;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  const phoneDigits = phone.replace(/[^\d]/g, '');
+  const cleanPhone = phoneDigits.slice(-10);
+  const isPhoneValid = cleanPhone.length === 10 && /^[6-9]\d{9}$/.test(cleanPhone);
+  const isEmailValid = emailRegex.test(email.trim());
+  const isNameValid = name.trim().length >= 2 && /^[a-zA-Z\s'.]+$/.test(name.trim());
+  const isDobValid = !dob.trim() || /^\d{4}-\d{2}-\d{2}$/.test(dob.trim());
+
+  const isValid = isNameValid && isEmailValid && isPhoneValid && isDobValid;
 
   // Contact Field Changes (changes trigger unverified state)
+  const handleNameChange = (text: string) => {
+    setName(text.replace(/[^a-zA-Z\s'.]/g, ''));
+  };
+
   const handleEmailChange = (text: string) => {
-    setEmail(text);
-    if (initialSnapshot && text !== (initialSnapshot.email || '')) {
+    const clean = text.trim();
+    setEmail(clean);
+    if (initialSnapshot && clean !== (initialSnapshot.email || '')) {
       setEmailVerified(false);
     } else if (initialSnapshot) {
       setEmailVerified(Boolean(initialSnapshot.emailVerified));
@@ -180,8 +200,9 @@ export default function EditProfile() {
   };
 
   const handlePhoneChange = (text: string) => {
-    setPhone(text);
-    if (initialSnapshot && text !== (initialSnapshot.phone || '')) {
+    const digitsOnly = text.replace(/[^\d]/g, '').slice(0, 10);
+    setPhone(digitsOnly);
+    if (initialSnapshot && digitsOnly !== (initialSnapshot.phone || '').replace(/[^\d]/g, '').slice(-10)) {
       setPhoneVerified(false);
     } else if (initialSnapshot) {
       setPhoneVerified(Boolean(initialSnapshot.phoneVerified));
@@ -194,15 +215,19 @@ export default function EditProfile() {
     setSaveLoading(true);
     setBannerError(null);
     try {
-      const res = await apiFetch('/customer/profile/send-otp', {
+      const res = await apiFetch('/auth/send-otp', {
         method: 'POST',
-        body: { target, value: val },
+        body: { phone: val, mobileNumber: val, mobileOrEmail: val, target, value: val },
       });
-      if (res && res.status === 'success') {
+      if (res && (res.status === 'success' || res.success)) {
         setOtpTarget(target);
         setPendingContactVal(val);
         setOtpValue('');
         setOtpModalVisible(true);
+        const codePreview = res?.devOtpPreview || res?.otp;
+        if (codePreview) {
+          showToast(`Dev OTP Code: ${codePreview}`);
+        }
       } else {
         setBannerError(res?.message || 'Failed to send OTP verification code.');
       }
@@ -216,17 +241,22 @@ export default function EditProfile() {
   // Verify OTP
   const handleVerifyOtp = async () => {
     if (!otpValue || otpValue.length < 4) {
-      Alert.alert('Verification Error', 'Please enter a valid 4-digit code.');
+      Alert.alert('Verification Error', 'Please enter a valid verification code.');
       return;
     }
     setSaveLoading(true);
     setBannerError(null);
     try {
-      const res = await apiFetch('/customer/profile/verify-otp', {
+      const res = await apiFetch('/auth/verify-otp', {
         method: 'POST',
-        body: { otp: otpValue, target: otpTarget, value: pendingContactVal },
+        body: {
+          phone: pendingContactVal,
+          mobileNumber: pendingContactVal,
+          mobileOrEmail: pendingContactVal,
+          otp: otpValue,
+        },
       });
-      if (res && res.status === 'success' && res.verified) {
+      if (res && (res.status === 'success' || res.success)) {
         if (otpTarget === 'email') {
           setEmailVerified(true);
           setEmail(pendingContactVal);
@@ -326,22 +356,36 @@ export default function EditProfile() {
 
   // Save Changes
   const handleSaveChanges = async () => {
+    if (!isNameValid) {
+      setBannerError('Please enter a valid full name (at least 2 letters, letters only).');
+      return;
+    }
+    if (!isEmailValid) {
+      setBannerError('Please enter a valid email address (e.g. name@gmail.com).');
+      return;
+    }
+    if (!isPhoneValid) {
+      setBannerError('Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.');
+      return;
+    }
+    if (!isDobValid) {
+      setBannerError('Please enter date of birth in YYYY-MM-DD format (e.g. 1995-08-15).');
+      return;
+    }
     if (!isValid || !isDirty) return;
     setSaveLoading(true);
     setBannerError(null);
 
-    // Prepare only changed fields payload for PATCH
-    const patchPayload: Partial<typeof currentUser> = {};
-    if (initialSnapshot) {
-      if (name !== initialSnapshot.name) patchPayload.name = name;
-      if (email !== initialSnapshot.email) patchPayload.email = email;
-      if (phone !== initialSnapshot.phone) patchPayload.phone = phone;
-      if (dob !== initialSnapshot.dob) patchPayload.dob = dob;
-      if (gender !== initialSnapshot.gender) patchPayload.gender = gender;
-      if (avatar !== initialSnapshot.avatar) patchPayload.avatar = avatar;
-      if (emailVerified !== Boolean(initialSnapshot.emailVerified)) patchPayload.emailVerified = emailVerified;
-      if (phoneVerified !== Boolean(initialSnapshot.phoneVerified)) patchPayload.phoneVerified = phoneVerified;
-    }
+    const patchPayload: Partial<typeof currentUser> = {
+      name: name.trim(),
+      email: email.trim(),
+      phone: cleanPhone,
+      dob: dob.trim(),
+      gender,
+      avatar,
+      emailVerified,
+      phoneVerified,
+    };
 
     try {
       const updated = await updateProfile(patchPayload);
@@ -361,19 +405,20 @@ export default function EditProfile() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.headerBackground} />
       {/* Full-Screen Header */}
-      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top, backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Icons.ArrowLeft color="#0F172A" size={24} />
+          <Icons.ArrowLeft color={colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('Edit Profile')}</Text>
         <TouchableOpacity
           style={styles.headerSaveButton}
           onPress={handleSaveChanges}
@@ -382,6 +427,7 @@ export default function EditProfile() {
           <Text
             style={[
               styles.headerSaveText,
+              { color: isLight ? '#0F172A' : '#F4C400' },
               (!isDirty || !isValid || saveLoading || screenLoading) && { opacity: 0.4 },
             ]}
           >
@@ -394,14 +440,14 @@ export default function EditProfile() {
       {screenLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator color="#F4C400" size="large" />
-          <Text style={styles.loadingText}>Loading your profile...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading your profile...</Text>
         </View>
       ) : screenError ? (
         /* Screen Error State with Retry Button */
         <View style={styles.centerContainer}>
           <Icons.AlertTriangle color="#EF4444" size={48} style={{ marginBottom: 12 }} />
-          <Text style={styles.errorTitle}>Unable to load your profile</Text>
-          <Text style={styles.errorSubtitle}>{screenError}</Text>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to load your profile</Text>
+          <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>{screenError}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadCustomerProfile}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
@@ -414,7 +460,7 @@ export default function EditProfile() {
               <Icons.AlertCircle color="#EF4444" size={16} />
               <Text style={styles.errorBannerText}>{bannerError}</Text>
               <TouchableOpacity onPress={() => setBannerError(null)}>
-                <Icons.X color="#94A3B8" size={16} />
+                <Icons.X color={colors.textSecondary} size={16} />
               </TouchableOpacity>
             </View>
           ) : null}
@@ -427,53 +473,53 @@ export default function EditProfile() {
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
               <TouchableOpacity
-                style={styles.avatarContainer}
+                style={[styles.avatarContainer, { backgroundColor: isLight ? '#0F172A' : '#1E293B' }]}
                 activeOpacity={0.85}
                 onPress={() => setActionSheetVisible(true)}
               >
                 {avatar ? (
                   <Image source={{ uri: avatar }} style={styles.avatarImage} />
                 ) : (
-                  <View style={styles.avatarPlaceholder}>
+                  <View style={[styles.avatarPlaceholder, { backgroundColor: isLight ? '#0F172A' : '#1E293B' }]}>
                     <Text style={styles.avatarInitial}>
                       {name ? name.trim().charAt(0).toUpperCase() : 'U'}
                     </Text>
                   </View>
                 )}
-                <View style={styles.cameraIconContainer}>
+                <View style={[styles.cameraIconContainer, { borderColor: colors.background }]}>
                   <Icons.Camera color="#FFFFFF" size={13} />
                 </View>
               </TouchableOpacity>
-              <Text style={styles.avatarName}>{name || 'Customer'}</Text>
+              <Text style={[styles.avatarName, { color: colors.text }]}>{name || 'Customer'}</Text>
             </View>
 
             {/* Personal Information */}
-            <Text style={styles.sectionHeading}>Personal Information</Text>
-            <View style={styles.card}>
+            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>Personal Information</Text>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
               {/* Full Name */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Full Name</Text>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { color: colors.text }]}
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={handleNameChange}
                   placeholder="Enter your full name"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
-              <View style={styles.fieldDivider} />
+              <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
 
               {/* Email Address */}
               <View style={styles.inputGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email Address</Text>
                   {emailVerified ? (
                     <View style={styles.verifiedBadge}>
                       <Icons.CheckCircle2 color="#059669" size={11} />
                       <Text style={styles.verifiedText}>Verified</Text>
                     </View>
-                  ) : email.trim().length > 0 ? (
+                  ) : isEmailValid ? (
                     <TouchableOpacity
                       style={styles.verifyButton}
                       onPress={() => handleTriggerVerification('email', email)}
@@ -484,28 +530,28 @@ export default function EditProfile() {
                   ) : null}
                 </View>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { color: colors.text }]}
                   value={email}
                   onChangeText={handleEmailChange}
-                  placeholder="name@example.com"
-                  placeholderTextColor="#94A3B8"
+                  placeholder="name@gmail.com"
+                  placeholderTextColor={colors.textSecondary}
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
               </View>
 
-              <View style={styles.fieldDivider} />
+              <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
 
               {/* Phone Number */}
               <View style={styles.inputGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.inputLabel}>Phone Number</Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Phone Number (10 Digits)</Text>
                   {phoneVerified ? (
                     <View style={styles.verifiedBadge}>
                       <Icons.CheckCircle2 color="#059669" size={11} />
                       <Text style={styles.verifiedText}>Verified</Text>
                     </View>
-                  ) : phone.trim().length > 0 ? (
+                  ) : isPhoneValid ? (
                     <TouchableOpacity
                       style={styles.verifyButton}
                       onPress={() => handleTriggerVerification('phone', phone)}
@@ -516,32 +562,33 @@ export default function EditProfile() {
                   ) : null}
                 </View>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { color: colors.text }]}
                   value={phone}
                   onChangeText={handlePhoneChange}
-                  placeholder="Enter phone number"
-                  placeholderTextColor="#94A3B8"
+                  placeholder="Enter 10-digit mobile number"
+                  placeholderTextColor={colors.textSecondary}
                   keyboardType="phone-pad"
+                  maxLength={10}
                 />
               </View>
 
               {/* Date of Birth */}
               {currentUser && ('dob' in currentUser || dob) && (
                 <>
-                  <View style={styles.fieldDivider} />
+                  <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.inputGroup}>
                     <View style={styles.labelRow}>
-                      <Text style={styles.inputLabel}>Date of Birth</Text>
+                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Date of Birth</Text>
                       {dob ? (
-                        <Text style={styles.formattedDobHint}>{formatDobDisplay(dob)}</Text>
+                        <Text style={[styles.formattedDobHint, { color: isLight ? '#0F172A' : '#F4C400' }]}>{formatDobDisplay(dob)}</Text>
                       ) : null}
                     </View>
                     <TextInput
-                      style={styles.textInput}
+                      style={[styles.textInput, { color: colors.text }]}
                       value={dob}
                       onChangeText={setDob}
                       placeholder="YYYY-MM-DD (e.g. 1995-08-15)"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={colors.textSecondary}
                     />
                   </View>
                 </>
@@ -550,9 +597,9 @@ export default function EditProfile() {
               {/* Gender */}
               {currentUser && ('gender' in currentUser || gender) && (
                 <>
-                  <View style={styles.fieldDivider} />
+                  <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Gender</Text>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Gender</Text>
                     <View style={styles.genderRow}>
                       {(['Male', 'Female', 'Other'] as const).map((g) => {
                         const selected = gender === g;
@@ -561,14 +608,16 @@ export default function EditProfile() {
                             key={g}
                             style={[
                               styles.genderOption,
-                              selected && styles.genderOptionSelected,
+                              { borderColor: colors.border, backgroundColor: isLight ? '#F8FAFC' : '#1E293B' },
+                              selected && { borderColor: '#F4C400', backgroundColor: isLight ? '#FEFCE8' : 'rgba(244, 196, 0, 0.15)' },
                             ]}
                             onPress={() => setGender(g)}
                           >
                             <Text
                               style={[
                                 styles.genderOptionText,
-                                selected && styles.genderOptionTextSelected,
+                                { color: colors.textSecondary },
+                                selected && { color: isLight ? '#0F172A' : '#F4C400', fontWeight: 'bold' },
                               ]}
                             >
                               {g}
@@ -583,32 +632,32 @@ export default function EditProfile() {
             </View>
 
             {/* Default Address Section */}
-            <Text style={styles.sectionHeading}>Default Address</Text>
-            <View style={styles.card}>
+            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>Default Address</Text>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
               {currentUser?.address ? (
                 <>
                   <View style={styles.addressDisplayRow}>
-                    <Icons.MapPin color="#475569" size={20} style={styles.addressIcon} />
+                    <Icons.MapPin color={isLight ? '#475569' : '#F4C400'} size={20} style={styles.addressIcon} />
                     <View style={styles.addressInfo}>
-                      <Text style={styles.addressText}>{currentUser.address.address}</Text>
-                      <Text style={styles.addressCityText}>
+                      <Text style={[styles.addressText, { color: colors.text }]}>{currentUser.address.address}</Text>
+                      <Text style={[styles.addressCityText, { color: colors.textSecondary }]}>
                         {currentUser.address.city}, {currentUser.address.state} - {currentUser.address.pincode}
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.fieldDivider} />
+                  <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
                   <TouchableOpacity
                     style={styles.manageAddressButton}
                     activeOpacity={0.7}
                     onPress={() => navigation.navigate('MyAddresses')}
                   >
-                    <Text style={styles.manageAddressText}>Manage Addresses</Text>
-                    <Icons.ChevronRight color="#64748B" size={16} />
+                    <Text style={[styles.manageAddressText, { color: colors.text }]}>Manage Addresses</Text>
+                    <Icons.ChevronRight color={colors.textSecondary} size={16} />
                   </TouchableOpacity>
                 </>
               ) : (
                 <View style={styles.emptyAddressBlock}>
-                  <Text style={styles.emptyAddressText}>No default address</Text>
+                  <Text style={[styles.emptyAddressText, { color: colors.textSecondary }]}>No default address</Text>
                   <TouchableOpacity
                     style={styles.addAddressBtn}
                     onPress={() => navigation.navigate('MyAddresses')}
@@ -620,28 +669,38 @@ export default function EditProfile() {
             </View>
           </ScrollView>
 
-          {/* Fixed Bottom Save Button */}
+          {/* Fixed Bottom Save & Cancel Buttons */}
           <View
             style={[
               styles.bottomButtonContainer,
-              { paddingBottom: Math.max(insets.bottom, 16) },
+              { backgroundColor: colors.headerBackground, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) },
             ]}
           >
-            <TouchableOpacity
-              style={[
-                styles.saveChangesBtn,
-                (!isDirty || !isValid || saveLoading) && styles.disabledBtn,
-              ]}
-              activeOpacity={0.8}
-              onPress={handleSaveChanges}
-              disabled={!isDirty || !isValid || saveLoading}
-            >
-              {saveLoading ? (
-                <ActivityIndicator color="#0F172A" size="small" />
-              ) : (
-                <Text style={styles.saveChangesBtnText}>Save Changes</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.bottomButtonRow}>
+              <TouchableOpacity
+                style={[styles.cancelChangesBtn, { borderColor: colors.border, backgroundColor: isLight ? '#FFFFFF' : '#1E293B' }]}
+                activeOpacity={0.7}
+                onPress={() => navigation.goBack()}
+                disabled={saveLoading}
+              >
+                <Text style={[styles.cancelChangesBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.saveChangesBtn,
+                  (!isDirty || !isValid || saveLoading) && styles.disabledBtn,
+                ]}
+                activeOpacity={0.8}
+                onPress={handleSaveChanges}
+                disabled={!isDirty || !isValid || saveLoading}
+              >
+                {saveLoading ? (
+                  <ActivityIndicator color="#0F172A" size="small" />
+                ) : (
+                  <Text style={styles.saveChangesBtnText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </>
       )}
@@ -659,28 +718,28 @@ export default function EditProfile() {
           onPress={() => setActionSheetVisible(false)}
         >
           <View
-            style={styles.actionSheetContent}
+            style={[styles.actionSheetContent, { backgroundColor: colors.cardBackground }]}
             onStartShouldSetResponder={() => true}
           >
-            <View style={styles.actionSheetIndicator} />
-            <Text style={styles.actionSheetTitle}>Change Profile Photo</Text>
+            <View style={[styles.actionSheetIndicator, { backgroundColor: colors.border }]} />
+            <Text style={[styles.actionSheetTitle, { color: colors.textSecondary }]}>Change Profile Photo</Text>
 
             <TouchableOpacity
-              style={styles.actionSheetOption}
+              style={[styles.actionSheetOption, { borderBottomColor: colors.border }]}
               activeOpacity={0.7}
               onPress={handleTakePhoto}
             >
-              <Icons.Camera color="#475569" size={20} />
-              <Text style={styles.actionSheetOptionText}>Take Photo</Text>
+              <Icons.Camera color={colors.text} size={20} />
+              <Text style={[styles.actionSheetOptionText, { color: colors.text }]}>Take Photo</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionSheetOption}
+              style={[styles.actionSheetOption, { borderBottomColor: colors.border }]}
               activeOpacity={0.7}
               onPress={handleChooseFromGallery}
             >
-              <Icons.Image color="#475569" size={20} />
-              <Text style={styles.actionSheetOptionText}>Choose from Gallery</Text>
+              <Icons.Image color={colors.text} size={20} />
+              <Text style={[styles.actionSheetOptionText, { color: colors.text }]}>Choose from Gallery</Text>
             </TouchableOpacity>
 
             {avatar ? (
@@ -696,13 +755,13 @@ export default function EditProfile() {
               </TouchableOpacity>
             ) : null}
 
-            <View style={styles.actionSheetCancelContainer}>
+            <View style={[styles.actionSheetCancelContainer, { borderTopColor: colors.border }]}>
               <TouchableOpacity
                 style={styles.actionSheetCancelBtn}
                 activeOpacity={0.7}
                 onPress={() => setActionSheetVisible(false)}
               >
-                <Text style={styles.actionSheetCancelText}>Cancel</Text>
+                <Text style={[styles.actionSheetCancelText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -787,24 +846,24 @@ export default function EditProfile() {
         onRequestClose={() => setOtpModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
             <Icons.ShieldCheck
               color="#F4C400"
               size={36}
               style={{ alignSelf: 'center', marginBottom: 12 }}
             />
-            <Text style={styles.modalTitle}>Verification Required</Text>
-            <Text style={styles.otpDescription}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Verification Required</Text>
+            <Text style={[styles.otpDescription, { color: colors.textSecondary }]}>
               We sent a 4-digit code to verify your new{' '}
               {otpTarget === 'email' ? 'email address' : 'phone number'}:{' '}
               {pendingContactVal}
             </Text>
             <TextInput
-              style={styles.otpInput}
+              style={[styles.otpInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
               value={otpValue}
               onChangeText={setOtpValue}
               placeholder="Enter Code"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textSecondary}
               keyboardType="number-pad"
               maxLength={4}
               textAlign="center"
@@ -824,7 +883,7 @@ export default function EditProfile() {
               style={styles.otpCancelBtn}
               onPress={() => setOtpModalVisible(false)}
             >
-              <Text style={styles.otpCancelText}>Cancel</Text>
+              <Text style={[styles.otpCancelText, { color: colors.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -836,16 +895,13 @@ export default function EditProfile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     padding: 4,
@@ -853,7 +909,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   headerSaveButton: {
     paddingVertical: 6,
@@ -862,7 +917,6 @@ const styles = StyleSheet.create({
   headerSaveText: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   centerContainer: {
     flex: 1,
@@ -873,19 +927,16 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#64748B',
     fontWeight: '500',
   },
   errorTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 6,
     textAlign: 'center',
   },
   errorSubtitle: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 20,
@@ -930,7 +981,6 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#0F172A',
@@ -948,7 +998,6 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -966,30 +1015,25 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#0F172A',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginTop: 12,
   },
   sectionHeading: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#64748B',
     marginBottom: 8,
     marginLeft: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginBottom: 24,
@@ -1000,7 +1044,6 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#64748B',
     marginBottom: 6,
     textTransform: 'uppercase',
   },
@@ -1013,18 +1056,15 @@ const styles = StyleSheet.create({
   formattedDobHint: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   textInput: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#0F172A',
     paddingVertical: 2,
     paddingHorizontal: 0,
   },
   fieldDivider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
   },
   verifiedBadge: {
     flexDirection: 'row',
@@ -1062,23 +1102,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
     alignItems: 'center',
     marginHorizontal: 4,
-    backgroundColor: '#F8FAFC',
-  },
-  genderOptionSelected: {
-    borderColor: '#F4C400',
-    backgroundColor: '#FEFCE8',
   },
   genderOptionText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
-  },
-  genderOptionTextSelected: {
-    color: '#0F172A',
-    fontWeight: 'bold',
   },
   addressDisplayRow: {
     flexDirection: 'row',
@@ -1094,11 +1123,9 @@ const styles = StyleSheet.create({
   addressText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
   },
   addressCityText: {
     fontSize: 12,
-    color: '#64748B',
     marginTop: 2,
   },
   manageAddressButton: {
@@ -1110,7 +1137,6 @@ const styles = StyleSheet.create({
   manageAddressText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
   },
   emptyAddressBlock: {
     paddingVertical: 16,
@@ -1118,7 +1144,6 @@ const styles = StyleSheet.create({
   },
   emptyAddressText: {
     fontSize: 13,
-    color: '#64748B',
     marginBottom: 8,
   },
   addAddressBtn: {
@@ -1128,20 +1153,35 @@ const styles = StyleSheet.create({
   addAddressBtnText: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#854D0E',
+    color: '#F4C400',
   },
   bottomButtonContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
     paddingHorizontal: 16,
     paddingTop: 12,
   },
+  bottomButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelChangesBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelChangesBtnText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
   saveChangesBtn: {
+    flex: 1.5,
     backgroundColor: '#F4C400',
     borderRadius: 12,
     height: 48,
@@ -1154,16 +1194,14 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   disabledBtn: {
-    backgroundColor: '#E2E8F0',
-    opacity: 0.65,
+    opacity: 0.45,
   },
   actionSheetOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'flex-end',
   },
   actionSheetContent: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -1173,7 +1211,6 @@ const styles = StyleSheet.create({
   actionSheetIndicator: {
     width: 36,
     height: 4,
-    backgroundColor: '#CBD5E1',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 16,
@@ -1181,7 +1218,6 @@ const styles = StyleSheet.create({
   actionSheetTitle: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#64748B',
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -1191,14 +1227,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
     width: '100%',
     gap: 12,
   },
   actionSheetOptionText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#0F172A',
     flex: 1,
   },
   destructiveOption: {
@@ -1209,8 +1243,7 @@ const styles = StyleSheet.create({
   },
   actionSheetCancelContainer: {
     marginTop: 8,
-    borderTopWidth: 8,
-    borderTopColor: '#F1F5F9',
+    borderTopWidth: 1,
     marginHorizontal: -20,
     paddingHorizontal: 20,
   },
@@ -1222,7 +1255,6 @@ const styles = StyleSheet.create({
   actionSheetCancelText: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   cropOverlay: {
     flex: 1,
@@ -1333,13 +1365,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
     width: '100%',
     maxWidth: 340,
     borderRadius: 16,
@@ -1353,25 +1384,21 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 12,
     textAlign: 'center',
   },
   otpDescription: {
     fontSize: 13,
-    color: '#64748B',
     textAlign: 'center',
     marginBottom: 16,
     lineHeight: 18,
   },
   otpInput: {
     borderWidth: 1,
-    borderColor: '#CBD5E1',
     borderRadius: 8,
     padding: 12,
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 16,
     letterSpacing: 8,
   },
@@ -1394,7 +1421,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   otpCancelText: {
-    color: '#64748B',
     fontSize: 13,
     fontWeight: '500',
   },

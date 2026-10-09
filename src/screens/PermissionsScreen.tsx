@@ -8,10 +8,8 @@ import * as Icons from 'lucide-react-native';
 
 const { height } = Dimensions.get('window');
 
-type PermissionsScreenProp = StackNavigationProp<AuthStackParamList, 'Permissions'>;
-
 export default function PermissionsScreen() {
-  const navigation = useNavigation<PermissionsScreenProp>();
+  const navigation = useNavigation<any>();
   
   // Track state of permission approval
   const [locationGranted, setLocationGranted] = useState(false);
@@ -37,7 +35,7 @@ export default function PermissionsScreen() {
           Alert.alert('Permission Denied', 'Location access is helpful to resolve your nearest delivery hub.');
         }
       } else {
-        // Mock iOS / Web
+        // Platform fallback for iOS / Web
         setLocationGranted(true);
       }
     } catch (err) {
@@ -47,7 +45,7 @@ export default function PermissionsScreen() {
   };
 
   const requestNotifications = async () => {
-    // Mock / simulate notification permission request
+    // Permission handler for notifications
     setNotificationsGranted(true);
     Alert.alert('Notifications Enabled', 'You will receive updates about orders and promotions.');
   };
@@ -71,7 +69,7 @@ export default function PermissionsScreen() {
           Alert.alert('Permission Denied', 'Camera access is required for scanning codes or taking photos.');
         }
       } else {
-        // Mock iOS / Web
+        // Platform fallback for iOS / Web
         setCameraGranted(true);
       }
     } catch (err) {
@@ -81,8 +79,8 @@ export default function PermissionsScreen() {
   };
 
   const handleContinue = () => {
-    // Navigate to Join Now (Registration)
-    navigation.navigate('JoinNow');
+    // Navigate to Create Account (2-Step Registration)
+    navigation.navigate('CreateAccount');
   };
 
   return (

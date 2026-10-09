@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,19 @@ import { useNavigation } from '@react-navigation/native';
 import * as Icons from 'lucide-react-native';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useToastStore } from '../store/toastStore';
+import { useAuthStore } from '../store/authStore';
+import { useAuthGuardStore } from '../store/authGuardStore';
 
 const { width } = Dimensions.get('window');
 
 export interface JobItem {
   id: string;
+  jobID?: string;
   title: string;
   company: string;
-  logo: string;
+  companyName?: string;
+  companyWebsite?: string;
+  logo?: string;
   isVerified?: boolean;
   location: string;
   workMode: 'On-site' | 'Hybrid' | 'Remote' | string;
@@ -34,6 +39,8 @@ export interface JobItem {
   ppoAvailable?: boolean;
   openings?: number;
   description?: string;
+  keyResponsibilities?: string | string[];
+  responsibilities?: string | string[];
   companyInfo?: {
     industry?: string;
     size?: string;
@@ -52,11 +59,14 @@ interface JobCardProps {
   onApply?: () => void;
 }
 
-export default function JobCard({ job, onPress, onApply }: JobCardProps) {
+const JobCardComponent = memo(function JobCard({ job, onPress, onApply }: JobCardProps) {
   const navigation = useNavigation<any>();
   const wishlistItems = useWishlistStore((state) => state.wishlistItems);
   const toggleWishlist = useWishlistStore((state) => state.toggleWishlist);
   const showToast = useToastStore((state) => state.showToast);
+
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser.name && currentUser.name.toLowerCase().includes('guest'));
 
   const [hasApplied, setHasApplied] = useState(false);
 
@@ -77,6 +87,10 @@ export default function JobCard({ job, onPress, onApply }: JobCardProps) {
   };
 
   const handleApplyPress = () => {
+    if (isGuestUser) {
+      useAuthGuardStore.getState().showAuthModal('apply for this job position');
+      return;
+    }
     if (hasApplied) {
       showToast('You have already applied for this role', 'View My Jobs', () =>
         navigation.navigate('CustomerTabs', { screen: 'Orders', params: { category: 'Jobs' } })
@@ -92,6 +106,10 @@ export default function JobCard({ job, onPress, onApply }: JobCardProps) {
   };
 
   const handleSaveToggle = () => {
+    if (isGuestUser) {
+      useAuthGuardStore.getState().showAuthModal('save job bookmarks');
+      return;
+    }
     toggleWishlist({
       id: job.id,
       name: job.title,
@@ -112,14 +130,8 @@ export default function JobCard({ job, onPress, onApply }: JobCardProps) {
       activeOpacity={0.9}
       onPress={handleCardPress}
     >
-      {/* Header Row: Company Logo + Title/Company + Save Bookmark */}
+      {/* Header Row: Title/Company + Save Bookmark */}
       <View style={styles.cardHeader}>
-        <Image
-          source={{ uri: job.logo || fallbackLogo }}
-          style={styles.companyLogo}
-          resizeMode="cover"
-        />
-
         <View style={styles.headerTitleCol}>
           <View style={styles.titleRow}>
             <Text style={styles.jobTitleText} numberOfLines={1}>
@@ -134,11 +146,16 @@ export default function JobCard({ job, onPress, onApply }: JobCardProps) {
 
           <View style={styles.companyMetaRow}>
             <Text style={styles.companyNameText} numberOfLines={1}>
-              {job.company}
+              {job.companyName || job.company}
             </Text>
             {job.isVerified !== false && (
               <Icons.CheckCircle2 color="#0EA5E9" size={13} style={{ marginLeft: 4 }} />
             )}
+            <View style={styles.jobIdBadge}>
+              <Text style={styles.jobIdBadgeText}>
+                {job.jobID || `JOB-${(job.id || '').replace(/[^\d]/g, '').slice(-5) || '10482'}`}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -257,7 +274,7 @@ export default function JobCard({ job, onPress, onApply }: JobCardProps) {
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -288,7 +305,7 @@ const styles = StyleSheet.create({
   },
   headerTitleCol: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 0,
     marginRight: 8,
   },
   titleRow: {
@@ -323,6 +340,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#475569',
+  },
+  jobIdBadge: {
+    marginLeft: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  jobIdBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.3,
   },
   saveBtn: {
     padding: 4,
@@ -445,3 +477,14 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
 });
+
+const JobCard = memo(JobCardComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.job.id === nextProps.job.id &&
+    prevProps.job.title === nextProps.job.title &&
+    prevProps.job.salary === nextProps.job.salary &&
+    prevProps.job.company === nextProps.job.company
+  );
+});
+
+export default JobCard;

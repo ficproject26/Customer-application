@@ -27,11 +27,29 @@ envContent.split('\n').forEach(line => {
   }
 });
 
+// Cleanly derive client endpoints
+const backendUrl = (vars.BACKEND_URL || 'https://api.ficapp.in').replace(/\/+$/, '');
+const apiUrl = (vars.API_URL || `${backendUrl}/api`).replace(/\/+$/, '');
+const apiUrlAndroid = (vars.API_URL_ANDROID || apiUrl).replace(/\/+$/, '');
+const apiUrlIos = (vars.API_URL_IOS || apiUrl).replace(/\/+$/, '');
+const socketUrlAndroid = (vars.SOCKET_URL_ANDROID || backendUrl).replace(/\/+$/, '');
+const socketUrlIos = (vars.SOCKET_URL_IOS || backendUrl).replace(/\/+$/, '');
+const razorpayKeyId = vars.RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP';
+const cloudinaryCloudName = vars.CLOUDINARY_CLOUD_NAME || 'yvsm7ze0';
+const vendorBackendUrl = (vars.VENDOR_BACKEND_URL || 'http://127.0.0.1:8002').replace(/\/+$/, '');
+const port = vars.PORT || '8001';
+
 const fileContent = `// Automatically generated from .env - DO NOT EDIT DIRECTLY
-export const API_URL_ANDROID = '${vars.API_URL_ANDROID || 'http://10.0.2.2:5000/api'}';
-export const API_URL_IOS = '${vars.API_URL_IOS || 'http://localhost:5000/api'}';
-export const SOCKET_URL_ANDROID = '${vars.SOCKET_URL_ANDROID || 'http://10.0.2.2:5000'}';
-export const SOCKET_URL_IOS = '${vars.SOCKET_URL_IOS || 'http://localhost:5000'}';
+export const BACKEND_URL = '${backendUrl}';
+export const API_URL = '${apiUrl}';
+export const API_URL_ANDROID = '${apiUrlAndroid}';
+export const API_URL_IOS = '${apiUrlIos}';
+export const SOCKET_URL_ANDROID = '${socketUrlAndroid}';
+export const SOCKET_URL_IOS = '${socketUrlIos}';
+export const RAZORPAY_KEY_ID = '${razorpayKeyId}';
+export const CLOUDINARY_CLOUD_NAME = '${cloudinaryCloudName}';
+export const VENDOR_BACKEND_URL = '${vendorBackendUrl}';
+export const PORT = '${port}';
 `;
 
 fs.writeFileSync(outputPath, fileContent, 'utf8');

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { useWishlistStore } from '../store/wishlistStore';
-import { useCartStore } from '../store/cartStore';
+import { useCartStore, isCartableCategory } from '../store/cartStore';
 import GlassCard from './GlassCard';
 import { useThemeStore } from '../store/themeStore';
 
@@ -52,9 +52,9 @@ export default function WishlistModal({ visible, onClose }: WishlistModalProps) 
           {/* Content */}
           {wishlistItems.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Icons.Heart color={colors.text} size={64} style={{ marginBottom: 16, opacity: 0.1 }} />
+              <Icons.Heart color={colors.subtext} size={64} style={{ marginBottom: 16, opacity: 0.3 }} />
               <Text style={[styles.emptyText, { color: colors.text }]}>Your wishlist is empty</Text>
-              <Text style={[styles.emptySubText, { color: colors.text, opacity: 0.4 }]}>Tap the heart icon on any product or service to save it here.</Text>
+              <Text style={[styles.emptySubText, { color: colors.subtext }]}>Tap the heart icon on any product or service to save it here.</Text>
             </View>
           ) : (
             <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
@@ -65,7 +65,7 @@ export default function WishlistModal({ visible, onClose }: WishlistModalProps) 
                     <Image source={{ uri: item.image || defaultImg }} style={[styles.itemImg, { backgroundColor: colors.grayDark }]} />
                     <View style={styles.itemDetails}>
                       <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                      <Text style={[styles.itemCategory, { color: colors.text, opacity: 0.4 }]}>{item.category}</Text>
+                      <Text style={[styles.itemCategory, { color: colors.subtext }]}>{item.category}</Text>
                       <Text style={[styles.itemPrice, { color: colors.primary }]}>{item.price}</Text>
                     </View>
                     <View style={styles.rightActions}>
@@ -76,12 +76,14 @@ export default function WishlistModal({ visible, onClose }: WishlistModalProps) 
                         <Icons.Trash2 color="#EF4444" size={16} />
                       </TouchableOpacity>
                       
-                      <TouchableOpacity 
-                        style={styles.cartBtn}
-                        onPress={() => handleAddToCart(item)}
-                      >
-                        <Icons.ShoppingCart color="#050B1E" size={14} />
-                      </TouchableOpacity>
+                      {isCartableCategory(item.category, item.name) && (
+                        <TouchableOpacity 
+                          style={styles.cartBtn}
+                          onPress={() => handleAddToCart(item)}
+                        >
+                          <Icons.ShoppingCart color="#050B1E" size={14} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </GlassCard>
                 );

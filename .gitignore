@@ -80,3 +80,6 @@ yarn-error.log
 .env.development
 .env.production
 
+# logs
+*.log
+

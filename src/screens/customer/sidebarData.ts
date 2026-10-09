@@ -2,81 +2,69 @@ export const SIDEBAR_DATA: any = {
   Services: {
     icon: 'Wrench',
     subcategories: {
-      Healthcare: {
-        icon: 'Activity',
-        items: ['Hospitals', 'Clinics', 'Diagnostic Centers', 'Pharmacies', 'Dental Care', 'Eye Care', 'Ambulance Services', 'Home Nursing', 'Health Checkups', 'Telemedicine', 'Physiotherapy', 'Medical Equipment']
+      'Plumbing': {
+        icon: 'Wrench',
+        items: ['Pipe Leakage Repair', 'Tap & Mixer Fitting', 'Drainage Unblocking', 'Water Tank Cleaning', 'Bathroom Fitting Repair', 'Sanitaryware Installation']
       },
-      Education: {
-        icon: 'GraduationCap',
-        items: ['Schools', 'Colleges', 'Universities', 'Online Courses', 'Training Institutes', 'Skill Development', 'Computer Training', 'AI & IT Training', 'Language Classes', 'Competitive Exam Coaching', 'Certification Programs']
+      'AC Repair & Service': {
+        icon: 'Wind',
+        items: ['AC Power Jet Service', 'Gas Refill & Leak Fix', 'AC Installation & Uninstallation', 'Compressor Repair', 'AC Filter Cleaning', 'PCB Board Repair']
       },
-      Employment: {
-        icon: 'Briefcase',
-        items: ['Job Portal', 'Recruitment Services', 'Resume Building', 'Interview Preparation', 'Career Guidance', 'Placement Services', 'Internship Programs', 'Freelancing Opportunities', 'Overseas Jobs']
-      },
-      Financial: {
-        icon: 'DollarSign',
-        items: ['Banking Services', 'Personal Loans', 'Home Loans', 'Business Loans', 'Credit Cards', 'Investment Plans', 'Mutual Funds', 'Financial Consulting', 'Tax Planning', 'Retirement Planning']
-      },
-      Insurance: {
-        icon: 'Shield',
-        items: ['Health Insurance', 'Life Insurance', 'Vehicle Insurance', 'Travel Insurance', 'Property Insurance', 'Business Insurance', 'Accident Insurance']
-      },
-      'Home Services': {
-        icon: 'Home',
-        items: ['Electrician', 'Plumber', 'Carpenter', 'Painter', 'Interior Design', 'Home Cleaning', 'Pest Control', 'AC Repair', 'Appliance Repair', 'CCTV Installation', 'Smart Home Solutions']
-      },
-      Legal: {
-        icon: 'Scale',
-        items: ['Legal Consultation', 'Property Registration', 'Agreement Drafting', 'Notary Services', 'Court Assistance', 'Company Registration', 'Trademark Registration', 'Legal Documentation']
-      },
-      Digital: {
-        icon: 'Cpu',
-        items: ['Website Development', 'Mobile App Development', 'UI/UX Design', 'Digital Marketing', 'SEO Services', 'Social Media Marketing', 'Graphic Design', 'Video Editing', 'Cloud Solutions', 'Software Development']
-      },
-      Business: {
-        icon: 'Building2',
-        items: ['Company Formation', 'GST Registration', 'Payroll Management', 'HR Solutions', 'Recruitment Services', 'Business Consulting', 'Branding Services', 'Franchise Consulting', 'Startup Advisory']
-      },
-      Automobile: {
-        icon: 'Car',
-        items: ['Car Service', 'Bike Service', 'Car Wash', 'Roadside Assistance', 'Vehicle Inspection', 'Vehicle Insurance', 'Driving School', 'Vehicle Rental']
-      },
-      Telecom: {
-        icon: 'PhoneCall',
-        items: ['Mobile Recharge', 'DTH Recharge', 'Broadband Services', 'Fiber Internet', 'SIM Activation', 'Business Connectivity']
-      },
-      Utilities: {
+      'Electrical': {
         icon: 'Zap',
-        items: ['Electricity Bill Payment', 'Water Bill Payment', 'Gas Booking', 'Property Tax', 'Internet Bill Payment', 'Government Services']
+        items: ['Switch & Socket Repair', 'Fan Repair & Fitting', 'Light & Chandelier Fitting', 'MCB & Fuse Repair', 'Full House Rewiring', 'Inverter Repair & Fitting']
       },
-      Family: {
-        icon: 'Users',
-        items: ['Child Care', 'Day Care', 'Elder Care', 'Home Care', 'Family Counseling', 'Parenting Support']
+      'Washing Machine Repair': {
+        icon: 'RotateCw',
+        items: ['Front Load Service', 'Top Load Service', 'Semi-Automatic Repair', 'Motor & Belt Replacement', 'Drum & PCB Fix', 'Water Drainage Repair']
       },
-      Fitness: {
-        icon: 'Dumbbell',
-        items: ['Gym Membership', 'Yoga Classes', 'Personal Training', 'Nutrition Consultation', 'Wellness Centers', 'Spa Services', 'Mental Wellness']
+      'Refrigerator Repair': {
+        icon: 'Box',
+        items: ['Single Door Repair', 'Double Door Repair', 'Side-by-Side Fridge Fix', 'Gas Filling & Leakage', 'Thermostat Replacement', 'Compressor Repair']
       },
-      Events: {
-        icon: 'PartyPopper',
-        items: ['Wedding Planning', 'Birthday Events', 'Corporate Events', 'Photography', 'Videography', 'Catering Services', 'Decoration Services']
+      'TV Repair': {
+        icon: 'Tv',
+        items: ['LED / LCD Screen Repair', 'Android / Smart TV Fix', 'TV Wall Mount Installation', 'Speaker & Sound Issue', 'Motherboard & Power Supply Fix']
       },
-      Hospitality: {
-        icon: 'Hotel',
-        items: ['Hotels', 'Resorts', 'Homestays', 'Service Apartments', 'Luxury Villas', 'Corporate Stay']
+      'RO / Water Purifier': {
+        icon: 'Droplet',
+        items: ['RO Filter Replacement', 'Deep Purifier Servicing', 'UV Lamp Fix', 'Water Leakage Repair', 'New RO Installation', 'TDS Controller Fix']
       },
-      Travel: {
-        icon: 'Bus',
-        items: ['AC Sleeper', 'Volvo Multi-Axle', 'Non-AC Sleeper', 'AC Seater', 'Electric Bus', 'Intercity Express', 'Luxury Coaches']
+      'Microwave Repair': {
+        icon: 'Flame',
+        items: ['Magnetron Replacement', 'Heating Issue Repair', 'Touchpad & Board Fix', 'Glass Plate Repair', 'Door Latch Fix']
       },
-      'Real Estate': {
-        icon: 'MapPin',
-        items: ['Property Buying', 'Property Selling', 'Property Rental', 'Property Management', 'Interior Solutions', 'Home Loans']
+      'Geyser Repair': {
+        icon: 'Thermometer',
+        items: ['Electric Geyser Service', 'Gas Geyser Repair', 'Thermostat & Element Replacement', 'Geyser Installation', 'Water Leakage Repair']
       },
-      Security: {
-        icon: 'Lock',
-        items: ['Security Guards', 'CCTV Monitoring', 'Cyber Security', 'Home Security', 'Office Security']
+      'Carpentry': {
+        icon: 'Hammer',
+        items: ['Furniture Assembly', 'Door & Lock Repair', 'Cabinet & Drawer Repair', 'Wood Polishing', 'Custom Shelves & Wardrobe', 'Bed Frame Repair']
+      },
+      'CCTV Installation': {
+        icon: 'Camera',
+        items: ['IP Camera Setup', 'HD CCTV Installation', 'DVR & NVR Repair', 'CCTV Wiring & Cable', 'Mobile Remote View Setup', 'Camera Lens Fix']
+      },
+      'Solar Service': {
+        icon: 'Sun',
+        items: ['Solar Panel Cleaning', 'Solar Water Heater Repair', 'Rooftop Solar Maintenance', 'Inverter & Battery Servicing', 'Solar System Inspection']
+      },
+      'Appliance Repair': {
+        icon: 'Settings',
+        items: ['Chimney Cleaning & Fix', 'Induction Cooktop Fix', 'Mixer & Grinder Repair', 'Dishwasher Service', 'Air Purifier Servicing']
+      },
+      'Painting': {
+        icon: 'Paintbrush',
+        items: ['Full Home Painting', 'Waterproofing & Damp Repair', 'Wall Texture & Stencil', 'Wood & Metal Polish', 'Exterior Wall Painting']
+      },
+      'Cleaning': {
+        icon: 'Sparkles',
+        items: ['Full Home Deep Cleaning', 'Bathroom Deep Cleaning', 'Kitchen Jet Wash', 'Sofa & Carpet Shampooing', 'Balcony & Window Cleaning']
+      },
+      'Pest Control': {
+        icon: 'Bug',
+        items: ['Cockroach & Ant Control', 'Termite Treatment', 'Bed Bug Eradication', 'Mosquito & Fly Control', 'Rodent Control Service']
       }
     }
   },
@@ -254,10 +242,6 @@ export const SIDEBAR_DATA: any = {
   Travel: {
     icon: 'Bus',
     subcategories: {
-      'Bus Booking': {
-        icon: 'Bus',
-        items: ['AC Sleeper', 'Volvo Multi-Axle', 'Non-AC Sleeper', 'AC Seater', 'Electric Bus', 'Intercity Express', 'Luxury Coaches']
-      },
       'AC Sleeper': {
         icon: 'Bed',
         items: ['Volvo AC Sleeper', 'Scania AC Sleeper', 'BharatBenz AC Sleeper', 'Multi-Axle AC Sleeper']
@@ -352,98 +336,45 @@ export const SIDEBAR_DATA: any = {
   Job: {
     icon: 'Briefcase',
     subcategories: {
-      Banking: {
-        icon: 'Building2',
-        items: ['Relationship Manager', 'Sales Officer', 'Branch Operations', 'Customer Service Executive', 'Credit Analyst', 'Loan Officer', 'CASA Executive', 'Branch Manager', 'Wealth Manager', 'Commercial Banking']
-      },
       IT: {
         icon: 'Laptop',
-        items: ['Software Developer', 'Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'Mobile App Developer', 'UI/UX Designer', 'DevOps Engineer', 'Cloud Engineer', 'Data Analyst', 'AI Engineer', 'Cyber Security Analyst']
+        items: [
+          'Software Developer',
+          'Full Stack Developer',
+          'Frontend Developer',
+          'Backend Developer',
+          'Mobile App Developer',
+          'UI/UX Designer',
+          'DevOps Engineer',
+          'Cloud Engineer',
+          'Data Analyst',
+          'AI Engineer',
+          'Cyber Security Analyst',
+        ],
       },
       'Non-IT': {
         icon: 'Building',
-        items: ['Admin Executive', 'Office Assistant', 'Data Entry Operator', 'Operations Executive', 'Coordinator', 'Receptionist', 'Back Office Executive']
+        items: [
+          'Admin Executive',
+          'Office Assistant',
+          'Data Entry Operator',
+          'Operations Executive',
+          'Customer Service Executive',
+          'Receptionist',
+          'Sales Executive',
+          'HR Executive',
+          'Accountant',
+        ],
       },
-      BPO: {
-        icon: 'PhoneCall',
-        items: ['Voice Process', 'Non-Voice Process', 'Customer Support', 'Technical Support', 'Chat Support', 'International Process', 'Domestic Process']
-      },
-      'Sales & Marketing': {
-        icon: 'ShoppingBag',
-        items: ['Sales Executive', 'Business Development Executive', 'Marketing Executive', 'Digital Marketing Executive', 'Territory Sales Manager', 'Area Sales Manager', 'Brand Executive']
-      },
-      Manufacturing: {
-        icon: 'Wrench',
-        items: ['Production Operator', 'Machine Operator', 'Quality Inspector', 'Production Supervisor', 'Plant Manager', 'Maintenance Technician']
-      },
-      Automobile: {
-        icon: 'Car',
-        items: ['Service Advisor', 'Technician', 'Sales Consultant', 'Workshop Manager', 'Spare Parts Executive']
-      },
-      Healthcare: {
-        icon: 'HeartPulse',
-        items: ['Doctors', 'Nurses', 'Pharmacists', 'Lab Technicians', 'Medical Representatives', 'Hospital Administrators']
-      },
-      Education: {
-        icon: 'GraduationCap',
-        items: ['Teachers', 'Professors', 'Trainers', 'Academic Counselors', 'School Administrators', 'Placement Officers']
-      },
-      Hospitality: {
-        icon: 'Hotel',
-        items: ['Hotel Manager', 'Front Office Executive', 'Housekeeping Staff', 'Chef', 'Waiter', 'Restaurant Manager']
-      },
-      'Travel & Tourism': {
-        icon: 'Compass',
-        items: ['Travel Consultant', 'Tour Coordinator', 'Ticketing Executive', 'Visa Consultant', 'Travel Operations Executive']
-      },
-      'Real Estate': {
-        icon: 'MapPin',
-        items: ['Property Consultant', 'Sales Executive', 'Site Engineer', 'CRM Executive', 'Real Estate Manager']
-      },
-      Legal: {
-        icon: 'Scale',
-        items: ['Advocate', 'Legal Associate', 'Legal Advisor', 'Documentation Executive']
-      },
-      Finance: {
-        icon: 'DollarSign',
-        items: ['Accountant', 'Finance Executive', 'Tax Consultant', 'Auditor', 'Chartered Accountant']
-      },
-      Logistics: {
+      'Delivery & Field': {
         icon: 'Truck',
-        items: ['Warehouse Executive', 'Logistics Coordinator', 'Supply Chain Analyst', 'Delivery Executive']
+        items: [
+          'Delivery Executive',
+          'Warehouse Associate',
+          'Field Agent',
+          'Driver',
+        ],
       },
-      Construction: {
-        icon: 'Building',
-        items: ['Civil Engineer', 'Site Supervisor', 'Project Manager', 'Architect', 'Quantity Surveyor']
-      },
-      Creative: {
-        icon: 'Sparkles',
-        items: ['Graphic Designer', 'Video Editor', 'Animator', 'Content Writer', 'Social Media Manager']
-      },
-      Retail: {
-        icon: 'ShoppingBasket',
-        items: ['Store Manager', 'Cashier', 'Retail Sales Executive', 'Inventory Executive']
-      },
-      'HR & Recruitment': {
-        icon: 'Users',
-        items: ['HR Executive', 'Recruiter', 'Talent Acquisition Specialist', 'HR Manager']
-      },
-      Government: {
-        icon: 'Award',
-        items: ['State Government Jobs', 'Central Government Jobs', 'Railway Jobs', 'Defense Jobs', 'PSU Jobs']
-      },
-      International: {
-        icon: 'Globe',
-        items: ['Gulf Jobs', 'Europe Jobs', 'Singapore Jobs', 'Malaysia Jobs', 'Canada Jobs', 'Australia Jobs']
-      },
-      Internships: {
-        icon: 'GraduationCap',
-        items: ['IT Internship', 'HR Internship', 'Marketing Internship', 'Banking Internship', 'Finance Internship']
-      },
-      'Freelance & Remote': {
-        icon: 'Laptop',
-        items: ['Remote Developer', 'Remote Designer', 'Virtual Assistant', 'Freelance Writer', 'Online Tutor']
-      }
-    }
-  }
+    },
+  },
 };

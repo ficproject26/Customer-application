@@ -24,10 +24,8 @@ import GlassCard from '../components/GlassCard';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 
-type LandingPageProp = StackNavigationProp<AuthStackParamList, 'LandingPage'>;
-
 export default function LandingPage() {
-  const navigation = useNavigation<LandingPageProp>();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const colors = useThemeStore((state) => state.colors);
   const themeMode = useThemeStore((state) => state.themeMode);

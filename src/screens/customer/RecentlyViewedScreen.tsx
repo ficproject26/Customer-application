@@ -7,13 +7,16 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
 import { useActivityStore } from '../../store/activityStore';
-import { useCartStore } from '../../store/cartStore';
+import { useCartStore, isCartableCategory } from '../../store/cartStore';
 import { useToastStore } from '../../store/toastStore';
+import { useThemeStore } from '../../store/themeStore';
+import { openRespectivePage } from '../../utils/navigationHelpers';
 
 export default function RecentlyViewedScreen() {
   const navigation = useNavigation<any>();
@@ -22,6 +25,9 @@ export default function RecentlyViewedScreen() {
   const clearActivity = useActivityStore((state) => state.clearActivity);
   const addToCart = useCartStore((state) => state.addToCart);
   const showToast = useToastStore((state) => state.showToast);
+  const colors = useThemeStore((state) => state.colors);
+  const isDark = useThemeStore((state) => state.isDark);
+  const isLight = !isDark;
 
   const handleClearHistory = () => {
     Alert.alert(
@@ -39,15 +45,7 @@ export default function RecentlyViewedScreen() {
   };
 
   const handleAddOrBook = (item: any) => {
-    const catLower = (item.category || '').toLowerCase().trim();
-    const hasCart = 
-      catLower.includes('product') || 
-      catLower.includes('elect') || 
-      catLower.includes('fash') || 
-      catLower.includes('grocer') || 
-      catLower.includes('daily') || 
-      catLower.includes('food') || 
-      catLower.includes('dine');
+    const hasCart = isCartableCategory(item.category, item.name);
 
     if (hasCart) {
       addToCart({
@@ -58,28 +56,26 @@ export default function RecentlyViewedScreen() {
         image: item.image,
       });
       showToast('Added to cart · View Cart', 'View Cart', () =>
-        navigation.navigate('CustomerTabs', { screen: 'Cart' })
+        navigation.navigate('Cart')
       );
     } else {
-      navigation.navigate('ProductDetails', {
-        item,
-        category: item.category,
-      });
+      openRespectivePage(navigation, item);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.headerBackground} />
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top, backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Icons.ArrowLeft color="#0F172A" size={24} />
+          <Icons.ArrowLeft color={colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recently Viewed</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Recently Viewed</Text>
         {recentViews && recentViews.length > 0 ? (
           <TouchableOpacity
             style={styles.clearBtn}
@@ -96,11 +92,11 @@ export default function RecentlyViewedScreen() {
       {!recentViews || recentViews.length === 0 ? (
         /* Empty State */
         <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Icons.Clock color="#94A3B8" size={36} />
+          <View style={[styles.emptyIconCircle, { backgroundColor: isLight ? '#F1F5F9' : '#1E293B' }]}>
+            <Icons.Clock color={colors.textSecondary} size={36} />
           </View>
-          <Text style={styles.emptyTitle}>No Recently Viewed Items</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Recently Viewed Items</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             Products you browse while exploring the Connect catalog will be saved here for easy access.
           </Text>
           <TouchableOpacity
@@ -117,44 +113,48 @@ export default function RecentlyViewedScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.countText}>
+          <Text style={[styles.countText, { color: colors.textSecondary }]}>
             {recentViews.length} {recentViews.length === 1 ? 'Product' : 'Products'} viewed
           </Text>
 
           {recentViews.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.card}
+              style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
               activeOpacity={0.8}
-              onPress={() =>
-                navigation.navigate('ProductDetails', {
-                  item: {
-                    id: item.id,
-                    name: item.name,
-                    price: item.price,
+              onPress={() => {
+                if (isCartableCategory(item.category, item.name)) {
+                  navigation.navigate('ProductDetails', {
+                    item: {
+                      id: item.id,
+                      name: item.name,
+                      price: item.price,
+                      category: item.category || 'Products',
+                      img: item.image,
+                      image: item.image,
+                      vendor: item.vendor,
+                    },
                     category: item.category || 'Products',
-                    img: item.image,
-                    image: item.image,
-                    vendor: item.vendor,
-                  },
-                  category: item.category || 'Products',
-                })
-              }
+                  });
+                } else {
+                  openRespectivePage(navigation, item);
+                }
+              }}
             >
               {item.image ? (
                 <Image source={{ uri: item.image }} style={styles.itemImage} />
               ) : (
-                <View style={[styles.itemImage, styles.placeholderImage]}>
-                  <Icons.Package color="#94A3B8" size={24} />
+                <View style={[styles.itemImage, styles.placeholderImage, { backgroundColor: isLight ? '#F1F5F9' : '#1E293B' }]}>
+                  <Icons.Package color={colors.textSecondary} size={24} />
                 </View>
               )}
 
               <View style={styles.detailsCol}>
-                <Text style={styles.categoryTag}>{item.category || 'Product'}</Text>
-                <Text style={styles.itemName} numberOfLines={2}>
+                <Text style={[styles.categoryTag, { color: colors.textSecondary }]}>{item.category || 'Product'}</Text>
+                <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={2}>
                   {item.name}
                 </Text>
-                <Text style={styles.itemPrice}>{item.price}</Text>
+                <Text style={[styles.itemPrice, { color: isLight ? '#0F172A' : '#F4C400' }]}>{item.price}</Text>
               </View>
 
               {(() => {
@@ -199,16 +199,13 @@ export default function RecentlyViewedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backBtn: {
     padding: 4,
@@ -216,7 +213,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   clearBtn: {
     paddingVertical: 4,
@@ -237,7 +233,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -245,13 +240,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
@@ -274,7 +267,6 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -283,10 +275,8 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     padding: 12,
     marginBottom: 12,
     shadowColor: '#0F172A',
@@ -302,7 +292,6 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   placeholderImage: {
-    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -314,21 +303,18 @@ const styles = StyleSheet.create({
   categoryTag: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#64748B',
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   itemName: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#0F172A',
     lineHeight: 18,
     marginBottom: 4,
   },
   itemPrice: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   addCartBtn: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,21 +12,50 @@ import {
   Platform,
   PermissionsAndroid,
   Linking,
+  StatusBar,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
 import * as Icons from 'lucide-react-native';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
+import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useWishlistStore } from '../../store/wishlistStore';
 import { useActivityStore } from '../../store/activityStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useTranslation, LANGUAGES_LIST } from '../../store/languageStore';
+
+const getMembershipBadgeConfig = (membershipStr?: string, isDark: boolean = false) => {
+  const tier = (membershipStr || 'gold').toLowerCase().trim();
+  if (tier === 'diamond') {
+    return {
+      label: 'DIAMOND MEMBER',
+      bg: isDark ? 'rgba(126, 34, 206, 0.3)' : '#F3E8FF',
+      border: isDark ? '#C084FC' : '#A855F7',
+      text: isDark ? '#E9D5FF' : '#7E22CE',
+      iconColor: isDark ? '#C084FC' : '#A855F7',
+      IconComp: Icons.Sparkles,
+    };
+  }
+  return {
+    label: 'GOLD MEMBER',
+    bg: isDark ? 'rgba(217, 119, 6, 0.25)' : '#FEF3C7',
+    border: isDark ? '#F59E0B' : '#D97706',
+    text: isDark ? '#FDE68A' : '#B45309',
+    iconColor: '#F59E0B',
+    IconComp: Icons.Crown,
+  };
+};
 
 export default function CustomerProfile() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { colors, themeMode } = useThemeStore();
-  const isLight = colors.background === '#FFFDF5' || colors.background === '#FFFFFF' || colors.background === '#F8FAFC' || colors.background === '#FFF8E8' || themeMode === 'light';
+  const colors = useThemeStore((state) => state.colors);
+  const isDark = useThemeStore((state) => state.isDark);
+  const themeMode = useThemeStore((state) => state.themeMode);
+  const setThemeMode = useThemeStore((state) => state.setThemeMode);
+  const isLight = !isDark;
+  const { t, currentLanguage, setLanguage } = useTranslation();
 
   const currentUser = useAuthStore((state) => state.currentUser);
   const logout = useAuthStore((state) => state.logout);
@@ -36,34 +65,28 @@ export default function CustomerProfile() {
   const wishlistItems = useWishlistStore((state) => state.wishlistItems);
   const recentViews = useActivityStore((state) => state.recentViews);
 
-  // Loading, error and photo action sheet states
+  // Loading, error, photo action sheet & language modal states
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  const loadProfileData = useCallback(async () => {
-    setProfileLoading(true);
+  const loadProfileData = useCallback(() => {
     setProfileError(null);
-    try {
-      const res = await fetchProfile();
-      if (!res && !currentUser) {
-        setProfileError('Unable to load your profile details.');
+    setAvatarError(false);
+    // Non-blocking background refresh
+    fetchProfile().catch((e: any) => {
+      if (!useAuthStore.getState().currentUser) {
+        setProfileError(e?.message || 'Unable to load your profile details.');
       }
-    } catch (e: any) {
-      if (!currentUser) {
-        setProfileError(e.message || 'Unable to load your profile details.');
-      }
-    } finally {
-      setProfileLoading(false);
-    }
-  }, [fetchProfile, currentUser]);
+    });
+  }, [fetchProfile]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadProfileData();
-    }, [loadProfileData])
-  );
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
 
   // Permissions helpers
   const requestCameraPermission = async () => {
@@ -144,6 +167,7 @@ export default function CustomerProfile() {
         const newUri = response.assets[0].uri;
         if (newUri) {
           setIsUploadingPhoto(true);
+          setAvatarError(false);
           try {
             await updateProfile({ avatar: newUri });
           } catch (err) {
@@ -185,6 +209,7 @@ export default function CustomerProfile() {
         const newUri = response.assets[0].uri;
         if (newUri) {
           setIsUploadingPhoto(true);
+          setAvatarError(false);
           try {
             await updateProfile({ avatar: newUri });
           } catch (err) {
@@ -201,6 +226,7 @@ export default function CustomerProfile() {
   const handleRemovePhoto = async () => {
     setIsPhotoModalOpen(false);
     setIsUploadingPhoto(true);
+    setAvatarError(false);
     try {
       await updateProfile({ avatar: '' });
     } catch (err) {
@@ -225,8 +251,149 @@ export default function CustomerProfile() {
     );
   };
 
+  const isAuthenticated = isUserAuthenticated(currentUser);
+
+  if (!isAuthenticated) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={colors.statusBarStyle} backgroundColor={isLight ? '#FFF1C7' : colors.background} translucent={false} />
+        {/* Top Header */}
+        <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top, backgroundColor: isLight ? '#FFF1C7' : colors.background, borderBottomColor: isLight ? 'rgba(242, 183, 5, 0.25)' : colors.cardBorder }]}>
+          <Text style={[styles.headerTitle, { color: colors.text, marginLeft: 16 }]}>{t('Profile')}</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* Prominent Log In / Sign Up Banner */}
+          <View style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderRadius: 16, padding: 20, alignItems: 'center', borderColor: colors.cardBorder, borderWidth: 1, marginBottom: 24, elevation: 3 }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: isDark ? 'rgba(245, 196, 0, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+              <Icons.User color="#F4C400" size={38} />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 6, textAlign: 'center' }}>Welcome to Connect!</Text>
+            <Text style={{ fontSize: 13, color: colors.subtext, textAlign: 'center', marginBottom: 20, lineHeight: 19 }}>
+              Sign in or create an account to view your orders, save delivery addresses, earn membership rewards, and manage payment methods.
+            </Text>
+
+            <TouchableOpacity
+              style={{ backgroundColor: '#F4C400', width: '100%', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', marginBottom: 10 }}
+              onPress={() => navigation.navigate('Login')}
+              activeOpacity={0.85}
+            >
+              <Icons.LogIn size={18} color="#000" style={{ marginRight: 8 }} />
+              <Text style={{ color: '#000', fontSize: 15, fontWeight: '700' }}>Log In / Sign Up</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F8FAFC', borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : '#CBD5E1', borderWidth: 1.5, width: '100%', height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' }}
+              onPress={() => navigation.navigate('JoinNow')}
+              activeOpacity={0.85}
+            >
+              <Icons.UserPlus size={18} color={colors.text} style={{ marginRight: 8 }} />
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>Create New Account</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Account Features Prompts (Locked for Guest) */}
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colors.subtext, letterSpacing: 0.8, marginBottom: 10, textTransform: 'uppercase' }}>Account Features</Text>
+          <View style={{ backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 24 }}>
+            {[
+              { label: 'My Orders & Bookings', icon: Icons.Package, actionText: 'view your order history and live tracking' },
+              { label: 'Wishlist & Favorites', icon: Icons.Heart, actionText: 'save your favorite products and services' },
+              { label: 'Saved Delivery Addresses', icon: Icons.MapPin, actionText: 'manage delivery addresses' },
+              { label: 'Connect Wallet & Balance', icon: Icons.Wallet, actionText: 'access your wallet and balance' },
+              { label: 'Saved Payment Methods', icon: Icons.CreditCard, actionText: 'manage payment options' },
+            ].map((item, idx, arr) => {
+              const ItemIcon = item.icon;
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: idx < arr.length - 1 ? 1 : 0, borderBottomColor: colors.cardBorder }}
+                  onPress={() => useAuthGuardStore.getState().showAuthModal(item.actionText)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <ItemIcon color={colors.subtext} size={18} />
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.text }}>{item.label}</Text>
+                  <Icons.Lock color={colors.subtext} size={16} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Basic Guest Settings */}
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colors.subtext, letterSpacing: 0.8, marginBottom: 10, textTransform: 'uppercase' }}>Preferences & Support</Text>
+          <View style={{ backgroundColor: colors.cardBg, borderColor: colors.cardBorder, borderWidth: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 24 }}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}
+              onPress={() => setIsLangModalOpen(true)}
+              activeOpacity={0.7}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(245, 196, 0, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Icons.Globe color="#F4C400" size={18} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.text }}>Language / ಭಾಷೆ</Text>
+              <Text style={{ fontSize: 13, color: colors.subtext, marginRight: 8, fontWeight: '500' }}>
+                {LANGUAGES_LIST.find((l) => l.code === currentLanguage)?.name || 'English'}
+              </Text>
+              <Icons.ChevronRight color={colors.subtext} size={16} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}
+              onPress={() => navigation.navigate('ThemeSettings')}
+              activeOpacity={0.7}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(245, 196, 0, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Icons.Moon color="#F4C400" size={18} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.text }}>App Theme</Text>
+              <Text style={{ fontSize: 13, color: colors.subtext, marginRight: 8, fontWeight: '500' }}>
+                {themeMode === 'system' ? 'System' : themeMode === 'dark' ? 'Dark' : 'Light'}
+              </Text>
+              <Icons.ChevronRight color={colors.subtext} size={16} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.cardBorder }}
+              onPress={() => navigation.navigate('HelpSupport')}
+              activeOpacity={0.7}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(245, 196, 0, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Icons.HelpCircle color="#F4C400" size={18} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.text }}>Help & Customer Support</Text>
+              <Icons.ChevronRight color={colors.subtext} size={16} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}
+              onPress={() => navigation.navigate('PrivacySecurity')}
+              activeOpacity={0.7}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? 'rgba(245, 196, 0, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Icons.ShieldCheck color="#F4C400" size={18} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: colors.text }}>Privacy & Terms</Text>
+              <Icons.ChevronRight color={colors.subtext} size={16} />
+            </TouchableOpacity>
+          </View>
+
+          {/* App Version Info Footer */}
+          <Text style={{ textAlign: 'center', fontSize: 12, color: colors.subtext, marginTop: 10 }}>
+            Connect Mobile v2.4.0
+          </Text>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={colors.statusBarStyle}
+        backgroundColor={isLight ? '#FFF1C7' : colors.background}
+        translucent={false}
+      />
       {/* Top App Header */}
       <View
         style={[
@@ -239,7 +406,22 @@ export default function CustomerProfile() {
           },
         ]}
       >
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('CustomerTabs', { screen: 'Home' });
+            }
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+        >
+          <Icons.ArrowLeft color={colors.text} size={22} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Profile</Text>
+        <View style={styles.headerRightSpacer} />
       </View>
 
       {profileLoading && !currentUser ? (
@@ -275,12 +457,21 @@ export default function CustomerProfile() {
             activeOpacity={0.88}
             onPress={() => navigation.navigate('EditProfile')}
           >
-            {/* Left: Avatar with Camera Action Button */}
-            <View style={styles.avatarWrapper}>
-              {currentUser?.avatar ? (
-                <Image source={{ uri: currentUser.avatar }} style={styles.avatarImage} />
+            {/* Left: Large Circular Avatar with Camera Action Button */}
+            <TouchableOpacity
+              style={styles.avatarWrapper}
+              activeOpacity={0.85}
+              onPress={() => setIsPhotoModalOpen(true)}
+            >
+              {currentUser?.avatar && !avatarError ? (
+                <Image
+                  source={{ uri: currentUser.avatar }}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                  onError={() => setAvatarError(true)}
+                />
               ) : (
-                <View style={styles.avatarCircleFallback}>
+                <View style={[styles.avatarCircleFallback, { backgroundColor: isLight ? '#0F172A' : '#1E293B' }]}>
                   <Text style={styles.avatarInitial}>
                     {currentUser?.name ? currentUser.name.trim().charAt(0).toUpperCase() : 'U'}
                   </Text>
@@ -289,7 +480,7 @@ export default function CustomerProfile() {
 
               {isUploadingPhoto ? (
                 <View style={styles.avatarLoadingOverlay}>
-                  <ActivityIndicator size="small" color="#0F172A" />
+                  <ActivityIndicator size="small" color="#F5B800" />
                 </View>
               ) : (
                 <TouchableOpacity
@@ -301,7 +492,7 @@ export default function CustomerProfile() {
                   <Icons.Camera color="#0F172A" size={13} />
                 </TouchableOpacity>
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Center: Profile Name, Tier, Email & Phone */}
             <View style={styles.profileDetailsCol}>
@@ -309,33 +500,39 @@ export default function CustomerProfile() {
                 <Text style={[styles.profileNameText, { color: colors.text }]} numberOfLines={1}>
                   {currentUser?.name || 'Connect Member'}
                 </Text>
-                {currentUser?.membership ? (
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('CustomerTabs', { screen: 'Membership' })}
-                    style={styles.goldMembershipBadge}
-                  >
-                    <Icons.Crown color="#D97706" size={10} />
-                    <Text style={styles.goldMembershipText}>
-                      {(currentUser.membership || 'gold').toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
+                {currentUser?.membership ? (() => {
+                  const badge = getMembershipBadgeConfig(currentUser.membership, isDark);
+                  const BadgeIcon = badge.IconComp;
+                  return (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate('CustomerTabs', { screen: 'Membership' })}
+                      style={[
+                        styles.goldMembershipBadge,
+                        {
+                          backgroundColor: badge.bg,
+                          borderColor: badge.border,
+                        },
+                      ]}
+                    >
+                      <BadgeIcon color={badge.iconColor} size={10} />
+                      <Text style={[styles.goldMembershipText, { color: badge.text }]}>
+                        {badge.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })() : null}
               </View>
 
-              <Text style={[styles.profileEmailText, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.6)' }]} numberOfLines={1}>
-                {currentUser?.email || 'uma@connectapp.com'}
+              <Text style={[styles.profileEmailText, { color: colors.subtext }]} numberOfLines={1}>
+                {currentUser?.email || ''}
               </Text>
 
               {currentUser?.phone ? (
-                <Text style={[styles.profilePhoneText, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.6)' }]}>
+                <Text style={[styles.profilePhoneText, { color: colors.subtext }]}>
                   {currentUser.phone}
                 </Text>
-              ) : (
-                <Text style={[styles.profilePhoneText, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.6)' }]}>
-                  +91 98765 43210
-                </Text>
-              )}
+              ) : null}
             </View>
 
             {/* Right: Edit Button */}
@@ -356,7 +553,7 @@ export default function CustomerProfile() {
           </TouchableOpacity>
 
           {/* 1. ACCOUNT SECTION */}
-          <Text style={[styles.sectionTitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.subtext }]}>
             ACCOUNT
           </Text>
           <View
@@ -437,6 +634,28 @@ export default function CustomerProfile() {
 
             <View style={[styles.divider, { backgroundColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' }]} />
 
+            {/* Connect Wallet */}
+            <TouchableOpacity
+              style={styles.menuRow}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Wallet')}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Icons.Wallet color="#D97706" size={16} />
+              </View>
+              <Text style={[styles.menuText, { color: colors.text }]}>Connect Wallet & Balance</Text>
+              <View style={styles.menuBadgeRow}>
+                <View style={[styles.countPill, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={[styles.countPillText, { color: '#D97706', fontWeight: 'bold' }]}>
+                    ₹{(currentUser?.walletBalance ?? 0).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+                <Icons.ChevronRight color="#94A3B8" size={16} />
+              </View>
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' }]} />
+
             {/* Payment Methods */}
             <TouchableOpacity
               style={styles.menuRow}
@@ -456,7 +675,12 @@ export default function CustomerProfile() {
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('CustomerTabs', { screen: 'Orders' })}
+              onPress={() =>
+                navigation.navigate('CustomerTabs', {
+                  screen: 'Orders',
+                  params: { activeTab: 'bookings' },
+                })
+              }
             >
               <View style={[styles.iconCircle, { backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)' }]}>
                 <Icons.Calendar color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
@@ -467,7 +691,7 @@ export default function CustomerProfile() {
           </View>
 
           {/* 2. MY ACTIVITY SECTION */}
-          <Text style={[styles.sectionTitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.subtext }]}>
             MY ACTIVITY
           </Text>
           <View
@@ -552,7 +776,7 @@ export default function CustomerProfile() {
                   <Icons.Clock color="#94A3B8" size={20} />
                 </View>
                 <Text style={[styles.emptyActivityTitle, { color: colors.text }]}>No recently viewed items</Text>
-                <Text style={[styles.emptyActivitySubtitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+                <Text style={[styles.emptyActivitySubtitle, { color: colors.subtext }]}>
                   Products you explore will appear here.
                 </Text>
               </View>
@@ -560,7 +784,7 @@ export default function CustomerProfile() {
           </View>
 
           {/* 3. SUPPORT & SETTINGS SECTION */}
-          <Text style={[styles.sectionTitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+          <Text style={[styles.sectionTitle, { color: colors.subtext }]}>
             SUPPORT & SETTINGS
           </Text>
           <View
@@ -576,12 +800,7 @@ export default function CustomerProfile() {
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() =>
-                Alert.alert(
-                  'Help & Support',
-                  'Connect Support Concierge is available 24/7.\n\nEmail: support@connectapp.com\nToll-Free: 1800-266-6328'
-                )
-              }
+              onPress={() => navigation.navigate('HelpSupport')}
             >
               <View style={[styles.iconCircle, { backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)' }]}>
                 <Icons.HelpCircle color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
@@ -596,12 +815,7 @@ export default function CustomerProfile() {
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() =>
-                Alert.alert(
-                  'Notification Preferences',
-                  'Push & SMS notification alerts are active for order updates and deliveries.'
-                )
-              }
+              onPress={() => navigation.navigate('Notifications')}
             >
               <View style={[styles.iconCircle, { backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)' }]}>
                 <Icons.Bell color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
@@ -616,12 +830,7 @@ export default function CustomerProfile() {
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() =>
-                Alert.alert(
-                  'Privacy & Security',
-                  'Your account is secured with end-to-end encryption and two-factor authentication.'
-                )
-              }
+              onPress={() => navigation.navigate('PrivacySecurity')}
             >
               <View style={[styles.iconCircle, { backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)' }]}>
                 <Icons.ShieldCheck color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
@@ -632,32 +841,161 @@ export default function CustomerProfile() {
 
             <View style={[styles.divider, { backgroundColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' }]} />
 
-            {/* Settings */}
+            {/* Language Selection Row */}
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() => Alert.alert('Settings', 'Connect App v2.4.0\nRegion: India (English)')}
+              onPress={() => setIsLangModalOpen(true)}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: 'rgba(245, 184, 0, 0.12)' }]}>
+                <Icons.Globe color="#F5B800" size={16} />
+              </View>
+              <Text style={[styles.menuText, { color: colors.text }]}>{t('Language')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 13, color: '#F5B800', fontWeight: 'bold' }}>{currentLanguage}</Text>
+                <Icons.ChevronRight color="#94A3B8" size={16} />
+              </View>
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' }]} />
+
+            {/* Settings & Theme Row */}
+            <TouchableOpacity
+              style={styles.menuRow}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('ThemeSettings')}
             >
               <View style={[styles.iconCircle, { backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)' }]}>
-                <Icons.Settings color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
+                <Icons.Palette color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
               </View>
-              <Text style={[styles.menuText, { color: colors.text }]}>Settings</Text>
-              <Icons.ChevronRight color="#94A3B8" size={16} />
+              <Text style={[styles.menuText, { color: colors.text }]}>{t('App Theme')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.subtext, textTransform: 'capitalize', fontWeight: 'bold' }}>{themeMode}</Text>
+                <Icons.ChevronRight color="#94A3B8" size={16} />
+              </View>
             </TouchableOpacity>
+
+            {/* Quick Theme Switcher Pills */}
+            <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {(['light', 'dark', 'system'] as const).map((mode) => {
+                  const isSelected = themeMode === mode;
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        height: 36,
+                        borderRadius: 8,
+                        backgroundColor: isSelected ? colors.primary : (isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)'),
+                        borderWidth: 1,
+                        borderColor: isSelected ? colors.primary : colors.cardBorder,
+                      }}
+                      onPress={() => setThemeMode(mode)}
+                    >
+                      {mode === 'light' && <Icons.Sun color={isSelected ? colors.primaryText : colors.text} size={14} />}
+                      {mode === 'dark' && <Icons.Moon color={isSelected ? colors.primaryText : colors.text} size={14} />}
+                      {mode === 'system' && <Icons.Monitor color={isSelected ? colors.primaryText : colors.text} size={14} />}
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: isSelected ? colors.primaryText : colors.text, textTransform: 'capitalize' }}>
+                        {t(mode)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </View>
 
           {/* Sign Out Button */}
           <TouchableOpacity style={styles.signOutButton} activeOpacity={0.8} onPress={handleSignOut}>
             <Icons.LogOut color="#EF4444" size={16} />
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Text style={styles.signOutText}>{t('Sign Out')}</Text>
           </TouchableOpacity>
 
           {/* Version Info */}
-          <Text style={[styles.versionText, { color: isLight ? '#94A3B8' : 'rgba(255, 255, 255, 0.35)' }]}>
-            Connect App v2.4.0 • Made with ❤️
+          <Text style={[styles.versionText, { color: colors.muted }]}>
+            Connect App v2.4.0 • Made with Forge India Connect
           </Text>
         </ScrollView>
       )}
+
+      {/* Language Selector Modal */}
+      <Modal
+        visible={isLangModalOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsLangModalOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsLangModalOpen(false)}
+        >
+          <View
+            style={[
+              styles.actionSheetCard,
+              {
+                backgroundColor: isLight ? '#FFFFFF' : '#0B1530',
+                borderColor: isLight ? '#FDE68A' : colors.cardBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.actionSheetTitle, { color: colors.text }]}>{t('select_language')}</Text>
+            <Text style={[styles.actionSheetSub, { color: colors.subtext, marginBottom: 16 }]}>
+              {t('choose_language_desc')}
+            </Text>
+
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              {LANGUAGES_LIST.map((lang) => {
+                const isSelected = currentLanguage === lang.name;
+                return (
+                  <TouchableOpacity
+                    key={lang.code}
+                    style={[
+                      styles.actionSheetOption,
+                      {
+                        backgroundColor: isSelected ? (isLight ? '#FFFBEB' : 'rgba(245, 184, 0, 0.15)') : 'transparent',
+                        borderRadius: 10,
+                        paddingHorizontal: 12,
+                        paddingVertical: 12,
+                        marginBottom: 6,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      },
+                    ]}
+                    onPress={() => {
+                      setLanguage(lang.name);
+                      setIsLangModalOpen(false);
+                    }}
+                  >
+                    <View>
+                      <Text style={{ fontSize: 15, fontWeight: isSelected ? '700' : '500', color: isSelected ? '#D97706' : colors.text }}>
+                        {lang.name}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 2 }}>
+                        {lang.nativeName}
+                      </Text>
+                    </View>
+                    {isSelected && <Icons.Check color="#D97706" size={18} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.actionCancelBtn, { marginTop: 12, borderColor: isLight ? '#E2E8F0' : colors.cardBorder }]}
+              onPress={() => setIsLangModalOpen(false)}
+            >
+              <Text style={[styles.actionCancelText, { color: colors.text }]}>{t('Close')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Photo Picker Action Sheet Modal */}
       <Modal
@@ -681,7 +1019,7 @@ export default function CustomerProfile() {
             ]}
           >
             <Text style={[styles.actionSheetTitle, { color: colors.text }]}>Profile Photo</Text>
-            <Text style={[styles.actionSheetSub, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+            <Text style={[styles.actionSheetSub, { color: colors.subtext }]}>
               Update your account avatar
             </Text>
 
@@ -726,13 +1064,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerRightSpacer: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: 'bold',
     letterSpacing: 0.3,
   },
   centerContainer: {
@@ -792,38 +1141,40 @@ const styles = StyleSheet.create({
   },
   avatarWrapper: {
     position: 'relative',
+    width: 78,
+    height: 78,
     marginRight: 14,
   },
   avatarImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     backgroundColor: '#0F172A',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#FDE68A',
   },
   avatarCircleFallback: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#FDE68A',
   },
   avatarInitial: {
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
   cameraActionButton: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#F5B800',
     borderWidth: 2,
     borderColor: '#FFFFFF',
@@ -831,9 +1182,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
   },
   avatarLoadingOverlay: {
     position: 'absolute',
@@ -841,8 +1192,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    borderRadius: 39,
     alignItems: 'center',
     justifyContent: 'center',
   },

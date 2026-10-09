@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,38 +18,64 @@ import { useThemeStore } from '../store/themeStore';
 import { useLocationStore, INDIAN_STATES_AND_CITIES, StateCityData } from '../store/locationStore';
 import * as Icons from 'lucide-react-native';
 
+export interface LocationSuggestion {
+  city: string;
+  state: string;
+  isUT?: boolean;
+}
+
+const POPULAR_CITIES: Array<{ city: string; state: string }> = [
+  { city: 'Bengaluru', state: 'Karnataka' },
+  { city: 'Mumbai', state: 'Maharashtra' },
+  { city: 'New Delhi', state: 'Delhi (NCT)' },
+  { city: 'Chennai', state: 'Tamil Nadu' },
+  { city: 'Hyderabad', state: 'Telangana' },
+  { city: 'Kolkata', state: 'West Bengal' },
+  { city: 'Pune', state: 'Maharashtra' },
+  { city: 'Ahmedabad', state: 'Gujarat' },
+  { city: 'Kochi', state: 'Kerala' },
+  { city: 'Jaipur', state: 'Rajasthan' },
+  { city: 'Noida', state: 'Uttar Pradesh' },
+  { city: 'Chandigarh', state: 'Chandigarh (UT)' },
+];
+
 export default function LocationSelection() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { colors, themeMode } = useThemeStore();
-  const { selectedState, selectedCity, setLocation } = useLocationStore();
+  const colors = useThemeStore((state) => state.colors);
+  const themeMode = useThemeStore((state) => state.themeMode);
+  const selectedState = useLocationStore((state) => state.selectedState);
+  const selectedCity = useLocationStore((state) => state.selectedCity);
+  const setLocation = useLocationStore((state) => state.setLocation);
 
   const isLight = colors.background === '#FFFDF5' || colors.background === '#FFFFFF' || colors.background === '#F8FAFC' || themeMode === 'light';
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedState, setExpandedState] = useState<string | null>(selectedState || 'Karnataka');
   const [loadingGPS, setLoadingGPS] = useState(false);
 
-  // Filtered states and cities based on search
-  const filteredStates = useMemo(() => {
+  // Real-time suggestions while typing
+  const suggestions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return INDIAN_STATES_AND_CITIES;
+    if (!query) return [];
 
-    return INDIAN_STATES_AND_CITIES.map((item: StateCityData) => {
+    const results: LocationSuggestion[] = [];
+
+    INDIAN_STATES_AND_CITIES.forEach((item: StateCityData) => {
       const stateMatch = item.state.toLowerCase().includes(query);
-      const matchingCities = item.cities.filter((c: string) => c.toLowerCase().includes(query));
 
-      if (stateMatch) {
-        return item;
-      }
-      if (matchingCities.length > 0) {
-        return {
-          ...item,
-          cities: matchingCities,
-        };
-      }
-      return null;
-    }).filter(Boolean) as StateCityData[];
+      item.cities.forEach((cityName: string) => {
+        const cityMatch = cityName.toLowerCase().includes(query);
+        if (cityMatch || stateMatch) {
+          results.push({
+            city: cityName,
+            state: item.state,
+            isUT: item.isUT,
+          });
+        }
+      });
+    });
+
+    return results;
   }, [searchQuery]);
 
   const handleSelectCity = (stateName: string, cityName: string) => {
@@ -58,10 +85,6 @@ export default function LocationSelection() {
     } else {
       navigation.navigate('CustomerTabs', { screen: 'Home' });
     }
-  };
-
-  const toggleState = (stateName: string) => {
-    setExpandedState(prev => (prev === stateName ? null : stateName));
   };
 
   const handleUseGPS = async () => {
@@ -83,54 +106,116 @@ export default function LocationSelection() {
         isPermissionGranted = granted === PermissionsAndroid.RESULTS.GRANTED;
       }
 
-      if (isPermissionGranted) {
-        try {
-          const response = await fetch('https://ip-api.com/json');
-          const data = await response.json();
-          setLoadingGPS(false);
-
-          if (data && data.status === 'success') {
-            const detectedCity = data.city || 'Bengaluru';
-            const detectedRegion = data.regionName || 'Karnataka';
-
-            setLocation(detectedRegion, detectedCity, true);
-            Alert.alert(
-              'Location Detected',
-              `Current Location: ${detectedCity}, ${detectedRegion}`,
-              [
-                {
-                  text: 'Confirm & Proceed',
-                  onPress: () => {
-                    if (navigation.canGoBack()) {
-                      navigation.goBack();
-                    } else {
-                      navigation.navigate('CustomerTabs', { screen: 'Home' });
-                    }
-                  },
-                },
-              ]
-            );
-          } else {
-            // Fallback default
-            setLocation('Karnataka', 'Bengaluru', true);
-            if (navigation.canGoBack()) navigation.goBack();
-          }
-        } catch {
-          setLoadingGPS(false);
-          setLocation('Karnataka', 'Bengaluru', true);
-          if (navigation.canGoBack()) navigation.goBack();
-        }
-      } else {
+      if (!isPermissionGranted) {
         setLoadingGPS(false);
         Alert.alert(
           'Permission Denied',
-          'Please select your state and city manually from the list below.'
+          'Please type your city or district in the search box above or select from popular cities.'
         );
+        return;
       }
-    } catch {
+
+      // Multi-stage HTTPS Location Detection Engine
+      let detectedCity = '';
+      let detectedRegion = '';
+
+      // Stage 1: Try ipapi.co HTTPS endpoint
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.city || data.region)) {
+            detectedCity = data.city || '';
+            detectedRegion = data.region || '';
+          }
+        }
+      } catch (err) {
+        console.warn('[LocationSelection] ipapi.co fetch notice:', err);
+      }
+
+      // Stage 2: Fallback to ipwho.is HTTPS endpoint
+      if (!detectedCity || !detectedRegion) {
+        try {
+          const res = await fetch('https://ipwho.is/');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.success) {
+              detectedCity = detectedCity || data.city || '';
+              detectedRegion = detectedRegion || data.region || '';
+            }
+          }
+        } catch (err) {
+          console.warn('[LocationSelection] ipwho.is fetch notice:', err);
+        }
+      }
+
+      // Stage 3: Fallback to bigdatacloud HTTPS reverse geocode
+      if (!detectedCity || !detectedRegion) {
+        try {
+          const res = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client');
+          if (res.ok) {
+            const data = await res.json();
+            if (data) {
+              detectedCity = detectedCity || data.locality || data.city || '';
+              detectedRegion = detectedRegion || data.principalSubdivision || '';
+            }
+          }
+        } catch (err) {
+          console.warn('[LocationSelection] bigdatacloud fetch notice:', err);
+        }
+      }
+
+      // Default fallbacks if services offline
+      if (!detectedCity) detectedCity = 'Bengaluru';
+      if (!detectedRegion) detectedRegion = 'Karnataka';
+
+      // Cross-reference & normalize with known Indian States catalog
+      const matchedState = INDIAN_STATES_AND_CITIES.find(
+        (s) =>
+          s.state.toLowerCase().includes(detectedRegion.toLowerCase()) ||
+          detectedRegion.toLowerCase().includes(s.state.toLowerCase())
+      );
+
+      if (matchedState) {
+        detectedRegion = matchedState.state;
+        const matchedCity = matchedState.cities.find(
+          (c) =>
+            c.toLowerCase().includes(detectedCity.toLowerCase()) ||
+            detectedCity.toLowerCase().includes(c.toLowerCase())
+        );
+        if (matchedCity) {
+          detectedCity = matchedCity;
+        }
+      }
+
+      setLoadingGPS(false);
+      setLocation(detectedRegion, detectedCity, true);
+
+      Alert.alert(
+        'Location Detected 🎉',
+        `Current Location: ${detectedCity}, ${detectedRegion}`,
+        [
+          {
+            text: 'Confirm & Proceed',
+            onPress: () => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('CustomerTabs', { screen: 'Home' });
+              }
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      console.error('[LocationSelection] handleUseGPS error:', err);
       setLoadingGPS(false);
       setLocation('Karnataka', 'Bengaluru', true);
-      if (navigation.canGoBack()) navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('CustomerTabs', { screen: 'Home' });
+      }
     }
   };
 
@@ -144,6 +229,11 @@ export default function LocationSelection() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={colors.statusBarStyle}
+        backgroundColor={colors.background}
+        translucent={false}
+      />
       {/* Top Header */}
       <View
         style={[
@@ -190,18 +280,19 @@ export default function LocationSelection() {
             styles.searchContainer,
             {
               backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.06)',
-              borderColor: isLight ? '#FDE68A' : colors.cardBorder,
+              borderColor: searchQuery ? '#F5B800' : isLight ? '#FDE68A' : colors.cardBorder,
             },
           ]}
         >
           <Icons.Search color={isLight ? '#F5B800' : '#F4C400'} size={20} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search state, UT, or city/district..."
+            placeholder="Type city, district, state or UT..."
             placeholderTextColor={isLight ? '#94A3B8' : 'rgba(255, 255, 255, 0.45)'}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCorrect={false}
+            autoFocus={false}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
@@ -242,154 +333,215 @@ export default function LocationSelection() {
           <Icons.ChevronRight color={isLight ? '#64748B' : 'rgba(255, 255, 255, 0.4)'} size={18} />
         </TouchableOpacity>
 
-        {/* State / UT List Title */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
-            {searchQuery ? `MATCHING REGIONS (${filteredStates.length})` : 'ALL STATES & UNION TERRITORIES'}
-          </Text>
-        </View>
+        {/* CONDITION 1: SEARCH QUERY IS EMPTY -> SHOW POPULAR CITIES & HELPER CARD */}
+        {!searchQuery.trim() && (
+          <View>
+            {/* Current Selected Location Indicator Card */}
+            {selectedCity && selectedState && (
+              <View
+                style={[
+                  styles.currentLocationCard,
+                  {
+                    backgroundColor: isLight ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                    borderColor: isLight ? '#FDE68A' : 'rgba(244, 196, 0, 0.3)',
+                  },
+                ]}
+              >
+                <View style={styles.currentLocLeft}>
+                  <Icons.MapPin color="#F5B800" size={18} />
+                  <View>
+                    <Text style={[styles.currentLocLabel, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+                      SELECTED LOCATION
+                    </Text>
+                    <Text style={[styles.currentLocVal, { color: colors.text }]}>
+                      {selectedCity}, {selectedState}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.activeCheckBadge}>
+                  <Icons.Check color="#F5B800" size={16} />
+                </View>
+              </View>
+            )}
 
-        {/* Expandable State / UT Rows */}
-        {filteredStates.map((item) => {
-          const isExpanded = expandedState === item.state || (searchQuery.trim().length > 0 && filteredStates.length <= 4);
-          const isSelectedState = selectedState === item.state;
+            {/* Popular Cities Header */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+                POPULAR CITIES
+              </Text>
+            </View>
 
-          return (
+            {/* Popular Cities Grid Chips */}
+            <View style={styles.popularCitiesGrid}>
+              {POPULAR_CITIES.map((item) => {
+                const isSelected = selectedCity === item.city && selectedState === item.state;
+                return (
+                  <TouchableOpacity
+                    key={`${item.state}_${item.city}`}
+                    style={[
+                      styles.popularCityChip,
+                      {
+                        backgroundColor: isSelected
+                          ? '#F5B800'
+                          : isLight
+                          ? '#FFFFFF'
+                          : 'rgba(255, 255, 255, 0.06)',
+                        borderColor: isSelected
+                          ? '#F5B800'
+                          : isLight
+                          ? '#E2E8F0'
+                          : colors.cardBorder,
+                      },
+                    ]}
+                    activeOpacity={0.75}
+                    onPress={() => handleSelectCity(item.state, item.city)}
+                  >
+                    <Icons.Building2
+                      color={isSelected ? '#000' : isLight ? '#64748B' : 'rgba(255, 255, 255, 0.6)'}
+                      size={14}
+                    />
+                    <Text
+                      style={[
+                        styles.popularCityText,
+                        {
+                          color: isSelected ? '#000' : colors.text,
+                          fontWeight: isSelected ? '700' : '600',
+                        },
+                      ]}
+                    >
+                      {item.city}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Typing Guidance Card */}
             <View
-              key={item.state}
               style={[
-                styles.stateCard,
+                styles.guidanceCard,
                 {
-                  backgroundColor: isLight ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
-                  borderColor: isSelectedState
-                    ? '#F5B800'
-                    : isExpanded
-                    ? (isLight ? '#FDE68A' : 'rgba(244, 196, 0, 0.4)')
-                    : (isLight ? '#F1EAD8' : colors.cardBorder),
+                  backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                  borderColor: isLight ? '#F1EAD8' : colors.cardBorder,
                 },
               ]}
             >
-              {/* State Row Header */}
-              <TouchableOpacity
-                style={styles.stateRow}
-                activeOpacity={0.75}
-                onPress={() => toggleState(item.state)}
-              >
-                <View
+              <Icons.Sparkles color="#F5B800" size={20} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.guidanceTitle, { color: colors.text }]}>
+                  Type above for live suggestions
+                </Text>
+                <Text style={[styles.guidanceSub, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+                  Search over 100+ cities and districts across all Indian states & Union Territories.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* CONDITION 2: SEARCH QUERY IS NOT EMPTY -> SHOW LIVE SUGGESTIONS LIST */}
+        {searchQuery.trim().length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+                SUGGESTIONS ({suggestions.length})
+              </Text>
+            </View>
+
+            {suggestions.map((item, index) => {
+              const isSelected = selectedCity === item.city && selectedState === item.state;
+
+              return (
+                <TouchableOpacity
+                  key={`${item.state}_${item.city}_${index}`}
                   style={[
-                    styles.stateIconCircle,
+                    styles.suggestionRow,
                     {
-                      backgroundColor: isSelectedState
-                        ? 'rgba(245, 184, 0, 0.15)'
+                      backgroundColor: isSelected
+                        ? (isLight ? '#FEF9E7' : 'rgba(244, 196, 0, 0.12)')
                         : isLight
-                        ? '#FEF9E7'
-                        : 'rgba(255, 255, 255, 0.05)',
+                        ? '#FFFFFF'
+                        : 'rgba(13, 22, 54, 0.65)',
+                      borderColor: isSelected
+                        ? '#F5B800'
+                        : isLight
+                        ? '#F1EAD8'
+                        : colors.cardBorder,
                     },
                   ]}
+                  activeOpacity={0.75}
+                  onPress={() => handleSelectCity(item.state, item.city)}
                 >
-                  <Icons.MapPin
-                    color={isSelectedState ? '#F5B800' : isLight ? '#0F172A' : '#FFFFFF'}
-                    size={18}
-                  />
-                </View>
-
-                <View style={styles.stateTextCol}>
-                  <Text
+                  <View
                     style={[
-                      styles.stateNameText,
+                      styles.suggestionIconCircle,
                       {
-                        color: isSelectedState ? '#F5B800' : colors.text,
-                        fontWeight: isSelectedState ? '700' : '600',
+                        backgroundColor: isSelected
+                          ? 'rgba(245, 184, 0, 0.2)'
+                          : isLight
+                          ? '#FEF9E7'
+                          : 'rgba(255, 255, 255, 0.05)',
                       },
                     ]}
                   >
-                    {item.state}
-                    {item.isUT ? ' (UT)' : ''}
-                  </Text>
-                  <Text style={[styles.stateCityCount, { color: isLight ? '#94A3B8' : 'rgba(255, 255, 255, 0.4)' }]}>
-                    {item.cities.length} {item.cities.length === 1 ? 'district' : 'districts / cities'}
-                  </Text>
-                </View>
+                    <Icons.MapPin
+                      color={isSelected ? '#F5B800' : isLight ? '#0F172A' : '#FFFFFF'}
+                      size={18}
+                    />
+                  </View>
 
-                {isExpanded ? (
-                  <Icons.ChevronUp color={isLight ? '#0F172A' : '#FFFFFF'} size={18} />
-                ) : (
-                  <Icons.ChevronDown color={isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)'} size={18} />
-                )}
-              </TouchableOpacity>
+                  <View style={styles.suggestionTextCol}>
+                    <Text
+                      style={[
+                        styles.suggestionCityText,
+                        {
+                          color: isSelected ? '#F5B800' : colors.text,
+                          fontWeight: isSelected ? '700' : '600',
+                        },
+                      ]}
+                    >
+                      {item.city}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.suggestionStateText,
+                        { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.45)' },
+                      ]}
+                    >
+                      {item.state} {item.isUT ? '(UT)' : ''}
+                    </Text>
+                  </View>
 
-              {/* Expanded Cities / Districts Accordion */}
-              {isExpanded && (
-                <View
-                  style={[
-                    styles.citiesContainer,
-                    { borderTopColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' },
-                  ]}
+                  {isSelected ? (
+                    <View style={styles.selectedBadge}>
+                      <Icons.Check color="#F5B800" size={18} />
+                    </View>
+                  ) : (
+                    <Icons.ChevronRight
+                      color={isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.25)'}
+                      size={16}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+
+            {suggestions.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Icons.MapPinOff color={isLight ? '#94A3B8' : 'rgba(255, 255, 255, 0.4)'} size={40} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No matching locations</Text>
+                <Text style={[styles.emptySub, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
+                  No city, district, state or UT matches "{searchQuery}". Try checking the spelling.
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearSearchBtn}
+                  onPress={() => setSearchQuery('')}
+                  activeOpacity={0.8}
                 >
-                  {item.cities.map((cityName) => {
-                    const isSelected = selectedState === item.state && selectedCity === cityName;
-
-                    return (
-                      <TouchableOpacity
-                        key={cityName}
-                        style={[
-                          styles.cityItem,
-                          {
-                            backgroundColor: isSelected
-                              ? (isLight ? '#FEF9E7' : 'rgba(244, 196, 0, 0.1)')
-                              : 'transparent',
-                          },
-                        ]}
-                        activeOpacity={0.7}
-                        onPress={() => handleSelectCity(item.state, cityName)}
-                      >
-                        <View style={styles.cityLeftCol}>
-                          <View
-                            style={[
-                              styles.cityDot,
-                              {
-                                backgroundColor: isSelected
-                                  ? '#F5B800'
-                                  : isLight
-                                  ? '#CBD5E1'
-                                  : 'rgba(255, 255, 255, 0.25)',
-                              },
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.cityNameText,
-                              {
-                                color: isSelected ? '#F5B800' : colors.text,
-                                fontWeight: isSelected ? '700' : '500',
-                              },
-                            ]}
-                          >
-                            {cityName}
-                          </Text>
-                        </View>
-
-                        {isSelected && (
-                          <View style={styles.selectedBadge}>
-                            <Icons.Check color="#F5B800" size={16} />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-          );
-        })}
-
-        {filteredStates.length === 0 && (
-          <View style={styles.emptyContainer}>
-            <Icons.MapPinOff color={isLight ? '#94A3B8' : 'rgba(255, 255, 255, 0.4)'} size={40} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No locations found</Text>
-            <Text style={[styles.emptySub, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)' }]}>
-              Try searching for another state, union territory or district.
-            </Text>
+                  <Text style={styles.clearSearchBtnText}>Clear Search</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -428,16 +580,16 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    height: 50,
     borderRadius: 14,
-    borderWidth: 1.2,
+    borderWidth: 1.5,
     paddingHorizontal: 14,
     marginBottom: 14,
     gap: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13.5,
+    fontSize: 14,
     height: '100%',
     paddingVertical: 0,
   },
@@ -446,13 +598,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
+    padding: 14,
     marginBottom: 18,
     gap: 12,
   },
   gpsIconCircle: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -461,85 +613,119 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gpsTitle: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '700',
     marginBottom: 2,
   },
   gpsSub: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '500',
   },
+  currentLocationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 20,
+  },
+  currentLocLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  currentLocLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  currentLocVal: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  activeCheckBadge: {
+    padding: 4,
+  },
   sectionHeaderRow: {
-    marginBottom: 10,
+    marginBottom: 12,
     paddingHorizontal: 2,
   },
   sectionTitle: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
-  stateCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 10,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1.5,
+  popularCitiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 22,
   },
-  stateRow: {
+  popularCityChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 12,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  stateIconCircle: {
+  popularCityText: {
+    fontSize: 13,
+  },
+  guidanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  guidanceTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  guidanceSub: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  suggestionsContainer: {
+    gap: 8,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 14,
+  },
+  suggestionIconCircle: {
     width: 36,
     height: 36,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stateTextCol: {
+  suggestionTextCol: {
     flex: 1,
   },
-  stateNameText: {
-    fontSize: 14.5,
+  suggestionCityText: {
+    fontSize: 15,
     marginBottom: 2,
   },
-  stateCityCount: {
-    fontSize: 11,
+  suggestionStateText: {
+    fontSize: 12,
     fontWeight: '500',
   },
-  citiesContainer: {
-    borderTopWidth: 1,
-    paddingVertical: 4,
-  },
-  cityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-  },
-  cityLeftCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  cityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  cityNameText: {
-    fontSize: 13,
-  },
   selectedBadge: {
-    padding: 2,
+    padding: 4,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -556,5 +742,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     paddingHorizontal: 24,
+    lineHeight: 18,
+  },
+  clearSearchBtn: {
+    marginTop: 12,
+    backgroundColor: '#F5B800',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  clearSearchBtnText: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

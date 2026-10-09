@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface WishlistItem {
   id: string;
@@ -16,17 +18,27 @@ interface WishlistState {
   clearWishlist: () => void;
 }
 
-export const useWishlistStore = create<WishlistState>((set) => ({
-  wishlistItems: [],
-  toggleWishlist: (item) => set((state) => {
-    const exists = state.wishlistItems.some((i) => i.id === item.id);
-    if (exists) {
-      return { wishlistItems: state.wishlistItems.filter((i) => i.id !== item.id) };
+export const useWishlistStore = create<WishlistState>()(
+  persist(
+    (set) => ({
+      wishlistItems: [],
+      toggleWishlist: (item) =>
+        set((state) => {
+          const exists = state.wishlistItems.some((i) => i.id === item.id);
+          if (exists) {
+            return { wishlistItems: state.wishlistItems.filter((i) => i.id !== item.id) };
+          }
+          return { wishlistItems: [...state.wishlistItems, item] };
+        }),
+      removeFromWishlist: (id) =>
+        set((state) => ({
+          wishlistItems: state.wishlistItems.filter((i) => i.id !== id),
+        })),
+      clearWishlist: () => set({ wishlistItems: [] }),
+    }),
+    {
+      name: 'connect_app_wishlist_storage',
+      storage: createJSONStorage(() => AsyncStorage),
     }
-    return { wishlistItems: [...state.wishlistItems, item] };
-  }),
-  removeFromWishlist: (id) => set((state) => ({
-    wishlistItems: state.wishlistItems.filter((i) => i.id !== id),
-  })),
-  clearWishlist: () => set({ wishlistItems: [] }),
-}));
+  )
+);

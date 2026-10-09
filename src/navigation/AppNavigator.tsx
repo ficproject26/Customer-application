@@ -3,15 +3,12 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { View, StatusBar, TouchableOpacity } from 'react-native';
+import { useTranslation } from '../store/languageStore';
+import { View, Text, StatusBar, TouchableOpacity, Pressable } from 'react-native';
 
 
-// Screen Imports (to be created next)
-import LandingPage from '../screens/LandingPage';
-import Splash from '../screens/Splash';
+// Screen Imports
 import LocationSelection from '../screens/LocationSelection';
-import LanguageSelection from '../screens/LanguageSelection';
-import PermissionsScreen from '../screens/PermissionsScreen';
 import Login from '../screens/auth/Login';
 import JoinNow from '../screens/auth/JoinNow';
 import HomeDashboard from '../screens/customer/HomeDashboard';
@@ -22,6 +19,7 @@ import DeliveryMap from '../screens/delivery/DeliveryMap';
 import ProductDetails from '../screens/customer/ProductDetails';
 import MyAddresses from '../screens/customer/MyAddresses';
 import PaymentSettings from '../screens/customer/PaymentSettings';
+import WalletScreen from '../screens/customer/WalletScreen';
 import CheckoutScreen from '../screens/customer/CheckoutScreen';
 import BookingConfirmationScreen from '../screens/customer/BookingConfirmationScreen';
 import EditProfile from '../screens/customer/EditProfile';
@@ -30,6 +28,7 @@ import RecentlyViewedScreen from '../screens/customer/RecentlyViewedScreen';
 import JobDetailsScreen from '../screens/customer/JobDetailsScreen';
 import StayDetails from '../screens/customer/StayDetails';
 import Snackbar from '../components/Snackbar';
+import GuestAuthModal from '../components/GuestAuthModal';
 
 
 // Tab placeholders/secondary screens
@@ -37,6 +36,9 @@ import CustomerOrders from '../screens/customer/CustomerOrders';
 import CustomerMembership from '../screens/customer/CustomerMembership';
 import CustomerNotifications from '../screens/customer/CustomerNotifications';
 import CustomerProfile from '../screens/customer/CustomerProfile';
+import HelpSupportScreen from '../screens/customer/HelpSupportScreen';
+import PrivacySecurityScreen from '../screens/customer/PrivacySecurityScreen';
+import ThemeSettingsScreen from '../screens/customer/ThemeSettingsScreen';
 import Categories from '../screens/customer/Categories';
 import CustomerCart from '../screens/customer/CustomerCart';
 import { useCartStore } from '../store/cartStore';
@@ -57,34 +59,46 @@ export type RootStackParamList = {
 };
 
 export type AuthStackParamList = {
-  LandingPage: undefined;
-  Splash: undefined;
-  LocationSelection: undefined;
-  LanguageSelection: undefined;
-  Permissions: undefined;
   Login: undefined;
   JoinNow: undefined;
+  CreateAccount: undefined;
+  Register: undefined;
 };
 
 export type CustomerStackParamList = {
   CustomerTabs: { screen?: string; params?: any } | undefined;
-  CategoryDetails: { categoryName: string; subCategoryName?: string; selectedItem?: string };
-  LiveTracking: { orderId: string };
+  CategoryDetails: { categoryName: string; subCategoryName?: string; selectedItem?: string; vendor?: any; from?: string; to?: string; journeyDate?: string; departureTime?: string; priceRange?: string; travelType?: string; vehicleType?: string; passengers?: number; openSearchModal?: boolean; [key: string]: any };
+  LiveTracking: { orderId: string; order?: any };
   Notifications: undefined;
+  HelpSupport: undefined;
+  PrivacySecurity: undefined;
+  ThemeSettings: undefined;
   Profile: undefined;
   Membership: undefined;
   LocationSelection: undefined;
   ProductDetails: { item: any; category: string };
   MyAddresses: undefined;
   PaymentSettings: undefined;
+  Wallet: undefined;
   Cart: undefined;
-  Checkout: { item?: any } | undefined;
-  BookingConfirmation: { bookingId: string; items: any[]; totalAmount: number; paymentMethod: string; type: string; date?: string; slot?: string };
+  Checkout: { item?: any; items?: any[]; subtotal?: number } | undefined;
+  BookingConfirmation: {
+    bookingId: string;
+    items?: any[];
+    totalAmount?: number;
+    paymentMethod?: string;
+    type?: string;
+    date?: string;
+    slot?: string;
+    address?: string;
+  };
   EditProfile: undefined;
   Wishlist: undefined;
   RecentlyViewed: undefined;
   JobDetails: { job: any; openApplySheet?: boolean };
   StayDetails: { stay: any; checkIn?: string; checkOut?: string; nights?: number; adults?: number; rooms?: number };
+  Login: undefined;
+  JoinNow: undefined;
 };
 
 export type DeliveryStackParamList = {
@@ -99,14 +113,20 @@ const DeliveryStack = createStackNavigator<DeliveryStackParamList>();
 const CustomerTab = createBottomTabNavigator();
 const DeliveryTab = createBottomTabNavigator();
 
-// Fast Pressable Tab Bar Button for 0ms Touch Response
+// Ultra-fast Tab Bar Button with 0ms touch response
 const FastTabButton = React.memo((props: any) => {
+  const { onPress, onLongPress, children, accessibilityState, style, ...rest } = props;
   return (
-    <TouchableOpacity
-      {...props}
-      activeOpacity={0.6}
-      style={[props.style, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}
-    />
+    <Pressable
+      {...rest}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      android_ripple={{ color: 'rgba(245, 184, 0, 0.12)', borderless: true, radius: 28 }}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={[style, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}
+    >
+      {children}
+    </Pressable>
   );
 });
 
@@ -172,8 +192,9 @@ const renderDeliveryDollarIcon = ({ color, size }: { color: string; size: number
 // --- CUSTOMER BOTTOM TAB NAVIGATION ---
 function CustomerTabNavigator() {
   const colors = useThemeStore((state) => state.colors);
-  const themeMode = useThemeStore((state) => state.themeMode);
-  const isLight = colors.background === '#FFFDF5' || colors.background === '#F8FAFC' || colors.background === '#FFFFFF' || themeMode === 'light';
+  const isDark = useThemeStore((state) => state.isDark);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const { t, currentLanguage, refreshKey } = useTranslation();
 
   return (
     <CustomerTab.Navigator
@@ -185,19 +206,19 @@ function CustomerTabNavigator() {
         tabBarHideOnKeyboard: true,
         tabBarButton: (props) => <FastTabButton {...props} />,
         tabBarStyle: {
-          backgroundColor: isLight ? '#FFFDF5' : colors.background,
-          borderTopColor: isLight ? '#F1EAD8' : colors.cardBorder,
+          backgroundColor: colors.tabBarBg,
+          borderTopColor: colors.tabBarBorder,
           height: 62,
           paddingBottom: 8,
           paddingTop: 6,
           elevation: 8,
-          shadowColor: '#000',
+          shadowColor: isDark ? '#000' : '#888',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.08,
           shadowRadius: 4,
         },
-        tabBarActiveTintColor: '#F5B800',
-        tabBarInactiveTintColor: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.45)',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.subtext,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: 'bold',
@@ -209,7 +230,9 @@ function CustomerTabNavigator() {
         component={MemoizedHomeDashboard}
         options={{
           tabBarIcon: renderHomeIcon,
-          tabBarLabel: 'Home',
+          tabBarLabel: ({ color }) => (
+            <Text style={{ color, fontSize: 11, fontWeight: 'bold' }}>{t('home')}</Text>
+          ),
         }}
       />
       <CustomerTab.Screen
@@ -217,7 +240,9 @@ function CustomerTabNavigator() {
         component={MemoizedCategories}
         options={{
           tabBarIcon: renderCategoriesIcon,
-          tabBarLabel: 'Categories',
+          tabBarLabel: ({ color }) => (
+            <Text style={{ color, fontSize: 11, fontWeight: 'bold' }}>{t('categories')}</Text>
+          ),
         }}
       />
       <CustomerTab.Screen
@@ -225,7 +250,9 @@ function CustomerTabNavigator() {
         component={MemoizedCustomerOrders}
         options={{
           tabBarIcon: renderOrdersIcon,
-          tabBarLabel: 'Orders',
+          tabBarLabel: ({ color }) => (
+            <Text style={{ color, fontSize: 11, fontWeight: 'bold' }}>{t('orders')}</Text>
+          ),
         }}
       />
       <CustomerTab.Screen
@@ -233,7 +260,9 @@ function CustomerTabNavigator() {
         component={MemoizedCustomerMembership}
         options={{
           tabBarIcon: renderMembershipIcon,
-          tabBarLabel: 'Membership',
+          tabBarLabel: ({ color }) => (
+            <Text style={{ color, fontSize: 11, fontWeight: 'bold' }}>{t('membership')}</Text>
+          ),
         }}
       />
       <CustomerTab.Screen
@@ -241,8 +270,18 @@ function CustomerTabNavigator() {
         component={MemoizedCustomerProfile}
         options={{
           tabBarIcon: renderProfileIcon,
-          tabBarLabel: 'Profile',
+          tabBarLabel: ({ color }) => (
+            <Text style={{ color, fontSize: 11, fontWeight: 'bold' }}>{t('profile')}</Text>
+          ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            if (!currentUser) {
+              e.preventDefault();
+              navigation.navigate('Login');
+            }
+          },
+        })}
       />
     </CustomerTab.Navigator>
   );
@@ -252,18 +291,15 @@ function CustomerTabNavigator() {
 // --- CUSTOMER MAIN NAVIGATOR ---
 function CustomerNavigator() {
   const colors = useThemeStore((state) => state.colors);
-  const themeMode = useThemeStore((state) => state.themeMode);
-  const isLight = colors.background === '#FFFDF5' || colors.background === '#F8FAFC' || colors.background === '#FFFFFF' || themeMode === 'light';
-
 
   return (
     <>
       <StatusBar
-        barStyle={isLight ? 'dark-content' : 'light-content'}
-        backgroundColor="transparent"
-        translucent
+        barStyle={colors.statusBarStyle}
+        backgroundColor={colors.background}
+        translucent={false}
       />
-      <CustomerStack.Navigator detachInactiveScreens={true} screenOptions={{ headerShown: false }}>
+      <CustomerStack.Navigator detachInactiveScreens={true} screenOptions={{ headerShown: false, cardStyle: { backgroundColor: colors.background } }}>
         <CustomerStack.Screen name="CustomerTabs" component={CustomerTabNavigator} />
         <CustomerStack.Screen name="CategoryDetails" component={CategoryDetails} />
         <CustomerStack.Screen name="LiveTracking" component={LiveTracking} />
@@ -272,16 +308,33 @@ function CustomerNavigator() {
         <CustomerStack.Screen name="ProductDetails" component={ProductDetails} />
         <CustomerStack.Screen name="MyAddresses" component={MyAddresses} />
         <CustomerStack.Screen name="PaymentSettings" component={PaymentSettings} />
+        <CustomerStack.Screen name="Wallet" component={WalletScreen} />
         <CustomerStack.Screen name="Cart" component={CustomerCart} />
         <CustomerStack.Screen name="Checkout" component={CheckoutScreen} />
         <CustomerStack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} />
+        <CustomerStack.Screen
+          name="Notifications"
+          component={CustomerNotifications}
+          options={{
+            presentation: 'transparentModal',
+            cardStyle: { backgroundColor: 'transparent' },
+            headerShown: false,
+            animation: 'fade',
+          }}
+        />
+        <CustomerStack.Screen name="HelpSupport" component={HelpSupportScreen} />
+        <CustomerStack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+        <CustomerStack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />
         <CustomerStack.Screen name="EditProfile" component={EditProfile} />
         <CustomerStack.Screen name="Wishlist" component={WishlistScreen} />
         <CustomerStack.Screen name="RecentlyViewed" component={RecentlyViewedScreen} />
         <CustomerStack.Screen name="JobDetails" component={JobDetailsScreen} />
         <CustomerStack.Screen name="StayDetails" component={StayDetails} />
+        <CustomerStack.Screen name="Login" component={Login} />
+        <CustomerStack.Screen name="JoinNow" component={JoinNow} />
       </CustomerStack.Navigator>
       <Snackbar />
+      <GuestAuthModal />
     </>
   );
 }
@@ -361,20 +414,15 @@ function DeliveryNavigator() {
 
 // --- AUTHENTICATION NAVIGATOR ---
 function AuthNavigator() {
-  const isOnboarded = useAuthStore((state) => state.isOnboarded);
-
   return (
     <AuthStack.Navigator
       screenOptions={{ headerShown: false }}
-      initialRouteName={isOnboarded ? 'LandingPage' : 'LanguageSelection'}
+      initialRouteName="Login"
     >
-      <AuthStack.Screen name="LanguageSelection" component={LanguageSelection} />
-      <AuthStack.Screen name="Permissions" component={PermissionsScreen} />
-      <AuthStack.Screen name="LandingPage" component={LandingPage} />
-      <AuthStack.Screen name="Splash" component={Splash} />
-      <AuthStack.Screen name="LocationSelection" component={LocationSelection} />
       <AuthStack.Screen name="Login" component={Login} />
       <AuthStack.Screen name="JoinNow" component={JoinNow} />
+      <AuthStack.Screen name="CreateAccount" component={JoinNow} />
+      <AuthStack.Screen name="Register" component={JoinNow} />
     </AuthStack.Navigator>
   );
 }
@@ -383,15 +431,10 @@ function AuthNavigator() {
 export default function AppNavigator() {
   const currentUser = useAuthStore((state) => state.currentUser);
 
-  if (!currentUser) {
-    return <AuthNavigator />;
-  }
-
-  if (currentUser.role === 'delivery') {
+  if (currentUser?.role === 'delivery') {
     return <DeliveryNavigator />;
   }
 
-  // Customers and Vendors navigate to Customer UI structure
-  // (Vendors manage and order from customer interface or specialized vendor views inside)
+  // Unauthenticated guests as well as Customers and Vendors can browse the Customer App!
   return <CustomerNavigator />;
 }

@@ -8,13 +8,20 @@ import {
   Dimensions,
   Alert,
   Animated,
+  StatusBar,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import QRCode from 'react-native-qrcode-svg';
 import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../services/api';
+import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
+import { prepareRazorpayOrder, verifyRazorpayPayment } from '../../services/razorpayService';
+import { useTranslation } from '../../store/languageStore';
+import { useAuthGuardStore } from '../../store/authGuardStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(SCREEN_WIDTH - 32, 380);
@@ -104,10 +111,13 @@ export const MEMBERSHIP_PLANS: TierPlan[] = [
 // ==========================================
 interface DigitalMembershipCardProps {
   plan: TierPlan;
-  currentMembership: 'silver' | 'gold' | 'diamond';
+  currentMembership?: 'silver' | 'gold' | 'diamond' | null;
   displayName: string;
   onUpgrade: (plan: TierPlan) => void;
   updating: boolean;
+  updatingPlanType?: string | null;
+  isFlipped: boolean;
+  onToggleFlip: (planType: string) => void;
 }
 
 const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
@@ -116,14 +126,28 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
   displayName,
   onUpgrade,
   updating,
+  updatingPlanType,
+  isFlipped,
+  onToggleFlip,
 }) => {
-  const isCurrent = currentMembership === plan.type;
-  const isLower = TIER_LEVEL[plan.type] < TIER_LEVEL[currentMembership];
-  const isHigher = TIER_LEVEL[plan.type] > TIER_LEVEL[currentMembership];
+  const currentLevel = currentMembership ? (TIER_LEVEL[currentMembership] || 0) : 0;
+  const cardLevel = TIER_LEVEL[plan.type] || 0;
 
-  const animatedValue = useRef(new Animated.Value(0)).current;
-  const isFlippedRef = useRef(false);
-  const [isFlipped, setIsFlipped] = useState(false);
+  const isCurrent = Boolean(currentMembership && currentMembership === plan.type);
+  const isLower = currentLevel > 0 && cardLevel < currentLevel;
+  const isHigher = currentLevel > 0 && cardLevel > currentLevel;
+  const isThisPlanUpdating = updatingPlanType === plan.type;
+
+  const animatedValue = useRef(new Animated.Value(isFlipped ? 180 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(animatedValue, {
+      toValue: isFlipped ? 180 : 0,
+      friction: 8,
+      tension: 10,
+      useNativeDriver: true,
+    }).start();
+  }, [isFlipped, animatedValue]);
 
   const flipCard = () => {
     if (isLower) {
@@ -131,27 +155,12 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
       return;
     }
 
-    if (isFlippedRef.current) {
-      Animated.spring(animatedValue, {
-        toValue: 0,
-        friction: 8,
-        tension: 10,
-        useNativeDriver: true,
-      }).start(() => {
-        isFlippedRef.current = false;
-        setIsFlipped(false);
-      });
-    } else {
-      Animated.spring(animatedValue, {
-        toValue: 180,
-        friction: 8,
-        tension: 10,
-        useNativeDriver: true,
-      }).start(() => {
-        isFlippedRef.current = true;
-        setIsFlipped(true);
-      });
+    if (isGuestUser) {
+      useAuthGuardStore.getState().showAuthModal('select a plan or access membership privileges');
+      return;
     }
+
+    onToggleFlip(plan.type);
   };
 
   const frontInterpolate = animatedValue.interpolate({
@@ -174,11 +183,15 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
     outputRange: [0, 0, 1, 1],
   });
 
-  const memberId = `CN-${plan.type.toUpperCase()}-4820`;
+  const currentUser = useAuthStore.getState().currentUser;
+  const isGuestUser = !currentUser || currentUser.isGuest || (currentUser.name || '').toLowerCase().includes('guest');
+  const cardDisplayName = isGuestUser ? 'Guest User' : (displayName || currentUser?.name || 'Guest User');
+  const userNum = isGuestUser ? 'GUEST' : (currentUser?.id ? currentUser.id.replace(/[^\d]/g, '') || '4820' : '4820');
+  const memberId = `CN-${plan.type.toUpperCase()}-${userNum}`;
 
   return (
     <TouchableOpacity
-      activeOpacity={isLower ? 0.95 : 0.9}
+      activeOpacity={isLower ? 0.95 : 0.92}
       onPress={flipCard}
       style={styles.cardTouchWrapper}
     >
@@ -244,7 +257,7 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
               <Text style={styles.logoText}>Connect Club</Text>
             </View>
 
-            {/* Status Pill */}
+            {/* Status Pill / Upgrade Button */}
             {isCurrent ? (
               <View style={styles.activeStatusPill}>
                 <View style={styles.activeDot} />
@@ -256,10 +269,27 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
                 <Text style={styles.lockedStatusText}>LOCKED</Text>
               </View>
             ) : (
-              <View style={styles.upgradeStatusPill}>
+              <TouchableOpacity
+                style={styles.upgradeStatusPill}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (isGuestUser) {
+                    useAuthGuardStore.getState().showAuthModal('select or upgrade a membership plan');
+                    return;
+                  }
+                  onUpgrade(plan);
+                }}
+                disabled={updating}
+              >
                 <Icons.Sparkles color="#FFFFFF" size={10} />
-                <Text style={styles.upgradeStatusText}>UPGRADE AVAILABLE</Text>
-              </View>
+                <Text style={styles.upgradeStatusText}>
+                  {isThisPlanUpdating
+                    ? 'OPENING...'
+                    : currentMembership
+                    ? 'UPGRADE AVAILABLE'
+                    : 'SELECT PLAN'}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -300,7 +330,7 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
           <View style={styles.cardFooter}>
             <View>
               <Text style={styles.cardMetaLabel}>MEMBER NAME</Text>
-              <Text style={styles.memberNameValue}>{displayName}</Text>
+              <Text style={styles.memberNameValue}>{cardDisplayName}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.cardMetaLabel}>VALID THRU</Text>
@@ -404,30 +434,25 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
             </View>
           </View>
 
-          {/* Action / Upgrade Button on Back */}
+          {/* Card Back Info Container */}
           <View style={styles.backActionContainer}>
             {isCurrent ? (
               <View style={styles.activeBadgeBack}>
                 <Icons.CheckCircle2 color="#34D399" size={13} />
                 <Text style={styles.activeBadgeBackText}>Current Active Membership</Text>
               </View>
-            ) : isHigher ? (
-              <TouchableOpacity
-                style={[styles.upgradeBackBtn, { backgroundColor: plan.color }]}
-                activeOpacity={0.85}
-                onPress={() => onUpgrade(plan)}
-                disabled={updating}
-              >
-                <Icons.Sparkles color="#FFFFFF" size={12} />
-                <Text style={styles.upgradeBackBtnText}>
-                  Upgrade to {plan.tier.split(' ')[0]} • {plan.price.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ) : (
+            ) : isLower ? (
               <View style={styles.lockedBadgeBack}>
                 <Icons.Lock color="#94A3B8" size={12} />
                 <Text style={styles.lockedBadgeBackText}>
                   Lower Tier • Included in Active Plan
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.activeBadgeBack}>
+                <Icons.Sparkles color={plan.accentColor} size={12} />
+                <Text style={[styles.activeBadgeBackText, { color: plan.accentColor }]}>
+                  {plan.tier} Tier Privileges
                 </Text>
               </View>
             )}
@@ -442,79 +467,196 @@ const DigitalMembershipCard: React.FC<DigitalMembershipCardProps> = ({
 // MAIN SCREEN COMPONENT
 // ==========================================
 export default function CustomerMembership() {
+  const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((state) => state.currentUser);
   const updateMembership = useAuthStore((state) => state.updateMembership);
+  const colors = useThemeStore((state) => state.colors);
+  const isDark = useThemeStore((state) => state.isDark);
+  const isLight = !isDark;
 
-  const displayName = currentUser?.name || 'Uma';
-  const currentMembership = (currentUser?.membership || 'silver') as 'silver' | 'gold' | 'diamond';
+  const isGuest = !currentUser || currentUser.isGuest || (currentUser.name || '').toLowerCase().includes('guest');
+  const displayName = isGuest ? 'Guest User' : currentUser?.name || 'Guest User';
+  const currentMembership = currentUser?.membership ? (currentUser.membership as 'silver' | 'gold' | 'diamond') : null;
 
   const [updating, setUpdating] = useState(false);
+  const [updatingPlanType, setUpdatingPlanType] = useState<string | null>(null);
   const [memberOffers, setMemberOffers] = useState<any[]>([]);
+  const [flippedPlanType, setFlippedPlanType] = useState<string | null>(null);
 
-  // Load Member Offers from MongoDB Atlas
+  const handleToggleFlip = (planType: string) => {
+    setFlippedPlanType((prev) => (prev === planType ? null : planType));
+  };
+
+  // Razorpay Checkout Modal State
+  const [razorpayModalVisible, setRazorpayModalVisible] = useState(false);
+  const [razorpayOrder, setRazorpayOrder] = useState<RazorpayOrderDetails | null>(null);
+
+  // Load / Sync Member Offers in background from MongoDB Atlas
   useEffect(() => {
+    let isMounted = true;
     apiFetch('/offers')
       .then((res) => {
-        if (res && res.data && Array.isArray(res.data)) {
+        if (!isMounted) return;
+        if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
           setMemberOffers(res.data);
         }
       })
       .catch((err) => {
-        console.warn('[CustomerMembership] Error loading offers from MongoDB:', err);
+        console.warn('[CustomerMembership] Background offers sync notice:', err);
       });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleUpgradePlan = (plan: TierPlan) => {
-    if (plan.type === currentMembership) {
+    if (isGuest) {
+      useAuthGuardStore.getState().showAuthModal('select or upgrade a membership plan');
       return;
     }
 
-    Alert.alert(
-      'Upgrade Membership',
-      `Upgrade to ${plan.tier} for ${plan.price}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm & Upgrade',
-          onPress: async () => {
-            setUpdating(true);
-            try {
-              await updateMembership(plan.type);
-              Alert.alert(
-                'Membership Upgraded 🎉',
-                `Congratulations! Your ${plan.tier} is now active.`
-              );
-            } catch {
-              Alert.alert('Error', 'Unable to upgrade membership. Please try again.');
-            } finally {
-              setUpdating(false);
-            }
+    if (plan.type === currentMembership) {
+      Alert.alert('Current Active Tier', `You are already enjoying ${plan.tier} privileges!`);
+      return;
+    }
+
+    // Extract numerical price (e.g., "₹5,999 / year" -> 5999)
+    const rawPrice = plan.price.replace(/[^0-9]/g, '');
+    const priceNum = parseInt(rawPrice, 10) || 5999;
+
+    // 1. Immediately synthesize order & open Razorpay Modal with 0ms delay
+    prepareRazorpayOrder({
+      amount: priceNum,
+      planType: plan.type,
+      planName: `Upgrade to ${plan.tier}`,
+      priceText: plan.price,
+      userId: currentUser?.id || 'guest_user',
+      onOrderReady: (ord) => {
+        setRazorpayOrder(ord);
+        setRazorpayModalVisible(true);
+      },
+    });
+  };
+
+  const handleRazorpaySuccess = async (paymentResult: {
+    razorpay_payment_id: string;
+    razorpay_order_id: string;
+    razorpay_signature: string;
+  }) => {
+    setRazorpayModalVisible(false);
+
+    try {
+      // 2. Server-side Payment Verification & Membership Upgrade in MongoDB Atlas
+      const response = await verifyRazorpayPayment({
+        ...paymentResult,
+        planType: razorpayOrder?.planType || 'diamond',
+        userId: currentUser?.id || 'guest_user',
+      });
+
+      if (response && response.status === 'success') {
+        const newTier = (razorpayOrder?.planType || 'diamond') as 'silver' | 'gold' | 'diamond';
+        await updateMembership(newTier);
+
+        Alert.alert(
+          'Payment Verified & Upgraded 🎉',
+          `Razorpay Test Mode Payment Verified!\n\nCongratulations! Your ${razorpayOrder?.planName || 'Diamond Club'} membership is now active.`
+        );
+      } else {
+        Alert.alert(
+          'Payment Verification Notice',
+          response?.message || 'Could not verify payment signature on the server.',
+          [
+            { text: 'OK' },
+            {
+              text: 'Retry Upgrade',
+              onPress: () => {
+                const targetPlan = MEMBERSHIP_PLANS.find((p) => p.type === razorpayOrder?.planType);
+                if (targetPlan) handleUpgradePlan(targetPlan);
+              },
+            },
+          ]
+        );
+      }
+    } catch (err: any) {
+      console.error('[CustomerMembership] Verification error:', err);
+      Alert.alert(
+        'Payment Notice',
+        err?.message || 'Payment verification failed. Would you like to retry?',
+        [
+          { text: 'Cancel' },
+          {
+            text: 'Retry',
+            onPress: () => {
+              const targetPlan = MEMBERSHIP_PLANS.find((p) => p.type === razorpayOrder?.planType);
+              if (targetPlan) handleUpgradePlan(targetPlan);
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } finally {
+      setUpdating(false);
+      setRazorpayOrder(null);
+    }
+  };
+
+  const handleRazorpayCancel = () => {
+    setRazorpayModalVisible(false);
+    setRazorpayOrder(null);
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.headerBackground} />
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top }]}>
-        <Text style={styles.headerTitle}>Connect Membership</Text>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top,
+            height: 56 + insets.top,
+            backgroundColor: colors.headerBackground,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('CustomerTabs', { screen: 'Home' });
+            }
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+        >
+          <Icons.ArrowLeft color={colors.text} size={22} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Connect Membership</Text>
+        <View style={styles.headerRightSpacer} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* CARDS SECTION HEADER */}
         <View style={styles.cardsSectionHeader}>
-          <Icons.ShieldCheck color="#64748B" size={14} />
-          <Text style={styles.sectionTitle}>MEMBERSHIP TIERS</Text>
+          <Icons.ShieldCheck color={colors.textSecondary} size={14} />
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t('MEMBERSHIP TIERS')}</Text>
         </View>
 
         {/* Tap Prompt Hint */}
-        <View style={styles.flipPromptRow}>
-          <Icons.RotateCcw color="#64748B" size={11} />
-          <Text style={styles.flipPromptText}>
-            Tap active or upgradeable card to flip for benefits
+        <View
+          style={[
+            styles.flipPromptRow,
+            { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+          ]}
+        >
+          <Icons.RotateCcw color={colors.textSecondary} size={11} />
+          <Text style={[styles.flipPromptText, { color: colors.textSecondary }]}>
+            Tap card to flip for benefits • Tap Upgrade to join instantly
           </Text>
         </View>
 
@@ -528,6 +670,9 @@ export default function CustomerMembership() {
                 displayName={displayName}
                 onUpgrade={handleUpgradePlan}
                 updating={updating}
+                updatingPlanType={updatingPlanType}
+                isFlipped={flippedPlanType === plan.type}
+                onToggleFlip={handleToggleFlip}
               />
             </View>
           ))}
@@ -535,40 +680,86 @@ export default function CustomerMembership() {
 
         {/* MEMBER OFFERS SECTION */}
         <View style={styles.offersSectionHeader}>
-          <Icons.Gift color="#64748B" size={14} />
-          <Text style={styles.sectionTitle}>MEMBER-ONLY OFFERS</Text>
+          <Icons.Gift color={colors.textSecondary} size={14} />
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>MEMBER-ONLY OFFERS</Text>
         </View>
 
         <View style={styles.offersContainer}>
           {memberOffers.length === 0 ? (
-            <Text style={{ color: '#64748B', fontSize: 12, textAlign: 'center', marginVertical: 16 }}>
-              Loading member-exclusive offers from database...
-            </Text>
+            <View style={{ paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center' }}>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No active member offers at the moment</Text>
+            </View>
           ) : (
             memberOffers.map((offer) => (
-              <View key={offer.id} style={styles.offerCard}>
+              <TouchableOpacity
+                key={offer.id}
+                activeOpacity={0.88}
+                style={[
+                  styles.offerCard,
+                  { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
+                ]}
+                onPress={() => {
+                  if (isGuest) {
+                    useAuthGuardStore.getState().showAuthModal('claim exclusive member vouchers');
+                    return;
+                  }
+                  Alert.alert(
+                    'Promo Code Copied 📋',
+                    `Promo code ${offer.code} copied! Applied on your next checkout.`
+                  );
+                }}
+              >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.offerTitle}>{offer.title}</Text>
-                  <Text style={styles.offerVendor}>{offer.vendor}</Text>
-                  <Text style={styles.offerValidity}>{offer.validity || 'Limited Period Deal'}</Text>
+                  <Text style={[styles.offerTitle, { color: colors.text }]}>{offer.title}</Text>
+                  <Text style={[styles.offerVendor, { color: colors.textSecondary }]}>
+                    {offer.vendor || offer.category || 'Connect Partner'}
+                  </Text>
+                  <Text style={styles.offerValidity}>
+                    {offer.validity || offer.discount || 'Limited Period Deal'}
+                  </Text>
                 </View>
                 <TouchableOpacity
-                  style={styles.codeBtn}
+                  style={[
+                    styles.codeBtn,
+                    {
+                      backgroundColor: isLight ? '#FEFCE8' : '#1E293B',
+                      borderColor: isLight ? '#FACC15' : '#854D0E',
+                    },
+                  ]}
                   activeOpacity={0.8}
-                  onPress={() =>
+                  onPress={() => {
+                    if (isGuest) {
+                      useAuthGuardStore.getState().showAuthModal('claim exclusive member vouchers');
+                      return;
+                    }
                     Alert.alert(
                       'Promo Code Copied 📋',
                       `Promo code ${offer.code} copied! Applied on your next checkout.`
-                    )
-                  }
+                    );
+                  }}
                 >
-                  <Text style={styles.codeText}>{offer.code}</Text>
+                  <Text style={[styles.codeText, { color: isLight ? '#854D0E' : '#F4C400' }]}>
+                    {offer.code}
+                  </Text>
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* Razorpay Test Mode Checkout Modal */}
+      <RazorpayModal
+        visible={razorpayModalVisible}
+        orderData={razorpayOrder}
+        userInfo={{
+          name: displayName,
+          email: currentUser?.email || 'guest@connectapp.com',
+          phone: currentUser?.phone || '',
+        }}
+        onSuccess={handleRazorpaySuccess}
+        onCancel={handleRazorpayCancel}
+      />
     </View>
   );
 }
@@ -579,19 +770,26 @@ export default function CustomerMembership() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerRightSpacer: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   scrollContent: {
     paddingVertical: 14,
@@ -607,7 +805,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#475569',
     letterSpacing: 0.6,
   },
   flipPromptRow: {
@@ -615,19 +812,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 5,
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     marginHorizontal: 16,
     marginBottom: 14,
   },
   flipPromptText: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: '#64748B',
   },
   cardsVerticalList: {
     marginBottom: 20,
@@ -950,10 +1144,8 @@ const styles = StyleSheet.create({
   offerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     padding: 12,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
@@ -964,11 +1156,9 @@ const styles = StyleSheet.create({
   offerTitle: {
     fontSize: 12.5,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   offerVendor: {
     fontSize: 11,
-    color: '#64748B',
     marginTop: 1,
   },
   offerValidity: {
@@ -978,9 +1168,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   codeBtn: {
-    backgroundColor: '#FEFCE8',
     borderWidth: 1,
-    borderColor: '#FACC15',
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -988,7 +1176,6 @@ const styles = StyleSheet.create({
   codeText: {
     fontSize: 10.5,
     fontWeight: 'bold',
-    color: '#854D0E',
     letterSpacing: 0.5,
   },
 });

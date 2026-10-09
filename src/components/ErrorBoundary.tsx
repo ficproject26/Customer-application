@@ -1,32 +1,61 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
+import * as Icons from 'lucide-react-native';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  screenName?: string;
+  onReset?: () => void;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
+    errorInfo: null,
   };
 
+  private autoRecoveryTimer: any = null;
+
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, errorInfo: null };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.warn('[ErrorBoundary caught error]:', error, errorInfo);
+    console.warn(`[ErrorBoundary caught error in ${this.props.screenName || 'Component'}]:`, error, errorInfo);
+    this.setState({ errorInfo });
+
+    // Schedule auto-recovery attempt after 3 seconds for transient render glitches
+    if (this.autoRecoveryTimer) clearTimeout(this.autoRecoveryTimer);
+    this.autoRecoveryTimer = setTimeout(() => {
+      if (this.state.hasError) {
+        console.log(`[ErrorBoundary] Auto-attempting recovery for ${this.props.screenName || 'Component'}...`);
+        this.handleReset();
+      }
+    }, 4000);
   }
 
-  private handleReset = () => {
-    this.setState({ hasError: false, error: null });
+  componentWillUnmount() {
+    if (this.autoRecoveryTimer) clearTimeout(this.autoRecoveryTimer);
+  }
+
+  public handleReset = () => {
+    if (this.autoRecoveryTimer) clearTimeout(this.autoRecoveryTimer);
+    this.setState({ hasError: false, error: null, errorInfo: null });
+    if (this.props.onReset) {
+      try {
+        this.props.onReset();
+      } catch (e) {
+        console.warn('onReset callback error:', e);
+      }
+    }
   };
 
   public render() {
@@ -37,22 +66,31 @@ export default class ErrorBoundary extends Component<Props, State> {
 
       return (
         <SafeAreaView style={styles.container}>
-          <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+          <StatusBar barStyle="light-content" backgroundColor="#050B1E" />
           <View style={styles.card}>
             <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>⚡</Text>
+              <Icons.AlertTriangle color="#F5B800" size={26} />
             </View>
-            <Text style={styles.title}>Something went wrong</Text>
+            <Text style={styles.title}>Section Temporarily Unavailable</Text>
             <Text style={styles.subtitle}>
-              The app encountered an unexpected state. Don't worry, your data and settings are safely saved.
+              We encountered a minor display issue in {this.props.screenName || 'this view'}. Your data and cart settings remain completely safe.
             </Text>
+
+            {this.state.error && (
+              <View style={styles.debugBox}>
+                <Text style={styles.debugText} numberOfLines={4}>
+                  {this.state.error.toString()}
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.primaryBtn}
               activeOpacity={0.85}
               onPress={this.handleReset}
             >
-              <Text style={styles.primaryBtnText}>Reload App</Text>
+              <Icons.RefreshCw color="#0F172A" size={15} />
+              <Text style={styles.primaryBtnText}>Retry & Restore View</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -63,68 +101,96 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+/**
+ * Higher-Order Component to wrap individual screens or widgets with isolated Error Boundaries
+ */
+export function withErrorBoundary<P extends object>(
+  WrappedComponent: React.ComponentType<P>,
+  screenName?: string
+) {
+  return function WithErrorBoundary(props: P) {
+    return (
+      <ErrorBoundary screenName={screenName || WrappedComponent.displayName || WrappedComponent.name}>
+        <WrappedComponent {...props} />
+      </ErrorBoundary>
+    );
+  };
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#050B1E',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: '#0B132B',
+    borderRadius: 18,
+    padding: 22,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 360,
     alignItems: 'center',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
     shadowRadius: 16,
-    elevation: 4,
+    elevation: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFFBEB',
-    borderWidth: 2,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(245, 184, 0, 0.12)',
+    borderWidth: 1.5,
     borderColor: '#F5B800',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
-  },
-  iconText: {
-    fontSize: 28,
+    marginBottom: 14,
   },
   title: {
-    fontSize: 19,
+    fontSize: 16.5,
     fontWeight: '900',
-    color: '#0F172A',
-    marginBottom: 8,
+    color: '#FFFFFF',
+    marginBottom: 6,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: 12.5,
+    color: '#94A3B8',
     textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 20,
+    lineHeight: 18,
+    marginBottom: 18,
+  },
+  debugBox: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 16,
+    width: '100%',
+  },
+  debugText: {
+    color: '#EF4444',
+    fontSize: 10.5,
+    fontFamily: 'monospace',
   },
   primaryBtn: {
+    flexDirection: 'row',
     backgroundColor: '#F5B800',
-    paddingVertical: 13,
-    paddingHorizontal: 28,
-    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 11,
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   primaryBtnText: {
     color: '#0F172A',
-    fontSize: 14,
-    fontWeight: '900',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });

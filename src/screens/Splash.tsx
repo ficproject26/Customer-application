@@ -15,11 +15,9 @@ import Svg, { Circle, Line, G } from 'react-native-svg';
 
 
 
-type SplashScreenProp = StackNavigationProp<AuthStackParamList, 'Splash'>;
-
 export default function Splash() {
   const { height, width } = useWindowDimensions();
-  const navigation = useNavigation<SplashScreenProp>();
+  const navigation = useNavigation<any>();
 
   // Shared values for animations
   const logoScale = useSharedValue(0.2);

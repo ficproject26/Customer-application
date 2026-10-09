@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface StateCityData {
   state: string;
@@ -169,24 +171,32 @@ interface LocationState {
   getDisplayLocation: () => string;
 }
 
-export const useLocationStore = create<LocationState>((set, get) => ({
-  selectedState: 'Karnataka',
-  selectedCity: 'Bengaluru',
-  isCurrentLocation: true,
+export const useLocationStore = create<LocationState>()(
+  persist(
+    (set, get) => ({
+      selectedState: 'Karnataka',
+      selectedCity: 'Bengaluru',
+      isCurrentLocation: true,
 
-  setLocation: (state: string, city = '', isCurrent = false) => {
-    set({
-      selectedState: state,
-      selectedCity: city,
-      isCurrentLocation: isCurrent,
-    });
-  },
+      setLocation: (state: string, city = '', isCurrent = false) => {
+        set({
+          selectedState: state,
+          selectedCity: city,
+          isCurrentLocation: isCurrent,
+        });
+      },
 
-  getDisplayLocation: () => {
-    const { selectedState, selectedCity } = get();
-    if (selectedCity && selectedState) {
-      return `${selectedCity}, ${selectedState}`;
+      getDisplayLocation: () => {
+        const { selectedState, selectedCity } = get();
+        if (selectedCity && selectedState) {
+          return `${selectedCity}, ${selectedState}`;
+        }
+        return selectedState || 'Karnataka';
+      },
+    }),
+    {
+      name: 'connect_app_location_storage',
+      storage: createJSONStorage(() => AsyncStorage),
     }
-    return selectedState || 'Karnataka';
-  },
-}));
+  )
+);

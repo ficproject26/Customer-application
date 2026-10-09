@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   Modal,
   TextInput,
   Linking,
+  StatusBar,
+  NativeModules,
+  Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +20,11 @@ import * as Icons from 'lucide-react-native';
 import { JobItem } from '../../components/JobCard';
 import { useWishlistStore } from '../../store/wishlistStore';
 import { useToastStore } from '../../store/toastStore';
-import { useOrderStore } from '../../store/orderStore';
+import { useOrderStore, Order } from '../../store/orderStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
+import { apiFetch } from '../../services/api';
+import { useNotificationStore } from '../../store/notificationStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,7 +32,8 @@ export default function JobDetailsScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
-  const { colors, themeMode } = useThemeStore();
+  const colors = useThemeStore((state) => state.colors);
+  const themeMode = useThemeStore((state) => state.themeMode);
   const isLight =
     colors.background === '#FFFDF5' ||
     colors.background === '#FFFFFF' ||
@@ -34,59 +41,107 @@ export default function JobDetailsScreen() {
     colors.background === '#FFF8E8' ||
     themeMode === 'light';
 
-  const rawJob: JobItem = route.params?.job || {
-    id: 'job_sample_1',
-    title: 'Senior Full Stack React Native Developer',
-    company: 'TechForge Solutions India',
-    logo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=500&auto=format&fit=crop&q=80',
-    isVerified: true,
-    location: 'Bangalore, KA',
-    workMode: 'Hybrid',
-    experience: '2–5 yrs',
-    salary: '₹12–₹18 LPA',
-    employmentType: 'Full-time',
-    department: 'IT & Software Engineering',
-    skills: ['React Native', 'TypeScript', 'Node.js', 'GraphQL', 'MongoDB'],
-    postedDate: '2 days ago',
-    deadline: '15 Sep 2026',
-    itemType: 'JOB',
-    openings: 3,
-    description:
-      'We are looking for a passionate Senior React Native Developer to lead our mobile engineering team. You will be responsible for architecting scalable mobile features, optimizing native performance across iOS and Android, and working closely with product managers and backend teams.',
-    companyInfo: {
-      industry: 'IT & Product Development',
-      size: '250–500 Employees',
-      founded: '2018',
-      hq: 'Indiranagar, Bangalore',
-      website: 'https://techforge.in',
-      rating: '4.7',
-      reviewsCount: '184',
-      about:
-        'TechForge Solutions is a leading digital product studio engineering high-scale mobile applications and enterprise SaaS solutions for global brands.',
-    },
-  };
+  const rawJob: JobItem | null = route.params?.job || null;
+
+  if (!rawJob) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={[styles.header, { borderBottomColor: isLight ? 'rgba(242, 183, 5, 0.25)' : colors.cardBorder }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+            <Icons.ArrowLeft color={colors.text} size={22} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Job Details</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Icons.Briefcase color={colors.subtext} size={56} style={{ marginBottom: 16 }} />
+          <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 }}>
+            Job Not Found
+          </Text>
+          <Text style={{ fontSize: 14, color: colors.subtext, textAlign: 'center', marginBottom: 20 }}>
+            This job listing is unavailable or has been removed.
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.primary, borderRadius: 8 }}
+          >
+            <Text style={{ color: '#000', fontWeight: 'bold' }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   const wishlistItems = useWishlistStore((state) => state.wishlistItems);
   const toggleWishlist = useWishlistStore((state) => state.toggleWishlist);
   const showToast = useToastStore((state) => state.showToast);
+  const currentUser = useAuthStore((state) => state.currentUser);
 
   const isSaved = wishlistItems.some((i) => i.id === rawJob.id);
   const isInternship =
     rawJob.itemType === 'INTERNSHIP' ||
     (rawJob.employmentType || '').toLowerCase().includes('intern');
 
+  const jobID = rawJob.jobID || (rawJob.id ? `JOB-${String(rawJob.id).replace(/[^\d]/g, '').slice(-5) || '10482'}` : 'JOB-10482');
+
   // Application Sheet State
   const [isApplyModalVisible, setIsApplyModalVisible] = useState(
     Boolean(route.params?.openApplySheet)
   );
   const [hasSubmittedApplication, setHasSubmittedApplication] = useState(false);
-  const [applicantResume, setApplicantResume] = useState('Uma_Resume_2026.pdf');
-  const [applicantEducation, setApplicantEducation] = useState('B.Tech in Computer Science');
-  const [applicantNoticePeriod, setApplicantNoticePeriod] = useState('Immediate (0–15 Days)');
-  const [expectedSalary, setExpectedSalary] = useState(rawJob.salary || '₹14 LPA');
-  const [screeningAnswer, setScreeningAnswer] = useState(
-    'Yes, I have over 3+ years of hands-on experience building production React Native apps.'
-  );
+  const [applicantResume, setApplicantResume] = useState('');
+  const [isDocModalVisible, setIsDocModalVisible] = useState(false);
+  const [manualDocName, setManualDocName] = useState('');
+  const [applicantName, setApplicantName] = useState('');
+  const [applicantEmail, setApplicantEmail] = useState('');
+  const [applicantPhone, setApplicantPhone] = useState('');
+  const [applicantEducation, setApplicantEducation] = useState('');
+  const [applicantExperience, setApplicantExperience] = useState('');
+  const [applicationDate] = useState(() => {
+    const d = new Date();
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  });
+
+  const resetApplicantForm = useCallback(() => {
+    setApplicantResume('');
+    setManualDocName('');
+    setApplicantName('');
+    setApplicantEmail('');
+    setApplicantPhone('');
+    setApplicantEducation('');
+    setApplicantExperience('');
+  }, []);
+
+  useEffect(() => {
+    resetApplicantForm();
+    setHasSubmittedApplication(false);
+  }, [jobID, resetApplicantForm]);
+
+  const pickDeviceDocument = async () => {
+    try {
+      if (NativeModules.NativeDocumentPicker && typeof NativeModules.NativeDocumentPicker.pickDocument === 'function') {
+        const doc = await NativeModules.NativeDocumentPicker.pickDocument();
+        if (doc && (doc.name || doc.fileName)) {
+          const chosenName = doc.name || doc.fileName;
+          setApplicantResume(chosenName);
+          showToast('Document attached: ' + chosenName);
+          setIsDocModalVisible(false);
+          return;
+        }
+      } else {
+        setIsDocModalVisible(true);
+      }
+    } catch (err: any) {
+      if (err?.code === 'CANCELLED' || err?.message?.includes('cancelled') || err?.message?.includes('CANCELLED')) {
+        return;
+      }
+      console.log('Document picker error:', err);
+      setIsDocModalVisible(true);
+    }
+  };
+
+  const handleSelectResume = () => {
+    pickDeviceDocument();
+  };
 
   const handleSaveToggle = () => {
     toggleWishlist({
@@ -104,29 +159,141 @@ export default function JobDetailsScreen() {
   };
 
   const handleSubmitApplication = async () => {
+    if (!applicantName.trim()) {
+      showToast('Please enter your full name');
+      return;
+    }
+    if (!applicantEmail.trim()) {
+      showToast('Please enter your email address');
+      return;
+    }
+    if (!applicantPhone.trim()) {
+      showToast('Please enter your contact number');
+      return;
+    }
+
+    const genAppId = `JOB-${Math.random().toString(16).substring(2, 8)}`;
+    const applicationOrder: Order = {
+      id: `ord_job_${Date.now()}`,
+      user_id: currentUser?.id || 'guest_user',
+      order_number: genAppId,
+      application_id: genAppId,
+      job_id: jobID,
+      vendor_id: (rawJob as any).vendor_id || (rawJob as any).vendorId || (rawJob as any).vendor || 'vendor_job',
+      vendor_name: rawJob.company || 'Verified Employer',
+      category: 'Jobs',
+      order_type: 'booking',
+      customer_name: applicantName.trim(),
+      customer_phone: applicantPhone.trim(),
+      customer_address: `${applicantEducation} • ${applicantExperience} • Resume: ${applicantResume}`,
+      customer_latitude: 12.9716,
+      customer_longitude: 77.5946,
+      product_details: rawJob.title || 'Job Role',
+      amount: 0,
+      finalAmount: 0,
+      status: 'Application Submitted',
+      application_status: 'Applied',
+      created_at: new Date().toISOString(),
+      image: '',
+      brand_or_seller: rawJob.companyName || rawJob.company,
+      salary: rawJob.salary || (rawJob as any).salaryPackage || '',
+      location: rawJob.location || (rawJob as any).jobLocation || '',
+      department: rawJob.department || (rawJob as any).subCategory || (rawJob as any).subcategory || 'General',
+      work_mode: rawJob.workMode || (rawJob as any).jobType || (rawJob as any).employmentType || 'Full-time',
+      experience: rawJob.experience || (rawJob as any).experienceLevel || (rawJob as any).experienceRequired || '',
+      resume_name: applicantResume,
+      applicant_education: applicantEducation,
+      applicant_experience: applicantExperience,
+      applicant_email: applicantEmail.trim(),
+      candidateName: applicantName.trim(),
+      candidatePhone: applicantPhone.trim(),
+      candidateEmail: applicantEmail.trim(),
+      candidateEducation: applicantEducation,
+      candidateExperience: applicantExperience,
+      candidateResume: applicantResume,
+      items: [
+        {
+          name: `${rawJob.title}`,
+          quantity: 1,
+          price: 0,
+          variant: `${applicantEducation} | ${applicantExperience}`,
+        },
+      ],
+    };
+
+    useOrderStore.getState().addLocalOrder(applicationOrder);
+
+    // Notification Center Dispatch
+    useNotificationStore.getState().addNotification({
+      title: 'Application Submitted! 💼',
+      body: `Your job application #${genAppId} for ${rawJob.title} at ${rawJob.company || 'Employer'} has been sent successfully.`,
+      icon: 'Briefcase',
+      category: 'order',
+      actionLabel: 'View Job',
+      actionType: 'job',
+      orderType: 'job',
+      orderId: genAppId,
+      targetScreen: 'Orders',
+      targetParams: { category: 'Jobs', activeTab: 'job applied', orderId: genAppId },
+    });
+
+    // Asynchronously sync to backend order database
+    apiFetch('/orders', {
+      method: 'POST',
+      body: applicationOrder,
+    }).catch((err) => console.log('Job order sync notice:', err));
+
+    resetApplicantForm();
     setHasSubmittedApplication(true);
     setIsApplyModalVisible(false);
 
-    // Save job application record into orders store as a dedicated job application
-    await useOrderStore.getState().loadAllOrders();
-
     showToast(
-      `Application submitted to ${rawJob.company}!`,
+      `Application submitted for ${jobID} to ${rawJob.company}!`,
       'Track My Jobs',
       () =>
         navigation.navigate('CustomerTabs', {
           screen: 'Orders',
-          params: { category: 'Jobs' },
+          params: { category: 'Jobs', activeTab: 'Job Applied' },
         })
     );
   };
 
   const skills = Array.isArray(rawJob.skills) ? rawJob.skills : ['React Native', 'TypeScript', 'Node.js'];
-  const logo = rawJob.logo || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=500&auto=format&fit=crop&q=80';
   const companyInfo = rawJob.companyInfo || {};
+  const companyName = rawJob.companyName || rawJob.company || 'Verified Employer';
+  const companyWebsite = rawJob.companyWebsite || companyInfo.website || (rawJob as any).linkedProfileUrl || '';
+
+  const rawResponsibilities =
+    rawJob.keyResponsibilities ||
+    (rawJob as any).responsibilities ||
+    (rawJob as any).rawProduct?.keyResponsibilities;
+
+  const responsibilitiesList: string[] = useMemo(() => {
+    if (Array.isArray(rawResponsibilities)) {
+      return rawResponsibilities.map((item) => String(item).trim()).filter(Boolean);
+    }
+    if (typeof rawResponsibilities === 'string' && rawResponsibilities.trim()) {
+      const lines = rawResponsibilities
+        .split(/\r?\n|;/)
+        .map((line) => line.replace(/^[\s•\-\*]+/, '').trim())
+        .filter((line) => line.length > 0);
+      if (lines.length > 0) return lines;
+      return [rawResponsibilities.trim()];
+    }
+    return [
+      'Take ownership of assigned project modules and deliver high-quality work.',
+      'Collaborate closely with team members, designers, and managers to achieve milestones.',
+      'Ensure timely deliverables while maintaining industry standards and best practices.',
+    ];
+  }, [rawResponsibilities]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle={colors.statusBarStyle}
+        backgroundColor={isLight ? '#FFF1C7' : colors.background}
+        translucent={false}
+      />
       {/* Top Header Bar */}
       <View
         style={[
@@ -175,25 +342,27 @@ export default function JobDetailsScreen() {
           ]}
         >
           <View style={styles.companyRow}>
-            <Image source={{ uri: logo }} style={styles.companyLogo} resizeMode="cover" />
-            <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flex: 1, marginLeft: 0 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={[styles.jobTitleText, { color: colors.text }]} numberOfLines={2}>
-                  {rawJob.title || 'Senior Software Developer'}
+                  {rawJob.title || 'Job Opening'}
                 </Text>
               </View>
               <View style={styles.companyMeta}>
                 <Text style={[styles.companyName, { color: colors.primary }]}>
-                  {rawJob.company || 'TechForge Solutions'}
+                  {companyName}
                 </Text>
                 {rawJob.isVerified !== false && (
                   <Icons.CheckCircle2 color="#0EA5E9" size={13} style={{ marginLeft: 4 }} />
                 )}
+                <View style={styles.jobIdBadge}>
+                  <Text style={styles.jobIdBadgeText}>{jobID}</Text>
+                </View>
               </View>
             </View>
           </View>
 
-          {/* Highlights Grid */}
+          {/* Highlights Grid (Work Mode Removed) */}
           <View style={styles.overviewGrid}>
             <View style={styles.overviewItem}>
               <Icons.Briefcase color="#0EA5E9" size={14} />
@@ -202,7 +371,7 @@ export default function JobDetailsScreen() {
                   {isInternship ? 'DURATION' : 'EXPERIENCE'}
                 </Text>
                 <Text style={[styles.overviewValue, { color: colors.text }]}>
-                  {isInternship ? rawJob.duration || '3 Months' : rawJob.experience || '0–2 yrs'}
+                  {isInternship ? rawJob.duration || 'Not specified' : rawJob.experience || 'Not specified'}
                 </Text>
               </View>
             </View>
@@ -214,7 +383,7 @@ export default function JobDetailsScreen() {
                   {isInternship ? 'STIPEND' : 'SALARY'}
                 </Text>
                 <Text style={[styles.overviewValue, { color: '#059669', fontWeight: '800' }]}>
-                  {rawJob.salary || '₹10–₹16 LPA'}
+                  {rawJob.salary || 'Competitive'}
                 </Text>
               </View>
             </View>
@@ -224,17 +393,7 @@ export default function JobDetailsScreen() {
               <View>
                 <Text style={styles.overviewLabel}>LOCATION</Text>
                 <Text style={[styles.overviewValue, { color: colors.text }]}>
-                  {rawJob.location || 'Bangalore'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.overviewItem}>
-              <Icons.Building2 color="#8B5CF6" size={14} />
-              <View>
-                <Text style={styles.overviewLabel}>WORK MODE</Text>
-                <Text style={[styles.overviewValue, { color: colors.text }]}>
-                  {rawJob.workMode || 'On-site'}
+                  {rawJob.location || 'Flexible'}
                 </Text>
               </View>
             </View>
@@ -291,33 +450,34 @@ export default function JobDetailsScreen() {
             {rawJob.description}
           </Text>
 
-          <Text style={[styles.sectionSubtitle, { color: colors.text, marginTop: 14 }]}>
-            KEY RESPONSIBILITIES
-          </Text>
-          <View style={styles.bulletList}>
-            <View style={styles.bulletRow}>
-              <View style={styles.bulletDot} />
-              <Text style={[styles.bulletText, { color: isLight ? '#475569' : 'rgba(255,255,255,0.75)' }]}>
-                Architect and build performant React Native applications for Android & iOS.
+          {responsibilitiesList.length > 0 && (
+            <>
+              <Text style={[styles.sectionSubtitle, { color: colors.text, marginTop: 14 }]}>
+                KEY RESPONSIBILITIES
               </Text>
-            </View>
-            <View style={styles.bulletRow}>
-              <View style={styles.bulletDot} />
-              <Text style={[styles.bulletText, { color: isLight ? '#475569' : 'rgba(255,255,255,0.75)' }]}>
-                Integrate complex GraphQL/REST APIs with offline-first state synchronization.
-              </Text>
-            </View>
-            <View style={styles.bulletRow}>
-              <View style={styles.bulletDot} />
-              <Text style={[styles.bulletText, { color: isLight ? '#475569' : 'rgba(255,255,255,0.75)' }]}>
-                Optimize app bundle size, startup time, and native UI render performance.
-              </Text>
-            </View>
-          </View>
+              <View style={styles.bulletList}>
+                {responsibilitiesList.map((resp, idx) => (
+                  <View key={idx} style={styles.bulletRow}>
+                    <View style={styles.bulletDot} />
+                    <Text
+                      style={[
+                        styles.bulletText,
+                        { color: isLight ? '#475569' : 'rgba(255,255,255,0.75)' },
+                      ]}
+                    >
+                      {resp}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
         </View>
 
         {/* ========================================================================= */}
         {/* 3. ABOUT COMPANY SECTION                                                  */}
+        {/* ========================================================================= */}
+        {/* 3. ABOUT COMPANY SECTION (Company Name and Website Only)                  */}
         {/* ========================================================================= */}
         <View
           style={[
@@ -328,50 +488,31 @@ export default function JobDetailsScreen() {
             },
           ]}
         >
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>About Company</Text>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>Company Details</Text>
 
           <View style={styles.companyProfileRow}>
-            <Image source={{ uri: logo }} style={styles.companyProfileLogo} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[styles.companyProfileName, { color: colors.text }]}>
-                {rawJob.company || 'TechForge Solutions'}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.companyProfileName, { color: colors.text, fontSize: 16 }]}>
+                {companyName}
               </Text>
-              <Text style={styles.companyProfileMeta}>
-                {companyInfo.industry || 'IT & Product Engineering'} • {companyInfo.size || '250+ Employees'}
-              </Text>
+              {companyWebsite ? (
+                <Text style={[styles.companyProfileMeta, { color: '#0EA5E9', marginTop: 4 }]} numberOfLines={1}>
+                  {companyWebsite}
+                </Text>
+              ) : null}
             </View>
-            <TouchableOpacity
-              style={styles.websiteBtn}
-              onPress={() => Linking.openURL(companyInfo.website || 'https://techforge.in')}
-            >
-              <Icons.Globe color="#0EA5E9" size={14} />
-              <Text style={styles.websiteBtnText}>Website</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={[styles.descriptionText, { color: isLight ? '#475569' : 'rgba(255,255,255,0.75)', marginTop: 8 }]}>
-            {companyInfo.about || 'TechForge Solutions is a premier digital engineering studio delivering innovative cloud and mobile software.'}
-          </Text>
-
-          <View style={styles.companyInfoFooter}>
-            <View style={styles.infoCol}>
-              <Text style={styles.infoColLabel}>FOUNDED</Text>
-              <Text style={[styles.infoColVal, { color: colors.text }]}>
-                {companyInfo.founded || '2018'}
-              </Text>
-            </View>
-            <View style={styles.infoCol}>
-              <Text style={styles.infoColLabel}>HEADQUARTERS</Text>
-              <Text style={[styles.infoColVal, { color: colors.text }]}>
-                {companyInfo.hq || 'Bangalore'}
-              </Text>
-            </View>
-            <View style={styles.infoCol}>
-              <Text style={styles.infoColLabel}>RATING</Text>
-              <Text style={[styles.infoColVal, { color: colors.text }]}>
-                ★ {companyInfo.rating || '4.7'} ({companyInfo.reviewsCount || '180'})
-              </Text>
-            </View>
+            {companyWebsite ? (
+              <TouchableOpacity
+                style={styles.websiteBtn}
+                onPress={() => {
+                  const url = companyWebsite.startsWith('http') ? companyWebsite : `https://${companyWebsite}`;
+                  Linking.openURL(url).catch(() => {});
+                }}
+              >
+                <Icons.Globe color="#0EA5E9" size={14} />
+                <Text style={styles.websiteBtnText}>Website</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -411,6 +552,7 @@ export default function JobDetailsScreen() {
                 })
               );
             } else {
+              resetApplicantForm();
               setIsApplyModalVisible(true);
             }
           }}
@@ -432,7 +574,10 @@ export default function JobDetailsScreen() {
         visible={isApplyModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setIsApplyModalVisible(false)}
+        onRequestClose={() => {
+          resetApplicantForm();
+          setIsApplyModalVisible(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View
@@ -450,72 +595,122 @@ export default function JobDetailsScreen() {
                 <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
                   {isInternship ? 'Internship Application' : 'Job Application'}
                 </Text>
-                <Text style={styles.modalHeaderSubtitle}>
+                <Text style={[styles.modalHeaderSubtitle, { color: colors.subtext }]}>
                   Applying to {rawJob.company}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setIsApplyModalVisible(false)}>
+              <TouchableOpacity onPress={() => {
+                resetApplicantForm();
+                setIsApplyModalVisible(false);
+              }}>
                 <Icons.X color={colors.text} size={20} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ padding: 18 }} showsVerticalScrollIndicator={false}>
-              {/* Selected Resume */}
-              <Text style={[styles.inputLabel, { color: colors.text }]}>SELECT RESUME</Text>
-              <View style={styles.resumeCard}>
-                <Icons.FileText color="#F5B800" size={20} />
+              {/* 1. SELECT RESUME / RESUME UPLOAD */}
+              <Text style={[styles.inputLabel, { color: colors.text }]}>1. SELECT RESUME</Text>
+              <View style={[styles.resumeCard, { backgroundColor: isLight ? '#FFFDF5' : colors.cardBgSecondary, borderColor: isLight ? '#FDE68A' : colors.border }]}>
+                <Icons.FileText color="#F5B800" size={22} />
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.resumeName}>{applicantResume}</Text>
-                  <Text style={styles.resumeMeta}>Updated 3 days ago • PDF</Text>
+                  <Text style={[styles.resumeName, { color: colors.text }]} numberOfLines={1}>
+                    {applicantResume || 'Attach Resume (PDF/DOC)'}
+                  </Text>
+                  <Text style={[styles.resumeMeta, { color: colors.subtext }]}>
+                    {applicantResume ? 'PDF / Document • Ready for submission' : 'Tap to upload or select document'}
+                  </Text>
                 </View>
-                <TouchableOpacity>
-                  <Text style={styles.changeBtnText}>Change</Text>
+                <TouchableOpacity onPress={handleSelectResume} style={styles.changeBtn} activeOpacity={0.7}>
+                  <Text style={styles.changeBtnText}>{applicantResume ? 'Change' : 'Upload'}</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Education */}
+              {/* 2. JOB ID */}
               <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
-                HIGHEST EDUCATION
+                2. JOB ID (DEFAULT)
+              </Text>
+              <View style={[styles.readOnlyField, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: isLight ? '#E2E8F0' : '#334155' }]}>
+                <Icons.Briefcase color="#0EA5E9" size={16} />
+                <Text style={[styles.readOnlyFieldText, { color: colors.text }]}>{jobID}</Text>
+                <View style={[styles.autoBadge, { backgroundColor: 'rgba(14, 165, 233, 0.12)' }]}>
+                  <Text style={[styles.autoBadgeText, { color: '#0284C7' }]}>Auto</Text>
+                </View>
+              </View>
+
+              {/* 3. FULL NAME */}
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
+                3. FULL NAME *
               </Text>
               <TextInput
-                style={[styles.textInput, { color: colors.text, borderColor: isLight ? '#E2E8F0' : colors.cardBorder }]}
+                style={[styles.textInput, { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                value={applicantName}
+                onChangeText={setApplicantName}
+                placeholder="Enter your full name"
+                placeholderTextColor={colors.subtext}
+              />
+
+              {/* 4. EMAIL ADDRESS */}
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
+                4. EMAIL ADDRESS *
+              </Text>
+              <TextInput
+                style={[styles.textInput, { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                value={applicantEmail}
+                onChangeText={setApplicantEmail}
+                placeholder="Enter your email address"
+                placeholderTextColor={colors.subtext}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              {/* 5. CONTACT NUMBER */}
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
+                5. CONTACT NUMBER *
+              </Text>
+              <TextInput
+                style={[styles.textInput, { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                value={applicantPhone}
+                onChangeText={setApplicantPhone}
+                placeholder="Enter 10-digit mobile number"
+                placeholderTextColor={colors.subtext}
+                keyboardType="phone-pad"
+              />
+
+              {/* 6. GRADUATION */}
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
+                6. GRADUATION / HIGHEST EDUCATION
+              </Text>
+              <TextInput
+                style={[styles.textInput, { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
                 value={applicantEducation}
                 onChangeText={setApplicantEducation}
+                placeholder="e.g. B.Tech in Computer Science / MCA / Degree"
+                placeholderTextColor={colors.subtext}
               />
 
-              {/* Notice Period */}
+              {/* 7. EXPERIENCE */}
               <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
-                NOTICE PERIOD / AVAILABILITY
+                7. EXPERIENCE
               </Text>
               <TextInput
-                style={[styles.textInput, { color: colors.text, borderColor: isLight ? '#E2E8F0' : colors.cardBorder }]}
-                value={applicantNoticePeriod}
-                onChangeText={setApplicantNoticePeriod}
+                style={[styles.textInput, { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                value={applicantExperience}
+                onChangeText={setApplicantExperience}
+                placeholder="e.g. 2 Years / Fresher"
+                placeholderTextColor={colors.subtext}
               />
 
-              {/* Expected Salary */}
+              {/* 8. APPLICATION DATE */}
               <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
-                EXPECTED {isInternship ? 'STIPEND' : 'SALARY'}
+                8. APPLICATION DATE
               </Text>
-              <TextInput
-                style={[styles.textInput, { color: colors.text, borderColor: isLight ? '#E2E8F0' : colors.cardBorder }]}
-                value={expectedSalary}
-                onChangeText={setExpectedSalary}
-              />
-
-              {/* Screening Question */}
-              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
-                SCREENING QUESTION: Relevant Experience
-              </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  { color: colors.text, borderColor: isLight ? '#E2E8F0' : colors.cardBorder, height: 70, textAlignVertical: 'top' },
-                ]}
-                value={screeningAnswer}
-                onChangeText={setScreeningAnswer}
-                multiline
-              />
+              <View style={[styles.readOnlyField, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: isLight ? '#E2E8F0' : '#334155' }]}>
+                <Icons.Calendar color="#F59E0B" size={16} />
+                <Text style={[styles.readOnlyFieldText, { color: colors.text }]}>{applicationDate}</Text>
+                <View style={[styles.autoBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+                  <Text style={[styles.autoBadgeText, { color: '#D97706' }]}>Today</Text>
+                </View>
+              </View>
 
               {/* Submit Action */}
               <TouchableOpacity
@@ -524,9 +719,174 @@ export default function JobDetailsScreen() {
                 onPress={handleSubmitApplication}
               >
                 <Text style={styles.modalSubmitBtnText}>
-                  {isInternship ? 'Submit Internship Application' : 'Submit Application'}
+                  {isInternship ? 'Submit Internship Application' : 'Submit Job Application'}
                 </Text>
               </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DOCUMENT PICKER / RESUME SELECTION MODAL */}
+      <Modal
+        visible={isDocModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsDocModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                backgroundColor: isLight ? '#FFFDF5' : '#0B1530',
+                borderColor: isLight ? '#FDE68A' : colors.cardBorder,
+                maxHeight: height * 0.78,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
+                  Select Resume / Document
+                </Text>
+                <Text style={[styles.modalHeaderSubtitle, { color: colors.subtext }]}>
+                  Attach a PDF or document from your device
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsDocModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icons.X color={colors.text} size={20} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ padding: 18 }} showsVerticalScrollIndicator={false}>
+              {/* Primary Action: Browse Device Documents */}
+              <TouchableOpacity
+                onPress={pickDeviceDocument}
+                activeOpacity={0.8}
+                style={[
+                  styles.docOptionCard,
+                  {
+                    backgroundColor: isLight ? '#FEF3C7' : '#1E293B',
+                    borderColor: '#F5B800',
+                  },
+                ]}
+              >
+                <View style={[styles.docIconBox, { backgroundColor: '#F5B800' }]}>
+                  <Icons.FolderOpen color="#0F172A" size={20} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.docOptionTitle, { color: colors.text }]}>
+                    Browse Device Documents
+                  </Text>
+                  <Text style={[styles.docOptionSub, { color: colors.subtext }]}>
+                    Open Android Files / Downloads (PDF, DOCX, TXT)
+                  </Text>
+                </View>
+                <Icons.ChevronRight color="#F5B800" size={18} />
+              </TouchableOpacity>
+
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 18, marginBottom: 8 }]}>
+                RECENT / SAVED RESUMES
+              </Text>
+
+              {[
+                {
+                  name: currentUser?.name
+                    ? `${currentUser.name.replace(/\s+/g, '_')}_Resume_2026.pdf`
+                    : 'Uma_Resume_2026.pdf',
+                  size: '1.4 MB • PDF / Document',
+                },
+                {
+                  name: currentUser?.name
+                    ? `${currentUser.name.replace(/\s+/g, '_')}_FullStack_CV.pdf`
+                    : 'Uma_FullStack_CV.pdf',
+                  size: '920 KB • PDF / Document',
+                },
+                {
+                  name: currentUser?.name
+                    ? `${currentUser.name.replace(/\s+/g, '_')}_Technical_Portfolio.docx`
+                    : 'Uma_Technical_Portfolio.docx',
+                  size: '2.1 MB • Word Document',
+                },
+              ].map((doc, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => {
+                    setApplicantResume(doc.name);
+                    showToast('Selected: ' + doc.name);
+                    setIsDocModalVisible(false);
+                  }}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.recentDocRow,
+                    {
+                      backgroundColor: isLight ? '#FFFFFF' : colors.cardBgSecondary,
+                      borderColor: applicantResume === doc.name ? '#F5B800' : isLight ? '#F1EAD8' : colors.border,
+                      borderWidth: applicantResume === doc.name ? 1.5 : 1,
+                    },
+                  ]}
+                >
+                  <Icons.FileText color="#F5B800" size={18} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.recentDocName, { color: colors.text }]} numberOfLines={1}>
+                      {doc.name}
+                    </Text>
+                    <Text style={[styles.recentDocMeta, { color: colors.subtext }]}>
+                      {doc.size}
+                    </Text>
+                  </View>
+                  {applicantResume === doc.name && (
+                    <Icons.CheckCircle2 color="#10B981" size={18} />
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 18, marginBottom: 8 }]}>
+                OR ENTER CUSTOM DOCUMENT NAME
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 20 }}>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      flex: 1,
+                      color: colors.text,
+                      backgroundColor: colors.inputBg,
+                      borderColor: colors.inputBorder,
+                    },
+                  ]}
+                  placeholder="e.g. My_Updated_Resume.pdf"
+                  placeholderTextColor={colors.subtext}
+                  value={manualDocName}
+                  onChangeText={setManualDocName}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    if (manualDocName.trim()) {
+                      const finalName =
+                        manualDocName.trim().endsWith('.pdf') ||
+                        manualDocName.trim().endsWith('.docx') ||
+                        manualDocName.trim().endsWith('.doc')
+                          ? manualDocName.trim()
+                          : `${manualDocName.trim()}.pdf`;
+                      setApplicantResume(finalName);
+                      showToast('Attached: ' + finalName);
+                      setManualDocName('');
+                      setIsDocModalVisible(false);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: '#F5B800',
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 10,
+                  }}
+                >
+                  <Text style={{ fontWeight: '800', color: '#0F172A', fontSize: 13 }}>Attach</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -826,10 +1186,54 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 1,
   },
+  changeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(245, 184, 0, 0.15)',
+    borderRadius: 8,
+  },
   changeBtnText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#D97706',
+  },
+  jobIdBadge: {
+    marginLeft: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  jobIdBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.3,
+  },
+  readOnlyField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  readOnlyFieldText: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  autoBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  autoBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   textInput: {
     borderRadius: 10,
@@ -851,5 +1255,42 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '800',
     color: '#0F172A',
+  },
+  docOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 14,
+  },
+  docIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docOptionTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  docOptionSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  recentDocRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  recentDocName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  recentDocMeta: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

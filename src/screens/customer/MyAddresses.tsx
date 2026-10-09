@@ -11,12 +11,19 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  StatusBar,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
-import { useAuthStore } from '../../store/authStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../services/api';
+
+const ADDRESSES_STORAGE_KEY = 'connect_app_customer_addresses';
+
+export const DEFAULT_SAVED_ADDRESSES: CustomerAddress[] = [];
 
 export interface CustomerAddress {
   id: string;
@@ -38,10 +45,36 @@ export default function MyAddresses() {
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((state) => state.currentUser);
   const fetchProfile = useAuthStore((state) => state.fetchProfile);
+  const colors = useThemeStore((state) => state.colors);
+  const isDark = useThemeStore((state) => state.isDark);
+  const isLight = !isDark;
+
+  const isGuest = !currentUser || currentUser.isGuest || (currentUser.name || '').toLowerCase().includes('guest');
+  const storageKey = isGuest ? 'connect_guest_addresses' : `connect_user_addresses_${currentUser?.id || 'registered'}`;
 
   // Addresses state
-  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [addresses, setAddresses] = useState<CustomerAddress[]>(() => {
+    if (isGuest) return [];
+    if (currentUser?.address) {
+      return [
+        {
+          id: `addr_reg_${currentUser.id}`,
+          userId: currentUser.id,
+          label: 'Home',
+          name: currentUser.name,
+          phone: currentUser.phone || '',
+          house: currentUser.address.address || '',
+          street: currentUser.address.city || 'Bengaluru',
+          city: currentUser.address.city || 'Bengaluru',
+          state: currentUser.address.state || 'Karnataka',
+          pincode: currentUser.address.pincode || '560034',
+          isDefault: true,
+        },
+      ];
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -62,56 +95,78 @@ export default function MyAddresses() {
   const [formPincode, setFormPincode] = useState('');
   const [formIsDefault, setFormIsDefault] = useState(false);
 
-  // Load Addresses from API
-  const loadAddresses = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const uId = currentUser?.id || 'cust_uma';
+  // Helper to persist to AsyncStorage
+  const saveToStorage = async (list: CustomerAddress[]) => {
     try {
-      const res = await apiFetch(`/customer/addresses?userId=${encodeURIComponent(uId)}`, {
-        method: 'GET',
-      });
-      if (res && res.status === 'success' && Array.isArray(res.data)) {
-        setAddresses(res.data);
-      } else {
-        setError(res?.message || 'Unable to load saved addresses.');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Network error loading addresses.');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser?.id]);
-
-  useEffect(() => {
-    loadAddresses();
-  }, [loadAddresses]);
-
-  // Set Address as Default
-  const handleSetDefault = async (addrId: string) => {
-    const uId = currentUser?.id || 'cust_uma';
-    try {
-      // Optimistically update UI
-      setAddresses((prev) =>
-        prev.map((a) => ({
-          ...a,
-          isDefault: a.id === addrId,
-        }))
-      );
-
-      await apiFetch(`/customer/addresses/${addrId}/default?userId=${encodeURIComponent(uId)}`, {
-        method: 'PATCH',
-      });
-
-      // Synchronize profile store
-      fetchProfile();
-    } catch (err: any) {
-      Alert.alert('Error', 'Unable to set default address. Please try again.');
-      loadAddresses();
+      await AsyncStorage.setItem(storageKey, JSON.stringify(list));
+    } catch (e) {
+      console.warn('[MyAddresses] Failed to persist addresses:', e);
     }
   };
 
-  // Delete Address
+  // Load Addresses from Local Storage & API without blocking UI
+  const loadAddresses = useCallback(() => {
+    if (isGuest) {
+      AsyncStorage.getItem(storageKey)
+        .then((cached) => {
+          setAddresses(cached ? JSON.parse(cached) : []);
+        })
+        .catch(() => setAddresses([]))
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    const uId = currentUser?.id || 'guest_user';
+
+    AsyncStorage.getItem(storageKey)
+      .then((cached) => {
+        let hasLocal = false;
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            hasLocal = true;
+            setAddresses(parsed);
+          }
+        }
+        apiFetch(`/customer/addresses?userId=${encodeURIComponent(uId)}`)
+          .then((res) => {
+            if (res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+              if (!hasLocal) {
+                setAddresses(res.data);
+                saveToStorage(res.data);
+              }
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            setLoading(false);
+          });
+      })
+      .catch(() => setLoading(false));
+  }, [currentUser, isGuest, storageKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadAddresses();
+    }, [loadAddresses])
+  );
+
+  // Set Address as Default (Instant optimistic UI response)
+  const handleSetDefault = (addrId: string) => {
+    const uId = currentUser?.id || 'guest_user';
+    const updated = addresses.map((a) => ({
+      ...a,
+      isDefault: a.id === addrId,
+    }));
+    setAddresses(updated);
+    saveToStorage(updated);
+
+    apiFetch(`/customer/addresses/${addrId}/default?userId=${encodeURIComponent(uId)}`, {
+      method: 'PATCH',
+    }).catch(() => {});
+  };
+
+  // Delete Address (Instant optimistic UI response)
   const handleDeleteAddress = (addrId: string) => {
     Alert.alert(
       'Delete Address',
@@ -121,18 +176,15 @@ export default function MyAddresses() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            const uId = currentUser?.id || 'cust_uma';
-            try {
-              setAddresses((prev) => prev.filter((a) => a.id !== addrId));
-              await apiFetch(`/customer/addresses/${addrId}?userId=${encodeURIComponent(uId)}`, {
-                method: 'DELETE',
-              });
-              fetchProfile();
-            } catch (err: any) {
-              Alert.alert('Error', 'Failed to delete address.');
-              loadAddresses();
-            }
+          onPress: () => {
+            const uId = currentUser?.id || 'guest_user';
+            const updated = addresses.filter((a) => a.id !== addrId);
+            setAddresses(updated);
+            saveToStorage(updated);
+
+            apiFetch(`/customer/addresses/${addrId}?userId=${encodeURIComponent(uId)}`, {
+              method: 'DELETE',
+            }).catch(() => {});
           },
         },
       ]
@@ -173,12 +225,15 @@ export default function MyAddresses() {
 
   // Validate & Save Address
   const handleSaveAddress = async () => {
-    if (!formName.trim()) {
-      Alert.alert('Validation Error', 'Please enter recipient name.');
+    const cleanName = formName.trim();
+    const cleanPhone = formPhone.replace(/[^\d]/g, '').slice(-10);
+
+    if (!cleanName || cleanName.length < 2 || !/^[a-zA-Z\s'.]+$/.test(cleanName)) {
+      Alert.alert('Validation Error', 'Please enter a valid recipient full name (at least 2 letters, letters only).');
       return;
     }
-    if (!formPhone.trim() || formPhone.trim().length < 10) {
-      Alert.alert('Validation Error', 'Please enter a valid 10-digit mobile number.');
+    if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      Alert.alert('Validation Error', 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.');
       return;
     }
     if (!formHouse.trim()) {
@@ -203,7 +258,7 @@ export default function MyAddresses() {
     }
 
     setSubmitting(true);
-    const uId = currentUser?.id || 'cust_uma';
+    const uId = currentUser?.id || 'guest_user';
     const payload = {
       userId: uId,
       label: formLabel,
@@ -218,28 +273,60 @@ export default function MyAddresses() {
       isDefault: formIsDefault || addresses.length === 0,
     };
 
-    try {
-      if (editingAddressId) {
-        // Update existing address
-        await apiFetch(`/customer/addresses/${editingAddressId}?userId=${encodeURIComponent(uId)}`, {
-          method: 'PATCH',
-          body: payload,
-        });
+    let updatedAddresses: CustomerAddress[];
+    if (editingAddressId) {
+      updatedAddresses = addresses.map((addr) => {
+        if (addr.id === editingAddressId) {
+          return { ...addr, ...payload, id: editingAddressId };
+        }
+        if (payload.isDefault) {
+          return { ...addr, isDefault: false };
+        }
+        return addr;
+      });
+    } else {
+      const newAddr: CustomerAddress = {
+        ...payload,
+        id: `addr_${Date.now()}`,
+      };
+      if (payload.isDefault) {
+        updatedAddresses = [newAddr, ...addresses.map((a) => ({ ...a, isDefault: false }))];
       } else {
-        // Create new address
-        await apiFetch(`/customer/addresses?userId=${encodeURIComponent(uId)}`, {
-          method: 'POST',
-          body: payload,
-        });
+        updatedAddresses = [newAddr, ...addresses];
       }
+    }
 
-      setModalVisible(false);
-      await loadAddresses();
-      fetchProfile();
-    } catch (err: any) {
-      Alert.alert('Save Failed', err?.message || 'Could not save address. Please try again.');
-    } finally {
-      setSubmitting(false);
+    // 1. Immediate optimistic UI response
+    setAddresses(updatedAddresses);
+    setModalVisible(false);
+    setSubmitting(false);
+
+    // 2. Background storage & API sync
+    saveToStorage(updatedAddresses);
+
+    if (payload.isDefault || updatedAddresses.length === 1) {
+      useAuthStore.getState().updateProfile({
+        address: {
+          address: `${payload.house ? payload.house + ', ' : ''}${payload.street}`,
+          house: payload.house,
+          street: payload.street,
+          city: payload.city,
+          state: payload.state,
+          pincode: payload.pincode,
+        },
+      }).catch(() => {});
+    }
+
+    if (editingAddressId) {
+      apiFetch(`/customer/addresses/${editingAddressId}?userId=${encodeURIComponent(uId)}`, {
+        method: 'PATCH',
+        body: payload,
+      }).catch(() => {});
+    } else {
+      apiFetch(`/customer/addresses?userId=${encodeURIComponent(uId)}`, {
+        method: 'POST',
+        body: payload,
+      }).catch(() => {});
     }
   };
 
@@ -259,28 +346,71 @@ export default function MyAddresses() {
   const getLabelIcon = (label: string) => {
     switch (label) {
       case 'Work':
-        return <Icons.Briefcase color="#475569" size={16} />;
+        return <Icons.Briefcase color={isLight ? '#475569' : '#94A3B8'} size={16} />;
       case 'Other':
-        return <Icons.MapPin color="#475569" size={16} />;
+        return <Icons.MapPin color={isLight ? '#475569' : '#94A3B8'} size={16} />;
       default:
-        return <Icons.Home color="#475569" size={16} />;
+        return <Icons.Home color={isLight ? '#475569' : '#94A3B8'} size={16} />;
     }
   };
 
+  const isAuthenticated = isUserAuthenticated(currentUser);
+
+  if (!isAuthenticated) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.headerBackground} />
+        <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top, backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
+          <TouchableOpacity style={styles.headerBackButton} onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icons.ArrowLeft color={colors.text} size={22} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Saved Addresses</Text>
+        </View>
+
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: isDark ? 'rgba(245, 196, 0, 0.15)' : '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+            <Icons.MapPin color="#F4C400" size={38} />
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 8, textAlign: 'center' }}>Login Required</Text>
+          <Text style={{ fontSize: 13, color: colors.subtext, textAlign: 'center', marginBottom: 24, lineHeight: 19 }}>
+            Please sign in to view and manage your saved delivery addresses.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#F4C400', width: '100%', maxWidth: 300, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', marginBottom: 12 }}
+            onPress={() => navigation.navigate('Login')}
+            activeOpacity={0.85}
+          >
+            <Icons.LogIn size={18} color="#000" style={{ marginRight: 8 }} />
+            <Text style={{ color: '#000', fontSize: 15, fontWeight: '700' }}>Sign In</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F8FAFC', borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : '#CBD5E1', borderWidth: 1.5, width: '100%', maxWidth: 300, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row' }}
+            onPress={() => navigation.navigate('JoinNow')}
+            activeOpacity={0.85}
+          >
+            <Icons.UserPlus size={18} color={colors.text} style={{ marginRight: 8 }} />
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.headerBackground} />
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top, backgroundColor: colors.headerBackground, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.headerBackButton}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Icons.ArrowLeft color="#0F172A" size={24} />
+          <Icons.ArrowLeft color={colors.text} size={24} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>My Addresses</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>My Addresses</Text>
         </View>
 
         <TouchableOpacity
@@ -297,13 +427,13 @@ export default function MyAddresses() {
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator color="#F4C400" size="large" />
-          <Text style={styles.loadingText}>Loading saved addresses...</Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading saved addresses...</Text>
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
           <Icons.AlertTriangle color="#EF4444" size={48} style={{ marginBottom: 12 }} />
-          <Text style={styles.errorTitle}>Unable to load addresses</Text>
-          <Text style={styles.errorSubtitle}>{error}</Text>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to load addresses</Text>
+          <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadAddresses}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
@@ -311,11 +441,11 @@ export default function MyAddresses() {
       ) : addresses.length === 0 ? (
         /* Empty State */
         <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
+          <View style={[styles.emptyIconCircle, { backgroundColor: isLight ? '#FEFCE8' : '#1E293B', borderColor: isLight ? '#FEF08A' : '#334155' }]}>
             <Icons.MapPin color="#F4C400" size={36} />
           </View>
-          <Text style={styles.emptyTitle}>No saved addresses yet</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No saved addresses yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             Add your delivery addresses for quick and hassle-free checkout.
           </Text>
           <TouchableOpacity style={styles.emptyAddBtn} onPress={handleOpenAddModal}>
@@ -331,26 +461,26 @@ export default function MyAddresses() {
         >
           {/* Optional Search bar if many addresses exist */}
           {addresses.length >= 5 ? (
-            <View style={styles.searchBar}>
-              <Icons.Search color="#94A3B8" size={18} style={{ marginRight: 8 }} />
+            <View style={[styles.searchBar, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
+              <Icons.Search color={colors.textSecondary} size={18} style={{ marginRight: 8 }} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: colors.text }]}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Search addresses..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.textSecondary}
               />
               {searchQuery ? (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Icons.X color="#94A3B8" size={16} />
+                  <Icons.X color={colors.textSecondary} size={16} />
                 </TouchableOpacity>
               ) : null}
             </View>
           ) : null}
 
           <View style={styles.listHeaderRow}>
-            <Text style={styles.sectionHeading}>Saved Addresses</Text>
-            <Text style={styles.addressCountBadge}>{addresses.length} Saved</Text>
+            <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>Saved Addresses</Text>
+            <Text style={[styles.addressCountBadge, { color: colors.textSecondary }]}>{addresses.length} Saved</Text>
           </View>
 
           {filteredAddresses.map((addr) => (
@@ -358,19 +488,20 @@ export default function MyAddresses() {
               key={addr.id}
               style={[
                 styles.addressCard,
+                { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder },
                 addr.isDefault && styles.defaultCardBorder,
               ]}
             >
               {/* Card Header: Label, Default Tag & Radio Selector */}
               <View style={styles.cardHeader}>
                 <View style={styles.labelBadgeRow}>
-                  <View style={styles.labelIconPill}>
+                  <View style={[styles.labelIconPill, { backgroundColor: isLight ? '#F1F5F9' : '#1E293B' }]}>
                     {getLabelIcon(addr.label)}
                   </View>
-                  <Text style={styles.addressLabel}>{addr.label}</Text>
+                  <Text style={[styles.addressLabel, { color: colors.text }]}>{addr.label}</Text>
                   {addr.isDefault ? (
-                    <View style={styles.defaultBadge}>
-                      <Text style={styles.defaultBadgeText}>Default</Text>
+                    <View style={[styles.defaultBadge, { backgroundColor: isLight ? '#FEFCE8' : '#1E293B', borderColor: isLight ? '#FEF08A' : '#334155' }]}>
+                      <Text style={[styles.defaultBadgeText, { color: isLight ? '#854D0E' : '#F4C400' }]}>Default</Text>
                     </View>
                   ) : null}
                 </View>
@@ -385,17 +516,17 @@ export default function MyAddresses() {
                   {addr.isDefault ? (
                     <Icons.CheckCircle2 color="#059669" size={22} />
                   ) : (
-                    <Icons.Circle color="#CBD5E1" size={22} />
+                    <Icons.Circle color={colors.border} size={22} />
                   )}
                 </TouchableOpacity>
               </View>
 
               {/* Recipient Details */}
-              <Text style={styles.recipientName}>{addr.name}</Text>
-              <Text style={styles.recipientPhone}>{addr.phone}</Text>
+              <Text style={[styles.recipientName, { color: colors.text }]}>{addr.name}</Text>
+              <Text style={[styles.recipientPhone, { color: colors.textSecondary }]}>{addr.phone}</Text>
 
               {/* Formatted Address */}
-              <Text style={styles.addressBody}>
+              <Text style={[styles.addressBody, { color: isLight ? '#334155' : '#CBD5E1' }]}>
                 {addr.house ? `${addr.house}, ` : ''}
                 {addr.street}
                 {addr.landmark ? `, Near ${addr.landmark}` : ''}
@@ -404,7 +535,7 @@ export default function MyAddresses() {
               </Text>
 
               {/* Actions Divider */}
-              <View style={styles.cardDivider} />
+              <View style={[styles.cardDivider, { backgroundColor: colors.border }]} />
 
               {/* Card Actions: Edit & Delete */}
               <View style={styles.cardActionsRow}>
@@ -413,8 +544,8 @@ export default function MyAddresses() {
                   activeOpacity={0.7}
                   onPress={() => handleOpenEditModal(addr)}
                 >
-                  <Icons.Pencil color="#475569" size={15} />
-                  <Text style={styles.actionBtnText}>Edit</Text>
+                  <Icons.Pencil color={isLight ? '#475569' : '#94A3B8'} size={15} />
+                  <Text style={[styles.actionBtnText, { color: isLight ? '#475569' : '#94A3B8' }]}>Edit</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -442,17 +573,17 @@ export default function MyAddresses() {
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.cardBackground }]}>
             {/* Sheet Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {editingAddressId ? 'Edit Address' : 'Add New Address'}
               </Text>
               <TouchableOpacity
                 style={styles.modalCloseBtn}
                 onPress={() => setModalVisible(false)}
               >
-                <Icons.X color="#475569" size={20} />
+                <Icons.X color={colors.text} size={20} />
               </TouchableOpacity>
             </View>
 
@@ -463,7 +594,7 @@ export default function MyAddresses() {
               keyboardShouldPersistTaps="handled"
             >
               {/* Address Label Selector */}
-              <Text style={styles.formSectionLabel}>Address Type</Text>
+              <Text style={[styles.formSectionLabel, { color: colors.textSecondary }]}>Address Type</Text>
               <View style={styles.labelSelectorRow}>
                 {(['Home', 'Work', 'Other'] as const).map((type) => {
                   const selected = formLabel === type;
@@ -472,21 +603,23 @@ export default function MyAddresses() {
                       key={type}
                       style={[
                         styles.labelChoiceBtn,
-                        selected && styles.labelChoiceSelected,
+                        { borderColor: colors.border, backgroundColor: isLight ? '#F8FAFC' : '#1E293B' },
+                        selected && { backgroundColor: isLight ? '#FEFCE8' : 'rgba(244, 196, 0, 0.15)', borderColor: '#F4C400' },
                       ]}
                       onPress={() => setFormLabel(type)}
                     >
                       {type === 'Home' ? (
-                        <Icons.Home color={selected ? '#0F172A' : '#64748B'} size={16} />
+                        <Icons.Home color={selected ? (isLight ? '#0F172A' : '#F4C400') : colors.textSecondary} size={16} />
                       ) : type === 'Work' ? (
-                        <Icons.Briefcase color={selected ? '#0F172A' : '#64748B'} size={16} />
+                        <Icons.Briefcase color={selected ? (isLight ? '#0F172A' : '#F4C400') : colors.textSecondary} size={16} />
                       ) : (
-                        <Icons.MapPin color={selected ? '#0F172A' : '#64748B'} size={16} />
+                        <Icons.MapPin color={selected ? (isLight ? '#0F172A' : '#F4C400') : colors.textSecondary} size={16} />
                       )}
                       <Text
                         style={[
                           styles.labelChoiceText,
-                          selected && styles.labelChoiceTextSelected,
+                          { color: colors.textSecondary },
+                          selected && { color: isLight ? '#0F172A' : '#F4C400', fontWeight: 'bold' },
                         ]}
                       >
                         {type}
@@ -497,85 +630,86 @@ export default function MyAddresses() {
               </View>
 
               {/* Recipient Details */}
-              <Text style={styles.formSectionLabel}>Contact Information</Text>
+              <Text style={[styles.formSectionLabel, { color: colors.textSecondary }]}>Contact Information</Text>
               <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>Full Name *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Full Name *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                   value={formName}
-                  onChangeText={setFormName}
+                  onChangeText={(val) => setFormName(val.replace(/[^a-zA-Z\s'.]/g, ''))}
                   placeholder="e.g. Uma"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>Mobile Number *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Mobile Number *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                   value={formPhone}
-                  onChangeText={setFormPhone}
-                  placeholder="10-digit mobile number"
-                  placeholderTextColor="#94A3B8"
+                  onChangeText={(val) => setFormPhone(val.replace(/[^\d]/g, '').slice(0, 10))}
+                  placeholder="Enter 10-digit mobile number"
+                  placeholderTextColor={colors.textSecondary}
                   keyboardType="phone-pad"
+                  maxLength={10}
                 />
               </View>
 
               {/* Address Details */}
-              <Text style={styles.formSectionLabel}>Address Details</Text>
+              <Text style={[styles.formSectionLabel, { color: colors.textSecondary }]}>Address Details</Text>
               <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>Flat, House No., Building *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Flat, House No., Building *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                   value={formHouse}
                   onChangeText={setFormHouse}
                   placeholder="e.g. Flat 402, Sunshine Apts"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>Area, Street, Sector *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Area, Street, Sector *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                   value={formStreet}
                   onChangeText={setFormStreet}
                   placeholder="e.g. 11th Cross, 4th Block, Koramangala"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>Landmark (Optional)</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Landmark (Optional)</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                   value={formLandmark}
                   onChangeText={setFormLandmark}
                   placeholder="e.g. Near Sony World Signal"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
               <View style={styles.twoColumnRow}>
                 <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.fieldLabel}>City *</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>City *</Text>
                   <TextInput
-                    style={styles.formInput}
+                    style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                     value={formCity}
                     onChangeText={setFormCity}
                     placeholder="Bengaluru"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.textSecondary}
                   />
                 </View>
 
                 <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.fieldLabel}>Pincode *</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Pincode *</Text>
                   <TextInput
-                    style={styles.formInput}
+                    style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                     value={formPincode}
                     onChangeText={setFormPincode}
                     placeholder="6-digit PIN"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.textSecondary}
                     keyboardType="number-pad"
                     maxLength={6}
                   />
@@ -583,13 +717,13 @@ export default function MyAddresses() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.fieldLabel}>State *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>State *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, { backgroundColor: isLight ? '#F8FAFC' : '#1E293B', borderColor: colors.border, color: colors.text }]}
                   value={formState}
                   onChangeText={setFormState}
                   placeholder="Karnataka"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
@@ -602,9 +736,9 @@ export default function MyAddresses() {
                 {formIsDefault ? (
                   <Icons.CheckSquare color="#F4C400" size={20} />
                 ) : (
-                  <Icons.Square color="#94A3B8" size={20} />
+                  <Icons.Square color={colors.textSecondary} size={20} />
                 )}
-                <Text style={styles.defaultToggleText}>Make this my default address</Text>
+                <Text style={[styles.defaultToggleText, { color: colors.text }]}>Make this my default address</Text>
               </TouchableOpacity>
 
               {/* Submit Button */}
@@ -633,16 +767,13 @@ export default function MyAddresses() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   headerBackButton: {
     padding: 4,
@@ -654,7 +785,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   headerAddBtn: {
     flexDirection: 'row',
@@ -679,19 +809,16 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#64748B',
     fontWeight: '500',
   },
   errorTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 6,
     textAlign: 'center',
   },
   errorSubtitle: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 20,
@@ -717,9 +844,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#FEFCE8',
     borderWidth: 1,
-    borderColor: '#FEF08A',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -727,13 +852,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
@@ -759,10 +882,8 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 16,
@@ -770,7 +891,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
     paddingVertical: 2,
   },
   listHeaderRow: {
@@ -783,20 +903,16 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   addressCountBadge: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94A3B8',
   },
   addressCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     padding: 16,
     marginBottom: 16,
     shadowColor: '#0F172A',
@@ -824,27 +940,22 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addressLabel: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   defaultBadge: {
-    backgroundColor: '#FEFCE8',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FEF08A',
   },
   defaultBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#854D0E',
   },
   radioSelector: {
     padding: 2,
@@ -852,23 +963,19 @@ const styles = StyleSheet.create({
   recipientName: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#0F172A',
     marginBottom: 2,
   },
   recipientPhone: {
     fontSize: 13,
-    color: '#64748B',
     marginBottom: 8,
   },
   addressBody: {
     fontSize: 13,
-    color: '#334155',
     lineHeight: 19,
     marginBottom: 12,
   },
   cardDivider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
     marginBottom: 10,
   },
   cardActionsRow: {
@@ -885,7 +992,6 @@ const styles = StyleSheet.create({
   actionBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
   },
   deleteActionBtn: {
     marginLeft: 8,
@@ -897,11 +1003,10 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
@@ -914,12 +1019,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   modalTitle: {
     fontSize: 17,
     fontWeight: 'bold',
-    color: '#0F172A',
   },
   modalCloseBtn: {
     padding: 4,
@@ -931,7 +1034,6 @@ const styles = StyleSheet.create({
   formSectionLabel: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 10,
@@ -950,22 +1052,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#F8FAFC',
     gap: 6,
-  },
-  labelChoiceSelected: {
-    backgroundColor: '#FEFCE8',
-    borderColor: '#F4C400',
   },
   labelChoiceText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
-  },
-  labelChoiceTextSelected: {
-    fontWeight: 'bold',
-    color: '#0F172A',
   },
   formGroup: {
     marginBottom: 14,
@@ -973,18 +1064,14 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#475569',
     marginBottom: 6,
   },
   formInput: {
-    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#0F172A',
   },
   twoColumnRow: {
     flexDirection: 'row',
@@ -998,7 +1085,6 @@ const styles = StyleSheet.create({
   defaultToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
   },
   saveAddressBtn: {
     backgroundColor: '#F4C400',
@@ -1014,3 +1100,4 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
 });
+

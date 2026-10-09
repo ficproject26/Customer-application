@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Share,
   Alert,
   useWindowDimensions,
+  StatusBar,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -18,6 +20,18 @@ import * as Icons from 'lucide-react-native';
 import { useThemeStore } from '../../store/themeStore';
 import { useWishlistStore } from '../../store/wishlistStore';
 import { useAuthStore } from '../../store/authStore';
+import { useOrderStore, Order } from '../../store/orderStore';
+import { apiFetch } from '../../services/api';
+import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
+import { RAZORPAY_KEY_ID } from '../../services/env';
+import { useTranslation } from '../../store/languageStore';
+
+// Guest Information interface for each person travelling
+export interface GuestInfo {
+  fullName: string;
+  aadhaarNumber: string;
+  phoneNumber: string;
+}
 
 // 14-day calendar date item
 interface DateItem {
@@ -30,35 +44,41 @@ interface DateItem {
 }
 
 export default function StayDetails() {
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const navigation = useNavigation<any>();
   const routeParams = (route.params as any) || {};
-
-  const stay = routeParams.stay || {
-    id: 'stay_001',
-    name: 'Coorg Heritage Villa',
-    location: 'Coorg, Karnataka',
-    type: 'Villa',
-    rating: '4.9',
-    reviews: '630',
-    price: '₹7,250 / night',
-    priceNum: 7250,
-    originalPrice: '₹9,500',
-    discount: '24% OFF',
-    desc: 'Luxury villa nestled amidst coffee plantations, with private plunge pool, lush forest views, breakfast, Wi-Fi and premium luxury rooms crafted for memorable vacations.',
-    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1000&auto=format&fit=crop&q=80',
-    amenities: ['Swimming Pool', 'Free Wi-Fi', 'Breakfast Included', 'Free Parking', 'Air Conditioning'],
-  };
-
-  const { colors, themeMode } = useThemeStore();
+  const colors = useThemeStore((state) => state.colors);
+  const themeMode = useThemeStore((state) => state.themeMode);
   const isLight = colors.background === '#FFFDF5' || colors.background === '#FFFFFF' || colors.background === '#F8FAFC' || colors.background === '#FFF8E8' || themeMode === 'light';
 
+  const stay = routeParams.stay || null;
+
+  if (!stay) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Icons.Hotel color={colors.subtext} size={56} style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 }}>
+          Stay Not Found
+        </Text>
+        <Text style={{ fontSize: 14, color: colors.subtext, textAlign: 'center', marginBottom: 20 }}>
+          This property listing is unavailable or has been removed.
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.primary, borderRadius: 8 }}
+        >
+          <Text style={{ color: '#000', fontWeight: 'bold' }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const currentUser = useAuthStore((state) => state.currentUser);
-  const wishlistItems = useWishlistStore((state) => state.wishlistItems);
+  const isWishlisted = useWishlistStore((state) => state.wishlistItems.some((w) => w.id === stay.id));
   const toggleWishlist = useWishlistStore((state) => state.toggleWishlist);
-  const isWishlisted = wishlistItems.some((w) => w.id === stay.id);
 
   // Gallery State
   const galleryImages = useMemo(() => [
@@ -71,6 +91,18 @@ export default function StayDetails() {
   const [selectedImgIndex, setSelectedImgIndex] = useState(0);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
+  const defaultCheckInTime = stay.checkInTime || '12:00 PM';
+  const defaultCheckOutTime = stay.checkOutTime || '11:00 AM';
+
+  const defaultRoomName = (stay.roomClass || 'Deluxe Room').toUpperCase();
+  const defaultRoomGuests = `${stay.numberOfGuests || '2 Guests'} • ${stay.bedType || '1 King Bed'}${stay.roomView ? ` • ${stay.roomView}` : ''}`;
+  const defaultRoomInclusions = [
+    stay.freeBreakfast !== false && (stay.freeBreakfast || stay.amenities?.includes('Breakfast') || stay.amenities?.includes('Free Breakfast')) ? 'Breakfast included' : null,
+    stay.freeCancellation !== false ? 'Free cancellation' : null,
+    'Free Wi-Fi',
+    stay.roomSize ? `${stay.roomSize}` : null,
+  ].filter(Boolean) as string[];
+
   // Room State
   const [selectedRoom, setSelectedRoom] = useState<{
     id: string;
@@ -81,52 +113,145 @@ export default function StayDetails() {
     inclusions: string[];
   }>({
     id: 'deluxe',
-    name: 'DELUXE ROOM',
-    guests: '2 Guests • 1 King Bed',
+    name: defaultRoomName,
+    guests: defaultRoomGuests,
     priceNum: stay.priceNum || 7250,
     priceStr: stay.price || '₹7,250 / night',
-    inclusions: ['Breakfast included', 'Free cancellation', 'Free Wi-Fi'],
+    inclusions: defaultRoomInclusions.length > 0 ? defaultRoomInclusions : ['Breakfast included', 'Free cancellation', 'Free Wi-Fi'],
   });
 
   // Booking Configuration Modal State
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState<1 | 2 | 3 | 4>(1); // 1: Dates & Guests, 2: Guest Details, 3: Payment & Summary, 4: Confirmed
+  const [razorpayModalVisible, setRazorpayModalVisible] = useState(false);
+  const [razorpayOrder, setRazorpayOrder] = useState<RazorpayOrderDetails | null>(null);
 
-  // --- Dynamic Dates Generator (14 Days) ---
-  const datesList = useMemo<DateItem[]>(() => {
-    const list: DateItem[] = [];
-    const baseDate = new Date(); // Start from today
-    const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  // --- Dynamic Dates Generator (14 Days) & Calendar State ---
+  const [calendarMonth, setCalendarMonth] = useState<number>(new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState<number>(new Date().getFullYear());
+  const [checkInDateObj, setCheckInDateObj] = useState<Date>(() => new Date());
+  const [checkOutDateObj, setCheckOutDateObj] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  });
 
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(baseDate);
-      d.setDate(baseDate.getDate() + i);
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const WEEKDAYS_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const dayNamesShort = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const monthNamesShort = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-      // Tuesday booked simulation
-      const isTuesday = d.getDay() === 2;
+  const selectedCheckInItem = useMemo(() => {
+    const d = checkInDateObj;
+    return {
+      dayName: dayNamesShort[d.getDay()],
+      dateNum: d.getDate(),
+      monthStr: monthNamesShort[d.getMonth()],
+      fullDateStr: `${dayNamesShort[d.getDay()]}, ${d.getDate()} ${monthNamesShort[d.getMonth()]} ${d.getFullYear()}`,
+      dateObj: d,
+      status: 'AVAILABLE' as const,
+    };
+  }, [checkInDateObj]);
 
-      list.push({
-        dayName: dayNames[d.getDay()],
-        dateNum: d.getDate(),
-        monthStr: monthNames[d.getMonth()],
-        fullDateStr: `${dayNames[d.getDay()]}, ${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`,
-        dateObj: d,
-        status: isTuesday ? 'FULL' : 'AVAILABLE',
+  const selectedCheckOutItem = useMemo(() => {
+    const d = checkOutDateObj;
+    return {
+      dayName: dayNamesShort[d.getDay()],
+      dateNum: d.getDate(),
+      monthStr: monthNamesShort[d.getMonth()],
+      fullDateStr: `${dayNamesShort[d.getDay()]}, ${d.getDate()} ${monthNamesShort[d.getMonth()]} ${d.getFullYear()}`,
+      dateObj: d,
+      status: 'AVAILABLE' as const,
+    };
+  }, [checkOutDateObj]);
+
+  const computedNights = useMemo(() => {
+    const diffTime = checkOutDateObj.getTime() - checkInDateObj.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays);
+  }, [checkInDateObj, checkOutDateObj]);
+
+  const calendarDays = useMemo(() => {
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
+
+    const cells: { day: number | null; dateObj: Date | null }[] = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push({ day: null, dateObj: null });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({
+        day: d,
+        dateObj: new Date(calendarYear, calendarMonth, d),
       });
     }
-    return list;
-  }, []);
+    return cells;
+  }, [calendarYear, calendarMonth]);
 
-  // Check-In State
+  const handlePrevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear((y) => y - 1);
+    } else {
+      setCalendarMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear((y) => y + 1);
+    } else {
+      setCalendarMonth((m) => m + 1);
+    }
+  };
+
+  const handleCalendarSelectDate = (dateObj: Date, target: 'checkIn' | 'checkOut') => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const checkDate = new Date(dateObj);
+    checkDate.setHours(0, 0, 0, 0);
+
+    if (checkDate < today) {
+      Alert.alert('Past Date', 'Please select a date from today onwards.');
+      return;
+    }
+
+    if (target === 'checkIn') {
+      setCheckInDateObj(checkDate);
+      const currentOut = new Date(checkOutDateObj);
+      currentOut.setHours(0, 0, 0, 0);
+      if (currentOut <= checkDate) {
+        const nextDay = new Date(checkDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        setCheckOutDateObj(nextDay);
+      }
+    } else {
+      const currentIn = new Date(checkInDateObj);
+      currentIn.setHours(0, 0, 0, 0);
+      if (checkDate <= currentIn) {
+        Alert.alert('Invalid Check-Out Date', 'Check-out date must be at least 1 day after check-in date.');
+        return;
+      }
+      setCheckOutDateObj(checkDate);
+    }
+  };
+
+  // Check-In & Departure Timings State
   const [checkInIndex, setCheckInIndex] = useState<number>(0);
-  const [checkInTimeSlot, setCheckInTimeSlot] = useState<string>('02:00 PM');
-  const [manualCheckInTime, setManualCheckInTime] = useState<string>('02:00 PM');
+  const [checkInTimeSlot, setCheckInTimeSlot] = useState<string>(defaultCheckInTime);
+  const [manualCheckInTime, setManualCheckInTime] = useState<string>(defaultCheckInTime);
+  const [departureTimeSlot, setDepartureTimeSlot] = useState<string>('04:00 PM');
+  const [manualDepartureTime, setManualDepartureTime] = useState<string>('04:00 PM');
 
   // Check-Out State (default to next day index 1)
   const [checkOutIndex, setCheckOutIndex] = useState<number>(1);
-  const [checkOutTimeSlot, setCheckOutTimeSlot] = useState<string>('11:00 AM');
-  const [manualCheckOutTime, setManualCheckOutTime] = useState<string>('11:00 AM');
+  const [checkOutTimeSlot, setCheckOutTimeSlot] = useState<string>(defaultCheckOutTime);
+  const [manualCheckOutTime, setManualCheckOutTime] = useState<string>(defaultCheckOutTime);
 
   // Guests & Rooms Configuration State
   const [adultsCount, setAdultsCount] = useState<number>(2);
@@ -134,52 +259,193 @@ export default function StayDetails() {
   const [roomsCount, setRoomsCount] = useState<number>(1);
 
   // Time Slot Options
-  const checkInTimeOptions = ['01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM'];
-  const checkOutTimeOptions = ['11:00 AM', '12:00 PM', '01:00 PM', '02:00 PM', '06:00 PM'];
+  const departureTimeOptions = ['04:00 PM', '05:00 PM', '06:00 PM'];
+  const checkInTimeOptions = ['12:00 PM', '01:00 PM', '02:00 PM'];
+  const checkOutTimeOptions = ['10:00 AM', '11:00 AM', '12:00 PM'];
+
+  // Round Clock Dial Modal State
+  const CLOCK_HOURS_ITEMS = [
+    { val: '12', label: '12' },
+    { val: '01', label: '1' },
+    { val: '02', label: '2' },
+    { val: '03', label: '3' },
+    { val: '04', label: '4' },
+    { val: '05', label: '5' },
+    { val: '06', label: '6' },
+    { val: '07', label: '7' },
+    { val: '08', label: '8' },
+    { val: '09', label: '9' },
+    { val: '10', label: '10' },
+    { val: '11', label: '11' },
+  ];
+  const CLOCK_MINUTES_ITEMS = [
+    { val: '00', label: '00' },
+    { val: '05', label: '05' },
+    { val: '10', label: '10' },
+    { val: '15', label: '15' },
+    { val: '20', label: '20' },
+    { val: '25', label: '25' },
+    { val: '30', label: '30' },
+    { val: '35', label: '35' },
+    { val: '40', label: '40' },
+    { val: '45', label: '45' },
+    { val: '50', label: '50' },
+    { val: '55', label: '55' },
+  ];
+
+  // Calendar Modal State (Opened on clicking Date field)
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [datePickerTarget, setDatePickerTarget] = useState<'checkIn' | 'checkOut'>('checkIn');
+
+  // Round Clock Dial Modal State (Opened on clicking Time field)
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [timePickerTarget, setTimePickerTarget] = useState<'checkIn' | 'checkOut'>('checkIn');
+  const [clockMode, setClockMode] = useState<'hour' | 'minute'>('hour');
+  const [pickerHour, setPickerHour] = useState('12');
+  const [pickerMinute, setPickerMinute] = useState('00');
+  const [pickerPeriod, setPickerPeriod] = useState<'AM' | 'PM'>('PM');
+
+  // Keep ref synchronized with clockMode for PanResponder callbacks
+  const clockModeRef = useRef<'hour' | 'minute'>(clockMode);
+  useEffect(() => {
+    clockModeRef.current = clockMode;
+  }, [clockMode]);
+
+  // Compute angle of Clock Hand based on selected hour or minute
+  const clockHandAngle = useMemo(() => {
+    if (clockMode === 'hour') {
+      const idx = CLOCK_HOURS_ITEMS.findIndex(
+        (item) => item.val === pickerHour || parseInt(item.val, 10) === parseInt(pickerHour, 10)
+      );
+      return (idx >= 0 ? idx : 0) * 30;
+    } else {
+      const idx = CLOCK_MINUTES_ITEMS.findIndex(
+        (item) => item.val === pickerMinute || parseInt(item.val, 10) === parseInt(pickerMinute, 10)
+      );
+      return (idx >= 0 ? idx : 0) * 30;
+    }
+  }, [clockMode, pickerHour, pickerMinute, CLOCK_HOURS_ITEMS, CLOCK_MINUTES_ITEMS]);
+
+  // Rotate & Select handler based on touch coordinates on the 250px clock face
+  const updateClockFromLocation = (locX: number, locY: number) => {
+    const center = 125; // 250px dial width / 2
+    const dx = locX - center;
+    const dy = locY - center;
+    // Angle in degrees from 12 o'clock (0 degrees is straight UP)
+    const rad = Math.atan2(dy, dx);
+    const deg = (rad * (180 / Math.PI) + 90 + 360) % 360;
+
+    if (clockModeRef.current === 'hour') {
+      const hIdx = Math.round(deg / 30) % 12;
+      const hoursList = ['12', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'];
+      setPickerHour(hoursList[hIdx]);
+    } else {
+      const mIdx = Math.round(deg / 30) % 12;
+      const minutesList = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+      setPickerMinute(minutesList[mIdx]);
+    }
+  };
+
+  // PanResponder to rotate the clock hands with drag gestures on the clock face
+  const clockPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          updateClockFromLocation(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+        },
+        onPanResponderMove: (evt) => {
+          updateClockFromLocation(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+        },
+        onPanResponderRelease: () => {
+          // If user just rotated and selected an hour, smoothly advance to minute face
+          if (clockModeRef.current === 'hour') {
+            setClockMode('minute');
+          }
+        },
+      }),
+    []
+  );
+
+  const handleOpenTimePicker = (target: 'checkIn' | 'checkOut') => {
+    setTimePickerTarget(target);
+    setClockMode('hour');
+    const rawTime = target === 'checkIn' ? (checkInTimeSlot || '12:00 PM') : (checkOutTimeSlot || '11:00 AM');
+    const match = rawTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (match) {
+      setPickerHour(match[1].padStart(2, '0'));
+      setPickerMinute(match[2]);
+      setPickerPeriod((match[3] || 'PM').toUpperCase() as 'AM' | 'PM');
+    } else {
+      setPickerHour(target === 'checkIn' ? '12' : '11');
+      setPickerMinute('00');
+      setPickerPeriod(target === 'checkIn' ? 'PM' : 'AM');
+    }
+    setTimePickerVisible(true);
+  };
+
+  const handleConfirmTimePicker = () => {
+    const formatted = `${pickerHour}:${pickerMinute} ${pickerPeriod}`;
+    if (timePickerTarget === 'checkIn') {
+      setCheckInTimeSlot(formatted);
+      setManualCheckInTime(formatted);
+    } else {
+      setCheckOutTimeSlot(formatted);
+      setManualCheckOutTime(formatted);
+    }
+    setTimePickerVisible(false);
+  };
 
   // Form Details
-  const [guestName, setGuestName] = useState(currentUser?.name || 'Uma Shankar');
-  const [guestMobile, setGuestMobile] = useState(currentUser?.phone || '+91 98765 43210');
-  const [guestEmail, setGuestEmail] = useState(currentUser?.email || 'uma@connectmobile.com');
+  const [guestName, setGuestName] = useState(currentUser?.name || '');
+  const [guestMobile, setGuestMobile] = useState(currentUser?.phone || '');
+  const [guestEmail, setGuestEmail] = useState(currentUser?.email || '');
   const [guestSpecialNote, setGuestSpecialNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Card' | 'Net Banking' | 'Pay at Hotel'>('UPI');
   const [confirmedBookingId, setConfirmedBookingId] = useState('');
 
-  // Selected Date Objects
-  const selectedCheckInItem = datesList[checkInIndex] || datesList[0];
-  const selectedCheckOutItem = datesList[checkOutIndex] || datesList[1];
+  // Multi-Guest Details state (for each person traveling)
+  const totalGuestsCount = adultsCount + childrenCount;
+  const [guestList, setGuestList] = useState<GuestInfo[]>([
+    { fullName: currentUser?.name || '', aadhaarNumber: '', phoneNumber: currentUser?.phone || '' },
+    { fullName: '', aadhaarNumber: '', phoneNumber: '' },
+  ]);
 
-  // Duration (Nights) Calculation
-  const computedNights = Math.max(1, checkOutIndex - checkInIndex);
+  // Keep guestList length synchronized with totalGuestsCount (Adults + Children)
+  React.useEffect(() => {
+    setGuestList((prev) => {
+      const updated = [...prev];
+      if (updated.length < totalGuestsCount) {
+        for (let i = updated.length; i < totalGuestsCount; i++) {
+          updated.push({
+            fullName: '',
+            aadhaarNumber: '',
+            phoneNumber: '',
+          });
+        }
+      } else if (updated.length > totalGuestsCount) {
+        return updated.slice(0, totalGuestsCount);
+      }
+      return updated;
+    });
+  }, [totalGuestsCount]);
 
-  // Price Calculations
-  const pricePerNight = selectedRoom.priceNum;
-  const baseRoomCharge = pricePerNight * computedNights * roomsCount;
+  const handleUpdateGuestInfo = (index: number, field: keyof GuestInfo, value: string) => {
+    setGuestList((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  // Dynamic Price Calculations based on number of persons (Adults & Children)
+  const adultPricePerNight = selectedRoom.priceNum;
+  const childPricePerNight = Math.round(selectedRoom.priceNum * 0.5); // 50% for children
+  const nightlyTotalPerRoom = (adultsCount * adultPricePerNight) + (childrenCount * childPricePerNight);
+  const baseRoomCharge = nightlyTotalPerRoom * computedNights * roomsCount;
   const taxesAndFees = Math.round(baseRoomCharge * 0.10);
   const grandTotal = baseRoomCharge + taxesAndFees;
-
-  // Handle Check-In Date Selection
-  const handleSelectCheckInDate = (idx: number) => {
-    if (datesList[idx].status === 'FULL') {
-      Alert.alert('Date Unavailable', 'This date is currently fully booked. Please select an available date.');
-      return;
-    }
-    setCheckInIndex(idx);
-    // If check-out is now before or on check-in, push check-out forward
-    if (checkOutIndex <= idx) {
-      const nextIdx = Math.min(idx + 1, datesList.length - 1);
-      setCheckOutIndex(nextIdx);
-    }
-  };
-
-  // Handle Check-Out Date Selection
-  const handleSelectCheckOutDate = (idx: number) => {
-    if (idx <= checkInIndex) {
-      Alert.alert('Invalid Date', 'Check-out date must be at least 1 day after the check-in date.');
-      return;
-    }
-    setCheckOutIndex(idx);
-  };
 
   // Handle Share
   const handleShare = async () => {
@@ -208,6 +474,11 @@ export default function StayDetails() {
 
   return (
     <View style={[styles.container, { backgroundColor: isLight ? '#FFFDF5' : colors.background }]}>
+      <StatusBar
+        barStyle={colors.statusBarStyle}
+        backgroundColor={isLight ? '#FFF1C7' : colors.cardBg}
+        translucent={false}
+      />
       {/* Top Header */}
       <View
         style={[
@@ -305,6 +576,26 @@ export default function StayDetails() {
               <Text style={[styles.propTitle, { color: colors.text }]}>{stay.name}</Text>
             </View>
 
+            {/* Room type / class tag & Hotel star rating */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 6 }}>
+              {Boolean(stay.roomClass || stay.roomName) && (
+                <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#C7D2FE' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#4338CA' }}>{stay.roomClass || stay.roomName}</Text>
+                </View>
+              )}
+              {Boolean(stay.starRating) && (
+                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A', flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#B45309' }}>{stay.starRating} Star Hotel</Text>
+                  <Text style={{ color: '#D97706', fontSize: 10 }}>{'★'.repeat(Math.min(Number(stay.starRating) || 4, 5))}</Text>
+                </View>
+              )}
+              {Boolean(stay.propertyType && stay.propertyType !== 'Hotels') && (
+                <View style={{ backgroundColor: '#F0FDF4', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#BBF7D0' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#15803D' }}>{stay.propertyType}</Text>
+                </View>
+              )}
+            </View>
+
             <View style={styles.ratingAndLocRow}>
               <View style={styles.ratingBadge}>
                 <Icons.Star color="#F5B800" size={13} fill="#F5B800" />
@@ -345,6 +636,140 @@ export default function StayDetails() {
             <Text style={styles.taxesNoticeText}>+ ₹{Math.round((stay.priceNum || 7250) * 0.10)} taxes & fees per night</Text>
           </View>
 
+          {/* ROOM SPECIFICATIONS & KEY HIGHLIGHTS */}
+          <View style={styles.sectionBlock}>
+            <Text style={[styles.sectionHeading, { color: colors.text }]}>Room Specifications & Details</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }}>
+              {/* Bed Type */}
+              <View
+                style={[
+                  styles.amenityItemCard,
+                  {
+                    width: '48%',
+                    backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                    borderColor: isLight ? '#F1EAD8' : colors.cardBorder,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 10,
+                  },
+                ]}
+              >
+                <View style={[styles.amenityIconContainer, { backgroundColor: '#EEF2FF', marginRight: 10 }]}>
+                  <Icons.Bed color="#4F46E5" size={18} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Bed Type</Text>
+                  <Text style={[{ fontSize: 12, fontWeight: '800' }, { color: colors.text }]} numberOfLines={1}>
+                    {stay.bedType || '1 King Bed'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Max Guests */}
+              <View
+                style={[
+                  styles.amenityItemCard,
+                  {
+                    width: '48%',
+                    backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                    borderColor: isLight ? '#F1EAD8' : colors.cardBorder,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 10,
+                  },
+                ]}
+              >
+                <View style={[styles.amenityIconContainer, { backgroundColor: '#FEF3C7', marginRight: 10 }]}>
+                  <Icons.Users color="#D97706" size={18} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Guests</Text>
+                  <Text style={[{ fontSize: 12, fontWeight: '800' }, { color: colors.text }]} numberOfLines={1}>
+                    {stay.numberOfGuests || '2 Guests'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Room Size */}
+              <View
+                style={[
+                  styles.amenityItemCard,
+                  {
+                    width: '48%',
+                    backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                    borderColor: isLight ? '#F1EAD8' : colors.cardBorder,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 10,
+                  },
+                ]}
+              >
+                <View style={[styles.amenityIconContainer, { backgroundColor: '#ECFDF5', marginRight: 10 }]}>
+                  <Icons.Maximize2 color="#059669" size={18} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Room Size</Text>
+                  <Text style={[{ fontSize: 12, fontWeight: '800' }, { color: colors.text }]} numberOfLines={1}>
+                    {stay.roomSize || '280 sq.ft'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Room View */}
+              <View
+                style={[
+                  styles.amenityItemCard,
+                  {
+                    width: '48%',
+                    backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                    borderColor: isLight ? '#F1EAD8' : colors.cardBorder,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 10,
+                  },
+                ]}
+              >
+                <View style={[styles.amenityIconContainer, { backgroundColor: '#EFF6FF', marginRight: 10 }]}>
+                  <Icons.Eye color="#2563EB" size={18} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Room View</Text>
+                  <Text style={[{ fontSize: 12, fontWeight: '800' }, { color: colors.text }]} numberOfLines={1}>
+                    {stay.roomView || 'City View'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Quick Policy & Inclusion Highlights */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {stay.freeBreakfast !== false && (stay.freeBreakfast || stay.amenities?.includes('Breakfast') || stay.amenities?.includes('Free Breakfast')) && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isLight ? '#ECFDF5' : 'rgba(5, 150, 105, 0.15)', borderWidth: 1, borderColor: '#A7F3D0', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8, gap: 5 }}>
+                  <Icons.Coffee color="#059669" size={13} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#059669' }}>Free Breakfast Included</Text>
+                </View>
+              )}
+              {stay.freeCancellation !== false && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isLight ? '#EFF6FF' : 'rgba(37, 99, 235, 0.15)', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8, gap: 5 }}>
+                  <Icons.ShieldCheck color="#2563EB" size={13} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#2563EB' }}>Free Cancellation</Text>
+                </View>
+              )}
+              {stay.coupleFriendly !== false && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isLight ? '#FDF2F8' : 'rgba(236, 72, 153, 0.15)', borderWidth: 1, borderColor: '#FBCFE8', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8, gap: 5 }}>
+                  <Icons.Heart color="#EC4899" size={13} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#DB2777' }}>Couple Friendly</Text>
+                </View>
+              )}
+              {stay.payAtHotel !== false && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isLight ? '#F5F3FF' : 'rgba(99, 102, 241, 0.15)', borderWidth: 1, borderColor: '#DDD6FE', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8, gap: 5 }}>
+                  <Icons.CreditCard color="#6366F1" size={13} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#6366F1' }}>Pay at Hotel</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
           {/* AMENITIES */}
           <View style={styles.sectionBlock}>
             <Text style={[styles.sectionHeading, { color: colors.text }]}>Amenities</Text>
@@ -377,132 +802,6 @@ export default function StayDetails() {
             </Text>
           </View>
 
-          {/* ROOM OPTIONS */}
-          <View style={styles.sectionBlock}>
-            <Text style={[styles.sectionHeading, { color: colors.text }]}>Available Rooms</Text>
-
-            {/* Room 1: DELUXE ROOM */}
-            <View
-              style={[
-                styles.roomCard,
-                {
-                  backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
-                  borderColor: selectedRoom.id === 'deluxe' ? '#F5B800' : isLight ? '#F1EAD8' : colors.cardBorder,
-                },
-              ]}
-            >
-              <View style={styles.roomHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.roomNameText, { color: colors.text }]}>DELUXE ROOM</Text>
-                  <Text style={styles.roomGuestsSubtitle}>2 Guests • 1 King Bed</Text>
-                </View>
-                <View style={styles.roomPricePill}>
-                  <Text style={[styles.roomPricePillText, { color: isLight ? '#0F172A' : '#F5B800' }]}>
-                    {stay.price || '₹7,250 / night'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.roomInclusionsList}>
-                <View style={styles.inclusionRow}>
-                  <Icons.Check color="#059669" size={14} />
-                  <Text style={styles.inclusionText}>Breakfast included</Text>
-                </View>
-                <View style={styles.inclusionRow}>
-                  <Icons.Check color="#059669" size={14} />
-                  <Text style={styles.inclusionText}>Free cancellation</Text>
-                </View>
-                <View style={styles.inclusionRow}>
-                  <Icons.Check color="#059669" size={14} />
-                  <Text style={styles.inclusionText}>Free Wi-Fi</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.selectRoomBtn,
-                  selectedRoom.id === 'deluxe' && styles.selectRoomBtnActive,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setSelectedRoom({
-                    id: 'deluxe',
-                    name: 'DELUXE ROOM',
-                    guests: '2 Guests • 1 King Bed',
-                    priceNum: stay.priceNum || 7250,
-                    priceStr: stay.price || '₹7,250 / night',
-                    inclusions: ['Breakfast included', 'Free cancellation', 'Free Wi-Fi'],
-                  });
-                  setBookingStep(1);
-                  setIsBookingModalOpen(true);
-                }}
-              >
-                <Text style={styles.selectRoomBtnText}>Select Room</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Room 2: EXECUTIVE ROOM */}
-            <View
-              style={[
-                styles.roomCard,
-                {
-                  backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
-                  borderColor: selectedRoom.id === 'executive' ? '#F5B800' : isLight ? '#F1EAD8' : colors.cardBorder,
-                  marginTop: 12,
-                },
-              ]}
-            >
-              <View style={styles.roomHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.roomNameText, { color: colors.text }]}>EXECUTIVE ROOM</Text>
-                  <Text style={styles.roomGuestsSubtitle}>2 Guests • 1 King Bed</Text>
-                </View>
-                <View style={styles.roomPricePill}>
-                  <Text style={[styles.roomPricePillText, { color: isLight ? '#0F172A' : '#F5B800' }]}>
-                    ₹{Math.round((stay.priceNum || 7250) * 1.23).toLocaleString()} / night
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.roomInclusionsList}>
-                <View style={styles.inclusionRow}>
-                  <Icons.Check color="#059669" size={14} />
-                  <Text style={styles.inclusionText}>Breakfast included</Text>
-                </View>
-                <View style={styles.inclusionRow}>
-                  <Icons.Check color="#059669" size={14} />
-                  <Text style={styles.inclusionText}>Pool access</Text>
-                </View>
-                <View style={styles.inclusionRow}>
-                  <Icons.Check color="#059669" size={14} />
-                  <Text style={styles.inclusionText}>Free Wi-Fi</Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.selectRoomBtn,
-                  selectedRoom.id === 'executive' && styles.selectRoomBtnActive,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setSelectedRoom({
-                    id: 'executive',
-                    name: 'EXECUTIVE ROOM',
-                    guests: '2 Guests • 1 King Bed',
-                    priceNum: Math.round((stay.priceNum || 7250) * 1.23),
-                    priceStr: `₹${Math.round((stay.priceNum || 7250) * 1.23).toLocaleString()} / night`,
-                    inclusions: ['Breakfast included', 'Pool access', 'Free Wi-Fi'],
-                  });
-                  setBookingStep(1);
-                  setIsBookingModalOpen(true);
-                }}
-              >
-                <Text style={styles.selectRoomBtnText}>Select Room</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           {/* POLICIES */}
           <View style={styles.sectionBlock}>
             <Text style={[styles.sectionHeading, { color: colors.text }]}>Property Policies</Text>
@@ -517,18 +816,36 @@ export default function StayDetails() {
             >
               <View style={styles.policyRow}>
                 <Icons.Clock color="#D97706" size={16} />
-                <Text style={[styles.policyRowText, { color: colors.text }]}>Check-in: 2:00 PM</Text>
+                <Text style={[styles.policyRowText, { color: colors.text }]}>Check-in: {defaultCheckInTime}</Text>
               </View>
               <View style={styles.policyRow}>
                 <Icons.Clock color="#D97706" size={16} />
-                <Text style={[styles.policyRowText, { color: colors.text }]}>Check-out: 11:00 AM</Text>
+                <Text style={[styles.policyRowText, { color: colors.text }]}>Check-out: {defaultCheckOutTime}</Text>
               </View>
-              <View style={styles.policyRow}>
-                <Icons.ShieldCheck color="#059669" size={16} />
-                <Text style={[styles.policyRowText, { color: colors.text }]}>
-                  Free cancellation up to 24 hours before check-in
-                </Text>
-              </View>
+              {stay.freeCancellation !== false && (
+                <View style={styles.policyRow}>
+                  <Icons.ShieldCheck color="#059669" size={16} />
+                  <Text style={[styles.policyRowText, { color: colors.text }]}>
+                    Free cancellation up to 24 hours before check-in
+                  </Text>
+                </View>
+              )}
+              {stay.coupleFriendly !== false && (
+                <View style={styles.policyRow}>
+                  <Icons.Heart color="#EC4899" size={16} />
+                  <Text style={[styles.policyRowText, { color: colors.text }]}>
+                    Couple Friendly • Unmarried couples and Local IDs accepted
+                  </Text>
+                </View>
+              )}
+              {stay.payAtHotel !== false && (
+                <View style={styles.policyRow}>
+                  <Icons.CreditCard color="#6366F1" size={16} />
+                  <Text style={[styles.policyRowText, { color: colors.text }]}>
+                    Pay at Hotel Available • Pay cash or card during check-in
+                  </Text>
+                </View>
+              )}
               <View style={styles.policyRow}>
                 <Icons.FileText color="#64748B" size={16} />
                 <Text style={[styles.policyRowText, { color: colors.text }]}>
@@ -645,297 +962,252 @@ export default function StayDetails() {
               {/* STEP 1: CONFIGURE TIMINGS, DATES & GUESTS */}
               {bookingStep === 1 && (
                 <View style={{ gap: 16 }}>
-                  {/* --- 1. CHECK-IN DETAILS BOX --- */}
-                  <View style={[styles.configCard, { borderColor: '#3B82F6' }]}>
+                  {/* --- 1. CHECK-IN DETAILS --- */}
+                  <View style={[styles.configCard, { borderColor: '#059669' }]}>
                     <View style={styles.configCardHeader}>
                       <View style={styles.configCardHeaderLeft}>
-                        <View style={[styles.statusDot, { backgroundColor: '#3B82F6' }]} />
+                        <View style={[styles.statusDot, { backgroundColor: '#059669' }]} />
                         <Text style={styles.configCardHeaderTitle}>CHECK-IN DETAILS</Text>
                       </View>
-                      <View style={styles.configCardBadgeBlue}>
-                        <Text style={styles.configCardBadgeBlueText}>
+                      <View style={styles.configCardBadgeGreen}>
+                        <Text style={styles.configCardBadgeGreenText}>
                           {selectedCheckInItem.fullDateStr} • {checkInTimeSlot}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Check-In Date Horizontal Scroller */}
-                    <Text style={styles.subfieldLabel}>SELECT CHECK-IN DATE</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateChipsScroller}>
-                      {datesList.map((item, idx) => {
-                        const isSelected = checkInIndex === idx;
-                        const isFull = item.status === 'FULL';
-
-                        return (
-                          <TouchableOpacity
-                            key={`cin_date_${idx}`}
-                            style={[
-                              styles.dateCard,
-                              isSelected && styles.dateCardSelectedBlue,
-                              isFull && styles.dateCardDisabled,
-                            ]}
-                            activeOpacity={0.8}
-                            onPress={() => handleSelectCheckInDate(idx)}
-                          >
-                            <Text style={[styles.dateCardDay, isSelected && styles.dateCardTextWhite, isFull && styles.dateCardTextMuted]}>
-                              {item.dayName}
-                            </Text>
-                            <Text style={[styles.dateCardNum, isSelected && styles.dateCardTextWhite, isFull && styles.dateCardTextMuted]}>
-                              {item.dateNum}
-                            </Text>
-                            <Text style={[styles.dateCardMonth, isSelected && styles.dateCardTextWhite, isFull && styles.dateCardTextMuted]}>
-                              {item.monthStr}
-                            </Text>
-                            <View style={[styles.dateStatusPill, isSelected ? styles.dateStatusPillSelectedBlue : isFull ? styles.dateStatusPillFull : styles.dateStatusPillAvail]}>
-                              <Text style={[styles.dateStatusPillText, isSelected && { color: '#FFFFFF' }, isFull && { color: '#EF4444' }]}>
-                                {isSelected ? 'SELECTED' : isFull ? 'FULL' : 'AVAILABLE'}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-
-                    {/* Check-In Time Slot */}
-                    <Text style={styles.subfieldLabel}>SELECT CHECK-IN TIME SLOT</Text>
-                    <View style={styles.timeSlotsWrap}>
-                      {checkInTimeOptions.map((timeStr) => {
-                        const isSelected = checkInTimeSlot === timeStr;
-                        const isSlotNotAvail = timeStr === '01:00 PM' || timeStr === '05:00 PM';
-
-                        return (
-                          <TouchableOpacity
-                            key={`cin_time_${timeStr}`}
-                            style={[
-                              styles.timeSlotPill,
-                              isSelected && styles.timeSlotPillSelectedEmerald,
-                              isSlotNotAvail && styles.timeSlotPillDisabled,
-                            ]}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                              if (isSlotNotAvail) {
-                                Alert.alert('Slot Unavailable', 'This check-in time slot is full. Please pick another.');
-                                return;
-                              }
-                              setCheckInTimeSlot(timeStr);
-                              setManualCheckInTime(timeStr);
-                            }}
-                          >
-                            <Text style={[styles.timeSlotText, isSelected && styles.timeSlotTextWhite, isSlotNotAvail && styles.timeSlotTextMuted]}>
-                              {timeStr}
-                            </Text>
-                            <Text style={[styles.timeSlotStatusText, isSelected && { color: '#D1FAE5' }, isSlotNotAvail && { color: '#EF4444' }]}>
-                              {isSelected ? 'SELECTED' : isSlotNotAvail ? 'NOT-AVAILABLE' : 'AVAILABLE'}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    {/* Manual Check-in Time Entry */}
-                    <View style={styles.manualEntryRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                        <Icons.Clock color="#3B82F6" size={16} />
-                        <View>
-                          <Text style={styles.manualEntryLabel}>Manual Check-In Time Entry</Text>
-                          <Text style={styles.manualEntrySub}>Select or type custom check-in time</Text>
-                        </View>
+                    {/* Clickable Date Selector Field -> Opens Calendar Modal */}
+                    <TouchableOpacity
+                      style={styles.fieldTriggerCard}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setDatePickerTarget('checkIn');
+                        setDatePickerVisible(true);
+                      }}
+                    >
+                      <View style={[styles.fieldTriggerIconCircle, { backgroundColor: '#ECFDF5' }]}>
+                        <Icons.Calendar color="#059669" size={20} />
                       </View>
-                      <TextInput
-                        style={styles.manualEntryInput}
-                        value={manualCheckInTime}
-                        onChangeText={(txt) => {
-                          setManualCheckInTime(txt);
-                          setCheckInTimeSlot(txt);
-                        }}
-                        placeholder="--:--"
-                        placeholderTextColor="#94A3B8"
-                      />
-                      <View style={styles.manualTimeBadgeBlue}>
-                        <Text style={styles.manualTimeBadgeBlueText}>{manualCheckInTime || '02:00 PM'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldTriggerSubLabel}>CHECK-IN DATE</Text>
+                        <Text style={[styles.fieldTriggerMainText, { color: '#059669' }]}>
+                          {selectedCheckInItem.fullDateStr}
+                        </Text>
                       </View>
-                    </View>
+                      <View style={[styles.fieldTriggerActionBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                        <Icons.Calendar color="#059669" size={13} />
+                        <Text style={[styles.fieldTriggerActionText, { color: '#059669' }]}>Calendar</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Clickable Time Selector Field -> Opens Round Clock Modal */}
+                    <TouchableOpacity
+                      style={[styles.fieldTriggerCard, { marginTop: 10 }]}
+                      activeOpacity={0.8}
+                      onPress={() => handleOpenTimePicker('checkIn')}
+                    >
+                      <View style={[styles.fieldTriggerIconCircle, { backgroundColor: '#ECFDF5' }]}>
+                        <Icons.Clock color="#059669" size={20} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldTriggerSubLabel}>CHECK-IN TIME</Text>
+                        <Text style={[styles.fieldTriggerMainText, { color: '#059669' }]}>
+                          {checkInTimeSlot || '12:00 PM'}
+                        </Text>
+                      </View>
+                      <View style={[styles.fieldTriggerActionBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                        <Icons.Clock color="#059669" size={13} />
+                        <Text style={[styles.fieldTriggerActionText, { color: '#059669' }]}>Round Clock</Text>
+                      </View>
+                    </TouchableOpacity>
                   </View>
 
-                  {/* --- 2. CHECK-OUT DETAILS BOX --- */}
-                  <View style={[styles.configCard, { borderColor: '#10B981' }]}>
+                  {/* --- 2. CHECK-OUT DETAILS --- */}
+                  <View style={[styles.configCard, { borderColor: '#2563EB' }]}>
                     <View style={styles.configCardHeader}>
                       <View style={styles.configCardHeaderLeft}>
-                        <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                        <View style={[styles.statusDot, { backgroundColor: '#2563EB' }]} />
                         <Text style={styles.configCardHeaderTitle}>CHECK-OUT DETAILS</Text>
                       </View>
-                      <View style={styles.configCardBadgeGreen}>
-                        <Text style={styles.configCardBadgeGreenText}>
+                      <View style={styles.configCardBadgeBlue}>
+                        <Text style={styles.configCardBadgeBlueText}>
                           {selectedCheckOutItem.fullDateStr} • {checkOutTimeSlot}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Check-Out Date Horizontal Scroller */}
-                    <Text style={styles.subfieldLabel}>SELECT CHECK-OUT DATE</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateChipsScroller}>
-                      {datesList.map((item, idx) => {
-                        const isSelected = checkOutIndex === idx;
-                        const isInvalid = idx <= checkInIndex;
-                        const isFull = item.status === 'FULL';
+                    {/* Clickable Date Selector Field -> Opens Calendar Modal */}
+                    <TouchableOpacity
+                      style={styles.fieldTriggerCard}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setDatePickerTarget('checkOut');
+                        setDatePickerVisible(true);
+                      }}
+                    >
+                      <View style={[styles.fieldTriggerIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                        <Icons.Calendar color="#2563EB" size={20} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldTriggerSubLabel}>CHECK-OUT DATE</Text>
+                        <Text style={[styles.fieldTriggerMainText, { color: '#2563EB' }]}>
+                          {selectedCheckOutItem.fullDateStr}
+                        </Text>
+                      </View>
+                      <View style={[styles.fieldTriggerActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                        <Icons.Calendar color="#2563EB" size={13} />
+                        <Text style={[styles.fieldTriggerActionText, { color: '#2563EB' }]}>Calendar</Text>
+                      </View>
+                    </TouchableOpacity>
 
-                        return (
-                          <TouchableOpacity
-                            key={`cout_date_${idx}`}
-                            style={[
-                              styles.dateCard,
-                              isSelected && styles.dateCardSelectedGreen,
-                              isInvalid && styles.dateCardDisabled,
-                              isFull && styles.dateCardDisabled,
-                            ]}
-                            activeOpacity={0.8}
-                            onPress={() => handleSelectCheckOutDate(idx)}
-                          >
-                            <Text style={[styles.dateCardDay, isSelected && styles.dateCardTextWhite, (isInvalid || isFull) && styles.dateCardTextMuted]}>
-                              {item.dayName}
-                            </Text>
-                            <Text style={[styles.dateCardNum, isSelected && styles.dateCardTextWhite, (isInvalid || isFull) && styles.dateCardTextMuted]}>
-                              {item.dateNum}
-                            </Text>
-                            <Text style={[styles.dateCardMonth, isSelected && styles.dateCardTextWhite, (isInvalid || isFull) && styles.dateCardTextMuted]}>
-                              {item.monthStr}
-                            </Text>
-                            <View style={[styles.dateStatusPill, isSelected ? styles.dateStatusPillSelectedGreen : (isInvalid || isFull) ? styles.dateStatusPillFull : styles.dateStatusPillAvail]}>
-                              <Text style={[styles.dateStatusPillText, isSelected && { color: '#FFFFFF' }, (isInvalid || isFull) && { color: '#EF4444' }]}>
-                                {isSelected ? 'SELECTED' : isInvalid ? 'INVALID' : isFull ? 'FULL' : 'AVAILABLE'}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
+                    {/* Clickable Time Selector Field -> Opens Round Clock Modal */}
+                    <TouchableOpacity
+                      style={[styles.fieldTriggerCard, { marginTop: 10 }]}
+                      activeOpacity={0.8}
+                      onPress={() => handleOpenTimePicker('checkOut')}
+                    >
+                      <View style={[styles.fieldTriggerIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                        <Icons.Clock color="#2563EB" size={20} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldTriggerSubLabel}>CHECK-OUT TIME</Text>
+                        <Text style={[styles.fieldTriggerMainText, { color: '#2563EB' }]}>
+                          {checkOutTimeSlot || '11:00 AM'}
+                        </Text>
+                      </View>
+                      <View style={[styles.fieldTriggerActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                        <Icons.Clock color="#2563EB" size={13} />
+                        <Text style={[styles.fieldTriggerActionText, { color: '#2563EB' }]}>Round Clock</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
 
-                    {/* Check-Out Time Slot */}
-                    <Text style={styles.subfieldLabel}>SELECT CHECK-OUT TIME SLOT</Text>
-                    <View style={styles.timeSlotsWrap}>
-                      {checkOutTimeOptions.map((timeStr) => {
-                        const isSelected = checkOutTimeSlot === timeStr;
+                  {/* --- 3. TRAVELERS / GUESTS --- */}
+                  <View style={[styles.configCard, { borderColor: '#E2E8F0' }]}>
+                    <Text style={styles.travelersCardTitle}>TRAVELERS / GUESTS</Text>
 
-                        return (
-                          <TouchableOpacity
-                            key={`cout_time_${timeStr}`}
-                            style={[
-                              styles.timeSlotPill,
-                              isSelected && styles.timeSlotPillSelectedEmerald,
-                            ]}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                              setCheckOutTimeSlot(timeStr);
-                              setManualCheckOutTime(timeStr);
-                            }}
-                          >
-                            <Text style={[styles.timeSlotText, isSelected && styles.timeSlotTextWhite]}>
-                              {timeStr}
-                            </Text>
-                            <Text style={[styles.timeSlotStatusText, isSelected && { color: '#D1FAE5' }]}>
-                              {isSelected ? 'SELECTED' : 'AVAILABLE'}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    {/* Manual Check-out Time Entry */}
-                    <View style={styles.manualEntryRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                        <Icons.Clock color="#10B981" size={16} />
+                    <View style={styles.travelersCardsRow}>
+                      {/* Adults Card */}
+                      <View style={styles.travelerCategoryCard}>
                         <View>
-                          <Text style={styles.manualEntryLabel}>Manual Check-Out Time Entry</Text>
-                          <Text style={styles.manualEntrySub}>Select or type custom check-out time</Text>
+                          <Text style={styles.travelerCategoryName}>Adults</Text>
+                          <Text style={styles.travelerCategoryAge}>Age 12+</Text>
+                        </View>
+                        <View style={styles.stepperPillWrap}>
+                          <TouchableOpacity
+                            style={styles.stepperBtnRef}
+                            onPress={() => setAdultsCount((prev) => Math.max(1, prev - 1))}
+                          >
+                            <Text style={styles.stepperBtnRefText}>-</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.stepperCountRefText}>{adultsCount}</Text>
+                          <TouchableOpacity
+                            style={styles.stepperBtnRef}
+                            onPress={() => setAdultsCount((prev) => Math.min(10, prev + 1))}
+                          >
+                            <Text style={styles.stepperBtnRefText}>+</Text>
+                          </TouchableOpacity>
                         </View>
                       </View>
-                      <TextInput
-                        style={styles.manualEntryInput}
-                        value={manualCheckOutTime}
-                        onChangeText={(txt) => {
-                          setManualCheckOutTime(txt);
-                          setCheckOutTimeSlot(txt);
-                        }}
-                        placeholder="--:--"
-                        placeholderTextColor="#94A3B8"
-                      />
-                      <View style={styles.manualTimeBadgeGreen}>
-                        <Text style={styles.manualTimeBadgeGreenText}>{manualCheckOutTime || '11:00 AM'}</Text>
+
+                      {/* Children Card */}
+                      <View style={styles.travelerCategoryCard}>
+                        <View>
+                          <Text style={styles.travelerCategoryName}>Children</Text>
+                          <Text style={styles.travelerCategoryAge}>Age 2-12</Text>
+                        </View>
+                        <View style={styles.stepperPillWrap}>
+                          <TouchableOpacity
+                            style={styles.stepperBtnRef}
+                            onPress={() => setChildrenCount((prev) => Math.max(0, prev - 1))}
+                          >
+                            <Text style={styles.stepperBtnRefText}>-</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.stepperCountRefText}>{childrenCount}</Text>
+                          <TouchableOpacity
+                            style={styles.stepperBtnRef}
+                            onPress={() => setChildrenCount((prev) => Math.min(6, prev + 1))}
+                          >
+                            <Text style={styles.stepperBtnRefText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </View>
                   </View>
 
-                  {/* --- 3. GUESTS & ROOMS STEPPERS --- */}
-                  <View style={[styles.configCard, { borderColor: '#E2E8F0' }]}>
-                    <Text style={[styles.configCardHeaderTitle, { marginBottom: 12 }]}>TRAVELERS, GUESTS & ROOMS</Text>
+                  {/* --- 3. GUEST INFORMATION DETAILS CARD --- */}
+                  <View style={styles.guestInfoOuterCard}>
+                    <Text style={styles.guestInfoSectionHeader}>
+                      GUEST INFORMATION DETAILS ({totalGuestsCount} GUESTS)
+                    </Text>
 
-                    {/* Adults Stepper */}
-                    <View style={styles.stepperRow}>
-                      <View>
-                        <Text style={styles.stepperLabel}>Adults</Text>
-                        <Text style={styles.stepperSub}>Age 13+ years</Text>
-                      </View>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => setAdultsCount((prev) => Math.max(1, prev - 1))}
-                        >
-                          <Icons.Minus color="#0F172A" size={16} />
-                        </TouchableOpacity>
-                        <Text style={styles.stepperValText}>{adultsCount}</Text>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => setAdultsCount((prev) => Math.min(10, prev + 1))}
-                        >
-                          <Icons.Plus color="#0F172A" size={16} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
+                    <View style={{ gap: 10, marginTop: 8 }}>
+                      {guestList.map((gItem, idx) => {
+                        const isPrimary = idx === 0;
 
-                    {/* Children Stepper */}
-                    <View style={styles.stepperRow}>
-                      <View>
-                        <Text style={styles.stepperLabel}>Children</Text>
-                        <Text style={styles.stepperSub}>Age 0-12 years</Text>
-                      </View>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => setChildrenCount((prev) => Math.max(0, prev - 1))}
-                        >
-                          <Icons.Minus color="#0F172A" size={16} />
-                        </TouchableOpacity>
-                        <Text style={styles.stepperValText}>{childrenCount}</Text>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => setChildrenCount((prev) => Math.min(6, prev + 1))}
-                        >
-                          <Icons.Plus color="#0F172A" size={16} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
+                        return (
+                          <View key={`guest_form_${idx}`} style={styles.guestDetailBox}>
+                            <View style={styles.guestDetailHeaderRow}>
+                              <Text style={styles.guestDetailHeaderTitle}>
+                                {isPrimary ? 'PRIMARY GUEST (GUEST 1)' : `GUEST ${idx + 1}`}
+                              </Text>
+                              {isPrimary && (
+                                <View style={styles.mainContactBadge}>
+                                  <Text style={styles.mainContactBadgeText}>MAIN CONTACT</Text>
+                                </View>
+                              )}
+                            </View>
 
-                    {/* Rooms Stepper */}
-                    <View style={[styles.stepperRow, { borderBottomWidth: 0 }]}>
-                      <View>
-                        <Text style={styles.stepperLabel}>Rooms</Text>
-                        <Text style={styles.stepperSub}>Number of rooms</Text>
-                      </View>
-                      <View style={styles.stepperControls}>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => setRoomsCount((prev) => Math.max(1, prev - 1))}
-                        >
-                          <Icons.Minus color="#0F172A" size={16} />
-                        </TouchableOpacity>
-                        <Text style={styles.stepperValText}>{roomsCount}</Text>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => setRoomsCount((prev) => Math.min(5, prev + 1))}
-                        >
-                          <Icons.Plus color="#0F172A" size={16} />
-                        </TouchableOpacity>
-                      </View>
+                            <View style={styles.guestFieldsRow}>
+                              {/* Full Name */}
+                              <View style={styles.guestFieldBlock}>
+                                <Text style={styles.guestInputLabel}>FULL NAME</Text>
+                                <TextInput
+                                  style={styles.guestRefInput}
+                                  value={gItem.fullName}
+                                  onChangeText={(val) => {
+                                    handleUpdateGuestInfo(idx, 'fullName', val);
+                                    if (isPrimary) setGuestName(val);
+                                  }}
+                                  placeholder={isPrimary ? 'Full Name' : `Guest ${idx + 1} Full Name`}
+                                  placeholderTextColor="#94A3B8"
+                                />
+                              </View>
+
+                              {/* Aadhaar Card Number */}
+                              <View style={styles.guestFieldBlock}>
+                                <Text style={styles.guestInputLabel}>AADHAAR CARD NUMBER</Text>
+                                <TextInput
+                                  style={styles.guestRefInput}
+                                  value={gItem.aadhaarNumber}
+                                  onChangeText={(val) => handleUpdateGuestInfo(idx, 'aadhaarNumber', val)}
+                                  placeholder="12-Digit Aadhaar No"
+                                  placeholderTextColor="#94A3B8"
+                                  keyboardType="numeric"
+                                  maxLength={12}
+                                />
+                              </View>
+
+                              {/* Phone Number */}
+                              <View style={styles.guestFieldBlock}>
+                                <Text style={styles.guestInputLabel}>PHONE NUMBER</Text>
+                                <TextInput
+                                  style={styles.guestRefInput}
+                                  value={gItem.phoneNumber}
+                                  onChangeText={(val) => {
+                                    handleUpdateGuestInfo(idx, 'phoneNumber', val);
+                                    if (isPrimary) setGuestMobile(val);
+                                  }}
+                                  placeholder="10-Digit Phone No"
+                                  placeholderTextColor="#94A3B8"
+                                  keyboardType="phone-pad"
+                                  maxLength={10}
+                                />
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
                     </View>
                   </View>
 
@@ -967,32 +1239,17 @@ export default function StayDetails() {
                     <View style={styles.summaryDetailsList}>
                       <View style={styles.summaryItemRow}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Icons.Calendar color="#3B82F6" size={15} />
-                          <Text style={styles.summaryItemLabel}>Check-In</Text>
+                          <Icons.Clock color="#3B82F6" size={15} />
+                          <Text style={styles.summaryItemLabel}>Check-In & Check-Out</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={styles.summaryItemValBold}>{selectedCheckInItem.fullDateStr}</Text>
-                          <Text style={styles.summaryItemValSub}>{checkInTimeSlot}</Text>
+                          <Text style={styles.summaryItemValBold}>
+                            {selectedCheckInItem.dayName}, {selectedCheckInItem.dateNum} {selectedCheckInItem.monthStr} ({checkInTimeSlot})
+                          </Text>
+                          <Text style={styles.summaryItemValSub}>
+                            to {selectedCheckOutItem.dayName}, {selectedCheckOutItem.dateNum} {selectedCheckOutItem.monthStr} ({checkOutTimeSlot}) • {computedNights} Night{computedNights > 1 ? 's' : ''}
+                          </Text>
                         </View>
-                      </View>
-
-                      <View style={styles.summaryItemRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Icons.Calendar color="#10B981" size={15} />
-                          <Text style={styles.summaryItemLabel}>Check-Out</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={styles.summaryItemValBold}>{selectedCheckOutItem.fullDateStr}</Text>
-                          <Text style={styles.summaryItemValSub}>{checkOutTimeSlot}</Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.summaryItemRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Icons.Home color="#D97706" size={15} />
-                          <Text style={styles.summaryItemLabel}>Duration</Text>
-                        </View>
-                        <Text style={styles.summaryItemValBold}>{computedNights} Night{computedNights > 1 ? 's' : ''}</Text>
                       </View>
 
                       <View style={styles.summaryItemRow}>
@@ -1002,18 +1259,12 @@ export default function StayDetails() {
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
                           <Text style={styles.summaryItemValBold}>
-                            {adultsCount + childrenCount} Person ({adultsCount} Adults, {childrenCount} Children)
+                            {totalGuestsCount} Person ({adultsCount} Adults, {childrenCount} Children)
                           </Text>
-                          <Text style={styles.summaryItemValSub}>{roomsCount} Room{roomsCount > 1 ? 's' : ''}</Text>
+                          <Text style={styles.summaryItemValSub}>
+                            Adults: ₹{adultPricePerNight.toLocaleString()} × {adultsCount} | Children: ₹{childPricePerNight.toLocaleString()} × {childrenCount}
+                          </Text>
                         </View>
-                      </View>
-
-                      <View style={styles.summaryItemRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Icons.Tag color="#64748B" size={15} />
-                          <Text style={styles.summaryItemLabel}>Rate per Night</Text>
-                        </View>
-                        <Text style={styles.summaryItemValBold}>₹{selectedRoom.priceNum.toLocaleString()}</Text>
                       </View>
 
                       <View style={styles.summaryItemRow}>
@@ -1025,7 +1276,7 @@ export default function StayDetails() {
                       </View>
 
                       <View style={[styles.summaryItemRow, styles.summaryTotalRow]}>
-                        <Text style={styles.summaryTotalLabel}>Total Stay Fee</Text>
+                        <Text style={styles.summaryTotalLabel}>Total Amount</Text>
                         <Text style={styles.summaryTotalValue}>₹{grandTotal.toLocaleString()}</Text>
                       </View>
                     </View>
@@ -1053,45 +1304,91 @@ export default function StayDetails() {
                       {selectedCheckInItem.fullDateStr} ({checkInTimeSlot}) → {selectedCheckOutItem.fullDateStr} ({checkOutTimeSlot})
                     </Text>
                     <Text style={styles.summaryGuests}>
-                      {adultsCount} Adults, {childrenCount} Children • {computedNights} Night(s)
+                      {adultsCount} Adults, {childrenCount} Children • Total: ₹{grandTotal.toLocaleString()}
                     </Text>
                   </View>
 
-                  <View>
-                    <Text style={styles.inputFieldLabel}>PRIMARY GUEST FULL NAME *</Text>
-                    <TextInput
-                      style={[
-                        styles.textInput,
-                        {
-                          color: colors.text,
-                          backgroundColor: isLight ? '#FFFFFF' : 'rgba(255,255,255,0.06)',
-                          borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
-                        },
-                      ]}
-                      value={guestName}
-                      onChangeText={setGuestName}
-                      placeholder="e.g. Rahul Sharma"
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
+                  {/* Editable input cards for each guest in guestList */}
+                  <View style={styles.guestInfoOuterCard}>
+                    <Text style={styles.guestInfoSectionHeader}>GUEST INFORMATION ({guestList.length} {guestList.length === 1 ? 'PERSON' : 'PERSONS'})</Text>
+                    <View style={{ gap: 12, marginTop: 10 }}>
+                      {guestList.map((g, gIdx) => (
+                        <View key={`g_edit_${gIdx}`} style={{ backgroundColor: isLight ? '#FFFFFF' : 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: isLight ? '#FEF3C7' : colors.cardBorder }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                            <Icons.User color="#F4C400" size={14} style={{ marginRight: 6 }} />
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
+                              {gIdx === 0 ? 'Person 1 (Primary Guest)' : `Person ${gIdx + 1} Details`}
+                            </Text>
+                          </View>
 
-                  <View>
-                    <Text style={styles.inputFieldLabel}>MOBILE NUMBER *</Text>
-                    <TextInput
-                      style={[
-                        styles.textInput,
-                        {
-                          color: colors.text,
-                          backgroundColor: isLight ? '#FFFFFF' : 'rgba(255,255,255,0.06)',
-                          borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
-                        },
-                      ]}
-                      value={guestMobile}
-                      onChangeText={setGuestMobile}
-                      keyboardType="phone-pad"
-                      placeholder="+91 98765 43210"
-                      placeholderTextColor="#94A3B8"
-                    />
+                          {/* Full Name */}
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: colors.subtext, marginBottom: 4 }}>
+                            FULL NAME *
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.textInput,
+                              {
+                                color: colors.text,
+                                backgroundColor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.06)',
+                                borderColor: isLight ? '#CBD5E1' : colors.cardBorder,
+                                marginBottom: 8,
+                                height: 44,
+                              },
+                            ]}
+                            value={g.fullName}
+                            onChangeText={(val) => handleUpdateGuestInfo(gIdx, 'fullName', val)}
+                            placeholder="Enter full name"
+                            placeholderTextColor="#94A3B8"
+                          />
+
+                          {/* Aadhaar Number */}
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: colors.subtext, marginBottom: 4 }}>
+                            AADHAAR CARD NUMBER (12 DIGITS) *
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.textInput,
+                              {
+                                color: colors.text,
+                                backgroundColor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.06)',
+                                borderColor: isLight ? '#CBD5E1' : colors.cardBorder,
+                                marginBottom: 8,
+                                height: 44,
+                              },
+                            ]}
+                            value={g.aadhaarNumber}
+                            onChangeText={(val) => handleUpdateGuestInfo(gIdx, 'aadhaarNumber', val.replace(/[^\d]/g, '').slice(0, 12))}
+                            placeholder="12-digit Aadhaar Card number"
+                            placeholderTextColor="#94A3B8"
+                            keyboardType="number-pad"
+                            maxLength={12}
+                          />
+
+                          {/* Mobile Number */}
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: colors.subtext, marginBottom: 4 }}>
+                            MOBILE NUMBER (10 DIGITS) *
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.textInput,
+                              {
+                                color: colors.text,
+                                backgroundColor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.06)',
+                                borderColor: isLight ? '#CBD5E1' : colors.cardBorder,
+                                height: 44,
+                              },
+                            ]}
+                            value={g.phoneNumber}
+                            onChangeText={(val) => handleUpdateGuestInfo(gIdx, 'phoneNumber', val.replace(/[^\d]/g, '').slice(0, 10))}
+                            placeholder="10-digit mobile number"
+                            placeholderTextColor="#94A3B8"
+                            keyboardType="phone-pad"
+                            maxLength={10}
+                          />
+                        </View>
+                      ))}
+                    </View>
                   </View>
 
                   <View>
@@ -1108,7 +1405,7 @@ export default function StayDetails() {
                       value={guestEmail}
                       onChangeText={setGuestEmail}
                       keyboardType="email-address"
-                      placeholder="name@example.com"
+                      placeholder="guest@domain.com"
                       placeholderTextColor="#94A3B8"
                     />
                   </View>
@@ -1153,14 +1450,25 @@ export default function StayDetails() {
                       style={[styles.modalCtaBtn, { flex: 2 }]}
                       activeOpacity={0.85}
                       onPress={() => {
-                        if (!guestName.trim() || !guestMobile.trim() || !guestEmail.trim()) {
-                          Alert.alert('Required Fields', 'Please fill in primary guest name, mobile, and email.');
-                          return;
+                        for (let i = 0; i < guestList.length; i++) {
+                          const g = guestList[i];
+                          if (!g || !g.fullName || !g.fullName.trim()) {
+                            Alert.alert('Missing Name', `Please enter Full Name for Person ${i + 1}.`);
+                            return;
+                          }
+                          if (!g.aadhaarNumber || g.aadhaarNumber.replace(/[^\d]/g, '').length !== 12) {
+                            Alert.alert('Validation Error', `Please enter a valid 12-digit Aadhaar Card Number for Person ${i + 1} (${g.fullName}).`);
+                            return;
+                          }
+                          if (!g.phoneNumber || g.phoneNumber.replace(/[^\d]/g, '').length !== 10) {
+                            Alert.alert('Validation Error', `Please enter a valid 10-digit Mobile Number for Person ${i + 1} (${g.fullName}).`);
+                            return;
+                          }
                         }
                         setBookingStep(3);
                       }}
                     >
-                      <Text style={styles.modalCtaBtnText}>Continue to Payment</Text>
+                      <Text style={styles.modalCtaBtnText}>Continue to Payment (₹{grandTotal.toLocaleString()})</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1233,12 +1541,102 @@ export default function StayDetails() {
                       style={[styles.modalCtaBtn, { flex: 2 }]}
                       activeOpacity={0.85}
                       onPress={() => {
-                        const newId = `CN-STAY-${Math.floor(10000 + Math.random() * 90000)}`;
+                        const newId = `CN-STAY-${Date.now().toString().slice(-6)}`;
                         setConfirmedBookingId(newId);
-                        setBookingStep(4);
+
+                        if (paymentMethod === 'Pay at Hotel') {
+                          const newStayOrder: Order = {
+                            id: newId,
+                            order_number: newId,
+                            vendor_id: stay.vendor_id || stay.vendorId || '',
+                            vendor_name: stay.name || 'Luxury Resort & Stay',
+                            category: 'Stay',
+                            order_type: 'booking',
+                            customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
+                            customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+                            customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
+                            customer_latitude: 12.9498,
+                            customer_longitude: 77.6289,
+                            product_details: `${stay.name} (${selectedRoom.name} • ${selectedCheckInItem.fullDateStr} to ${selectedCheckOutItem.fullDateStr})`,
+                            hotel_name: stay.name,
+                            room_type: selectedRoom.name,
+                            check_in: selectedCheckInItem.fullDateStr,
+                            check_out: selectedCheckOutItem.fullDateStr,
+                            guests_count: `${adultsCount} Adults, ${childrenCount} Children`,
+                            items: [
+                              {
+                                name: `${stay.name} - ${selectedRoom.name}`,
+                                quantity: roomsCount,
+                                price: grandTotal,
+                              },
+                            ],
+                            item_count: 1,
+                            amount: grandTotal,
+                            status: 'Confirmed',
+                            payment_method: 'Pay at Hotel (Cash / Card)',
+                            payment_status: 'Pending',
+                            created_at: new Date().toISOString(),
+                            image: stay.image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500',
+                          };
+
+                          useOrderStore.getState().addLocalOrder(newStayOrder);
+                          apiFetch('/orders', {
+                            method: 'POST',
+                            body: {
+                              id: newId,
+                              order_number: newId,
+                              vendor_id: 'v1',
+                              customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
+                              customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+                              customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
+                              amount: grandTotal,
+                              order_type: 'booking',
+                              category: 'Stay',
+                              payment_status: 'Pending',
+                              payment_method: 'Pay at Hotel',
+                            },
+                          }).catch((err) => console.warn('Stay order save notice:', err));
+
+                          setIsBookingModalOpen(false);
+                          setBookingStep(1);
+
+                          navigation.navigate('BookingConfirmation', {
+                            bookingId: newId,
+                            items: [
+                              {
+                                name: `${stay.name} - ${selectedRoom.name}`,
+                                quantity: roomsCount,
+                                price: grandTotal,
+                                image: stay.image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500',
+                              },
+                            ],
+                            totalAmount: grandTotal,
+                            paymentMethod: 'Pay at Hotel (Pending)',
+                            type: 'stay',
+                            date: `${selectedCheckInItem.fullDateStr} (${checkInTimeSlot})`,
+                            slot: `Check-Out: ${selectedCheckOutItem.fullDateStr} (${checkOutTimeSlot}) • ${computedNights} Night(s)`,
+                            address: `${stay.name}, ${stay.location || 'Bangalore'}`,
+                            order: newStayOrder,
+                          });
+                          return;
+                        }
+
+                        const orderId = `order_stay_${Date.now()}`;
+                        setRazorpayOrder({
+                          orderId,
+                          amount: grandTotal * 100, // in paise
+                          currency: 'INR',
+                          keyId: RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP',
+                          planType: 'stay_booking',
+                          planName: `${stay.name} (${selectedRoom.name})`,
+                          priceText: `₹${grandTotal.toLocaleString('en-IN')}`,
+                        });
+                        setRazorpayModalVisible(true);
                       }}
                     >
-                      <Text style={styles.modalCtaBtnText}>Confirm Booking (₹{grandTotal.toLocaleString()})</Text>
+                      <Text style={styles.modalCtaBtnText}>
+                        {paymentMethod === 'Pay at Hotel' ? 'Confirm Booking (Pay at Hotel)' : `Pay & Book (₹${grandTotal.toLocaleString()})`}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1267,23 +1665,684 @@ export default function StayDetails() {
                       Guest: {guestName} ({guestMobile}) • {adultsCount} Adults, {childrenCount} Children
                     </Text>
                     <Text style={[styles.totalValue, { marginTop: 8 }]}>
-                      Total Paid: ₹{grandTotal.toLocaleString()} ({paymentMethod})
+                      Total Paid: ₹{grandTotal.toLocaleString()} (Razorpay Test Mode Verified)
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.modalCtaBtn}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      setIsBookingModalOpen(false);
-                      navigation.goBack();
-                    }}
-                  >
-                    <Text style={styles.modalCtaBtnText}>Done</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                    <TouchableOpacity
+                      style={[styles.modalCtaBtn, { flex: 1, backgroundColor: '#E2E8F0' }]}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        setIsBookingModalOpen(false);
+                        navigation.goBack();
+                      }}
+                    >
+                      <Text style={[styles.modalCtaBtnText, { color: '#0F172A' }]}>Done</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.modalCtaBtn, { flex: 1.5 }]}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        setIsBookingModalOpen(false);
+                        navigation.navigate('CustomerTabs', {
+                          screen: 'Orders',
+                          params: { activeTab: 'bookings', category: 'Stay' },
+                        });
+                      }}
+                    >
+                      <Text style={styles.modalCtaBtnText}>View in Bookings</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Razorpay Test Mode Checkout Modal */}
+      <RazorpayModal
+        visible={razorpayModalVisible}
+        orderData={razorpayOrder}
+        userInfo={{
+          name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
+          email: useAuthStore.getState().currentUser?.email || '',
+          phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+        }}
+        merchantName="Forge India Connect • Stay & Travel"
+        onSuccess={async (paymentResult) => {
+          setRazorpayModalVisible(false);
+          const newId = `CN-STAY-${Date.now().toString().slice(-6)}`;
+          setConfirmedBookingId(newId);
+
+          const newStayOrder: Order = {
+            id: newId,
+            order_number: newId,
+            vendor_id: stay.vendor_id || stay.vendorId || '',
+            vendor_name: stay.name || 'Luxury Resort & Stay',
+            category: 'Stay',
+            order_type: 'booking',
+            customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
+            customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+            customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
+            customer_latitude: 12.9498,
+            customer_longitude: 77.6289,
+            product_details: `${stay.name} (${selectedRoom.name} • ${selectedCheckInItem.fullDateStr} to ${selectedCheckOutItem.fullDateStr})`,
+            hotel_name: stay.name,
+            room_type: selectedRoom.name,
+            check_in: selectedCheckInItem.fullDateStr,
+            check_out: selectedCheckOutItem.fullDateStr,
+            guests_count: `${adultsCount} Adults, ${childrenCount} Children`,
+            items: [
+              {
+                name: `${stay.name} - ${selectedRoom.name}`,
+                quantity: roomsCount,
+                price: grandTotal,
+              },
+            ],
+            item_count: 1,
+            amount: grandTotal,
+            status: 'Confirmed',
+            payment_method: 'Razorpay Test Mode (Online)',
+            payment_status: 'Paid',
+            created_at: new Date().toISOString(),
+            image: stay.image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500',
+          };
+
+          // 1. Immediately record in local state
+          useOrderStore.getState().addLocalOrder(newStayOrder);
+
+          // 2. Verify payment on backend
+          apiFetch('/razorpay/verify-payment', {
+            method: 'POST',
+            body: {
+              ...paymentResult,
+              planType: 'stay_booking',
+              amount: grandTotal,
+              userId: useAuthStore.getState().currentUser?.id || 'guest_user',
+            },
+          }).catch((err) => console.warn('Background stay payment verify notice:', err));
+
+          // 3. Save stay booking to orders on backend
+          apiFetch('/orders', {
+            method: 'POST',
+            body: {
+              id: newId,
+              order_number: newId,
+              vendor_id: 'v1',
+              customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
+              customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+              customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
+              customer_latitude: 12.9498,
+              customer_longitude: 77.6289,
+              product_details: `${stay.name} (${selectedRoom.name} • ${selectedCheckInItem.fullDateStr} to ${selectedCheckOutItem.fullDateStr})`,
+              amount: grandTotal,
+              order_type: 'booking',
+              category: 'Stay',
+              payment_id: paymentResult.razorpay_payment_id,
+              payment_status: 'Paid',
+              payment_method: 'Razorpay Test Mode (Online)',
+            },
+          }).catch((err) => console.warn('Background stay order save notice:', err));
+
+          // Dismiss sheet modal and navigate to BookingConfirmation screen (like other bookings & orders)
+          setIsBookingModalOpen(false);
+          setBookingStep(1);
+
+          navigation.navigate('BookingConfirmation', {
+            bookingId: newId,
+            items: [
+              {
+                name: `${stay.name} - ${selectedRoom.name}`,
+                quantity: roomsCount,
+                price: grandTotal,
+                image: stay.image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500',
+              },
+            ],
+            totalAmount: grandTotal,
+            paymentMethod: 'Razorpay (Online Paid)',
+            type: 'stay',
+            date: `${selectedCheckInItem.fullDateStr} (${checkInTimeSlot})`,
+            slot: `Check-Out: ${selectedCheckOutItem.fullDateStr} (${checkOutTimeSlot}) • ${computedNights} Night(s)`,
+            address: `${stay.name}, ${stay.location || 'Bangalore'}`,
+            order: newStayOrder,
+          });
+        }}
+        onCancel={() => {
+          setRazorpayModalVisible(false);
+          setRazorpayOrder(null);
+        }}
+      />
+
+      {/* ========================================================================= */}
+      {/* --- CALENDAR MODAL (DATE SELECTION) --- */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={datePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDatePickerVisible(false)}
+      >
+        <View style={styles.pickerBackdrop}>
+          <View style={styles.calendarModalCard}>
+            {/* Header */}
+            <View style={styles.pickerHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: datePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                  ]}
+                />
+                <Text style={styles.pickerHeaderTitle}>
+                  {datePickerTarget === 'checkIn' ? 'Select Check-In Date' : 'Select Check-Out Date'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setDatePickerVisible(false)}
+                style={styles.pickerCloseBtn}
+              >
+                <Icons.X color="#64748B" size={18} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Selected Date Preview Bar */}
+            <View
+              style={[
+                styles.calendarSelectedPreviewBar,
+                {
+                  backgroundColor: datePickerTarget === 'checkIn' ? '#F0FDF4' : '#EFF6FF',
+                  borderColor: datePickerTarget === 'checkIn' ? '#A7F3D0' : '#BFDBFE',
+                },
+              ]}
+            >
+              <Icons.Calendar
+                color={datePickerTarget === 'checkIn' ? '#059669' : '#2563EB'}
+                size={18}
+              />
+              <Text
+                style={[
+                  styles.calendarSelectedPreviewText,
+                  { color: datePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                ]}
+              >
+                {datePickerTarget === 'checkIn'
+                  ? selectedCheckInItem.fullDateStr
+                  : selectedCheckOutItem.fullDateStr}
+              </Text>
+            </View>
+
+            {/* Month Navigation Header */}
+            <View style={styles.calendarHeaderRow}>
+              <TouchableOpacity
+                style={styles.calendarNavBtn}
+                onPress={handlePrevMonth}
+                activeOpacity={0.7}
+              >
+                <Icons.ChevronLeft color="#0F172A" size={18} />
+              </TouchableOpacity>
+              <Text style={styles.calendarMonthTitle}>
+                {MONTH_NAMES[calendarMonth]} {calendarYear}
+              </Text>
+              <TouchableOpacity
+                style={styles.calendarNavBtn}
+                onPress={handleNextMonth}
+                activeOpacity={0.7}
+              >
+                <Icons.ChevronRight color="#0F172A" size={18} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Weekdays Row */}
+            <View style={styles.calendarWeekRow}>
+              {WEEKDAYS_SHORT.map((wd, wIdx) => (
+                <View key={`wd_modal_${wIdx}`} style={styles.calendarWeekCell}>
+                  <Text style={styles.calendarWeekText}>{wd}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Calendar Days Grid */}
+            <View style={styles.calendarGrid}>
+              {calendarDays.map((cell, cIdx) => {
+                if (!cell.day || !cell.dateObj) {
+                  return <View key={`blank_m_${cIdx}`} style={styles.calendarDayCell} />;
+                }
+
+                const dObj = cell.dateObj;
+                const isCheckInTarget = datePickerTarget === 'checkIn';
+                const isSelIn =
+                  dObj.getFullYear() === checkInDateObj.getFullYear() &&
+                  dObj.getMonth() === checkInDateObj.getMonth() &&
+                  dObj.getDate() === checkInDateObj.getDate();
+                const isSelOut =
+                  dObj.getFullYear() === checkOutDateObj.getFullYear() &&
+                  dObj.getMonth() === checkOutDateObj.getMonth() &&
+                  dObj.getDate() === checkOutDateObj.getDate();
+                const isBetween = dObj > checkInDateObj && dObj < checkOutDateObj;
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const checkD = new Date(dObj);
+                checkD.setHours(0, 0, 0, 0);
+
+                let isBlocked = false;
+                if (isCheckInTarget) {
+                  isBlocked = checkD < today;
+                } else {
+                  const inD = new Date(checkInDateObj);
+                  inD.setHours(0, 0, 0, 0);
+                  isBlocked = checkD <= inD;
+                }
+
+                const isCurrentTargetSel = isCheckInTarget ? isSelIn : isSelOut;
+
+                return (
+                  <TouchableOpacity
+                    key={`day_m_${cIdx}`}
+                    style={[
+                      styles.calendarDayCell,
+                      isBetween &&
+                        (isCheckInTarget
+                          ? styles.calendarDayCellBetweenIn
+                          : styles.calendarDayCellBetweenOut),
+                    ]}
+                    activeOpacity={0.75}
+                    disabled={isBlocked}
+                    onPress={() => {
+                      handleCalendarSelectDate(dObj, datePickerTarget);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.calendarDayCircle,
+                        isCurrentTargetSel &&
+                          (isCheckInTarget
+                            ? styles.calendarDayCircleSelectedGreen
+                            : styles.calendarDayCircleSelectedBlue),
+                        !isCurrentTargetSel &&
+                          isSelIn &&
+                          styles.calendarDayCircleSelectedGreenBorder,
+                        !isCurrentTargetSel &&
+                          isSelOut &&
+                          styles.calendarDayCircleSelectedBlueBorder,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.calendarDayNum,
+                          isBlocked && styles.calendarDayNumPast,
+                          isCurrentTargetSel && styles.calendarDayNumWhite,
+                          !isCurrentTargetSel && isSelIn && styles.calendarDayNumGreen,
+                          !isCurrentTargetSel && isSelOut && styles.calendarDayNumBlue,
+                        ]}
+                      >
+                        {cell.day}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Confirm Actions */}
+            <View style={styles.pickerActionsRow}>
+              <TouchableOpacity
+                style={styles.pickerCancelBtn}
+                onPress={() => setDatePickerVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.pickerConfirmBtn,
+                  {
+                    backgroundColor: datePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                  },
+                ]}
+                onPress={() => setDatePickerVisible(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.pickerConfirmBtnText}>Confirm Date</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* --- ROUND CLOCK MODAL (ROTATABLE CLOCK HANDS) --- */}
+      {/* ========================================================================= */}
+      <Modal
+        visible={timePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTimePickerVisible(false)}
+      >
+        <View style={styles.pickerBackdrop}>
+          <View style={styles.pickerCard}>
+            {/* Header */}
+            <View style={styles.pickerHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                  ]}
+                />
+                <Text style={styles.pickerHeaderTitle}>
+                  {timePickerTarget === 'checkIn' ? 'Check-In Round Clock' : 'Check-Out Round Clock'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setTimePickerVisible(false)}
+                style={styles.pickerCloseBtn}
+              >
+                <Icons.X color="#64748B" size={18} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Interactive Digital Header with Hour / Minute / AM-PM Selectors */}
+            <View
+              style={[
+                styles.pickerClockPreview,
+                {
+                  borderColor: timePickerTarget === 'checkIn' ? '#A7F3D0' : '#BFDBFE',
+                  backgroundColor: timePickerTarget === 'checkIn' ? '#F0FDF4' : '#EFF6FF',
+                },
+              ]}
+            >
+              {/* Hour Box */}
+              <TouchableOpacity
+                style={[
+                  styles.pickerClockBox,
+                  clockMode === 'hour' && {
+                    backgroundColor: timePickerTarget === 'checkIn' ? '#DCFCE7' : '#DBEAFE',
+                    borderColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    borderWidth: 1.5,
+                  },
+                ]}
+                activeOpacity={0.8}
+                onPress={() => setClockMode('hour')}
+              >
+                <Text
+                  style={[
+                    styles.pickerClockDigit,
+                    { color: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                  ]}
+                >
+                  {pickerHour}
+                </Text>
+                <Text
+                  style={[
+                    styles.pickerClockSub,
+                    clockMode === 'hour' && {
+                      color: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                      fontWeight: '900',
+                    },
+                  ]}
+                >
+                  HOUR
+                </Text>
+              </TouchableOpacity>
+
+              <Text
+                style={[
+                  styles.pickerClockColon,
+                  { color: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                ]}
+              >
+                :
+              </Text>
+
+              {/* Minute Box */}
+              <TouchableOpacity
+                style={[
+                  styles.pickerClockBox,
+                  clockMode === 'minute' && {
+                    backgroundColor: timePickerTarget === 'checkIn' ? '#DCFCE7' : '#DBEAFE',
+                    borderColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    borderWidth: 1.5,
+                  },
+                ]}
+                activeOpacity={0.8}
+                onPress={() => setClockMode('minute')}
+              >
+                <Text
+                  style={[
+                    styles.pickerClockDigit,
+                    { color: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                  ]}
+                >
+                  {pickerMinute}
+                </Text>
+                <Text
+                  style={[
+                    styles.pickerClockSub,
+                    clockMode === 'minute' && {
+                      color: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                      fontWeight: '900',
+                    },
+                  ]}
+                >
+                  MIN
+                </Text>
+              </TouchableOpacity>
+
+              {/* AM / PM Toggle Pills */}
+              <View style={styles.periodToggleCol}>
+                <TouchableOpacity
+                  style={[
+                    styles.periodToggleBtn,
+                    pickerPeriod === 'AM' && {
+                      backgroundColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setPickerPeriod('AM')}
+                >
+                  <Text
+                    style={[
+                      styles.periodToggleBtnText,
+                      pickerPeriod === 'AM' && { color: '#FFFFFF', fontWeight: '900' },
+                    ]}
+                  >
+                    AM
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.periodToggleBtn,
+                    pickerPeriod === 'PM' && {
+                      backgroundColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => setPickerPeriod('PM')}
+                >
+                  <Text
+                    style={[
+                      styles.periodToggleBtnText,
+                      pickerPeriod === 'PM' && { color: '#FFFFFF', fontWeight: '900' },
+                    ]}
+                  >
+                    PM
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Mode Switcher Tabs */}
+            <View style={styles.clockModeTabRow}>
+              <TouchableOpacity
+                style={[
+                  styles.clockModeTab,
+                  clockMode === 'hour' && {
+                    backgroundColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    borderColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                  },
+                ]}
+                activeOpacity={0.8}
+                onPress={() => setClockMode('hour')}
+              >
+                <Text
+                  style={[
+                    styles.clockModeTabText,
+                    clockMode === 'hour' && { color: '#FFFFFF', fontWeight: '900' },
+                  ]}
+                >
+                  Pick Hour (1 - 12)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.clockModeTab,
+                  clockMode === 'minute' && {
+                    backgroundColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    borderColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                  },
+                ]}
+                activeOpacity={0.8}
+                onPress={() => setClockMode('minute')}
+              >
+                <Text
+                  style={[
+                    styles.clockModeTabText,
+                    clockMode === 'minute' && { color: '#FFFFFF', fontWeight: '900' },
+                  ]}
+                >
+                  Pick Minute (00 - 55)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Sub-instruction label */}
+            <Text style={styles.clockDialSubInstruction}>
+              {clockMode === 'hour'
+                ? 'Touch or drag the clock hand to select hour:'
+                : 'Touch or drag the clock hand to select minute:'}
+            </Text>
+
+            {/* THE ROUND ANALOG CLOCK FACE WITH ROTATABLE CLOCK HAND */}
+            <View style={styles.clockDialWrapper}>
+              <View
+                style={[
+                  styles.clockDialCircle,
+                  {
+                    borderColor: timePickerTarget === 'checkIn' ? '#A7F3D0' : '#BFDBFE',
+                  },
+                ]}
+                {...clockPanResponder.panHandlers}
+              >
+                {/* Rotatable Clock Hand */}
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.clockHandPivotWrap,
+                    {
+                      transform: [{ rotate: `${clockHandAngle}deg` }],
+                    },
+                  ]}
+                >
+                  {/* Hand Shaft */}
+                  <View
+                    style={[
+                      styles.clockHandShaft,
+                      {
+                        backgroundColor:
+                          timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                      },
+                    ]}
+                  />
+                  {/* Hand Tip Knob */}
+                  <View
+                    style={[
+                      styles.clockHandTipKnob,
+                      {
+                        backgroundColor:
+                          timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                        shadowColor:
+                          timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                      },
+                    ]}
+                  />
+                </View>
+
+                {/* Center Pivot Pin */}
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.clockCenterPin,
+                    {
+                      backgroundColor:
+                        timePickerTarget === 'checkIn' ? '#059669' : '#2563EB',
+                    },
+                  ]}
+                >
+                  <View style={styles.clockCenterPinDot} />
+                </View>
+
+                {/* 12 Numbers arranged in circle at radius 86px */}
+                {(clockMode === 'hour' ? CLOCK_HOURS_ITEMS : CLOCK_MINUTES_ITEMS).map((item, idx) => {
+                  const isSelected =
+                    clockMode === 'hour'
+                      ? pickerHour === item.val || parseInt(pickerHour, 10) === parseInt(item.val, 10)
+                      : pickerMinute === item.val || parseInt(pickerMinute, 10) === parseInt(item.val, 10);
+
+                  const angleRad = (idx * 30 - 90) * (Math.PI / 180);
+                  const posX = 125 + 86 * Math.cos(angleRad) - 18;
+                  const posY = 125 + 86 * Math.sin(angleRad) - 18;
+
+                  return (
+                    <View
+                      key={`dial_node_${clockMode}_${item.val}`}
+                      style={[
+                        styles.clockDialNumberPill,
+                        { left: posX, top: posY },
+                      ]}
+                      pointerEvents="none"
+                    >
+                      <Text
+                        style={[
+                          styles.clockDialNumberText,
+                          isSelected && styles.clockDialNumberTextSelected,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.pickerActionsRow}>
+              <TouchableOpacity
+                style={styles.pickerCancelBtn}
+                onPress={() => setTimePickerVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.pickerConfirmBtn,
+                  { backgroundColor: timePickerTarget === 'checkIn' ? '#059669' : '#2563EB' },
+                ]}
+                onPress={handleConfirmTimePicker}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.pickerConfirmBtnText}>
+                  Set Time ({pickerHour}:{pickerMinute} {pickerPeriod})
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1651,12 +2710,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 12,
   },
   configCardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 1,
   },
   statusDot: {
     width: 10,
@@ -1676,6 +2738,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+    maxWidth: '100%',
   },
   configCardBadgeBlueText: {
     fontSize: 11,
@@ -1689,9 +2752,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   configCardBadgeGreenText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '800',
     color: '#065F46',
   },
@@ -2123,5 +3188,721 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     color: '#0F172A',
+  },
+  // Reference Image Styled Departure & Traveler Component Styles
+  departureSlotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: 8,
+  },
+  depSlotCard: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  depSlotSelectedEmerald: {
+    backgroundColor: '#059669',
+    borderColor: '#047857',
+  },
+  depSlotNotAvailCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  depSlotTimeText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  depSlotNotAvailTimeText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#EF4444',
+    textDecorationLine: 'line-through',
+  },
+  depSlotStatusPill: {
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  depSlotStatusPillSelected: {
+    backgroundColor: '#047857',
+  },
+  depSlotStatusPillAvail: {
+    backgroundColor: '#ECFDF5',
+  },
+  depSlotStatusPillNotAvail: {
+    marginTop: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  depSlotStatusText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#059669',
+  },
+  depSlotNotAvailStatusText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  manualDepContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 6,
+  },
+  clockIconCircleBlue: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manualDepTitle: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  manualDepSub: {
+    fontSize: 9.5,
+    color: '#64748B',
+  },
+  manualInputWrap: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  manualDepInput: {
+    width: 78,
+    height: 32,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingLeft: 6,
+    paddingRight: 22,
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  travelersCardTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: '#475569',
+    marginBottom: 10,
+  },
+  travelersCardsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  travelerCategoryCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  travelerCategoryName: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  travelerCategoryAge: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  stepperPillWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    paddingVertical: 2,
+  },
+  stepperBtnRef: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 4,
+  },
+  stepperBtnRefText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  stepperCountRefText: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#0F172A',
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  guestInfoOuterCard: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 14,
+  },
+  guestInfoSectionHeader: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: '#D97706',
+  },
+  guestDetailBox: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  guestDetailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  guestDetailHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#D97706',
+    letterSpacing: 0.5,
+  },
+  mainContactBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  mainContactBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#B45309',
+    letterSpacing: 0.4,
+  },
+  guestFieldsRow: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  guestFieldBlock: {
+    width: '100%',
+  },
+  guestInputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#64748B',
+    marginBottom: 4,
+    letterSpacing: 0.4,
+  },
+  guestRefInput: {
+    height: 38,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  // Time Picker Modal Styles (Hour & Minute Selector)
+  manualInputClickableWrap: {
+    height: 32,
+    minWidth: 88,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  manualDepInputText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  pickerCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+  },
+  pickerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  pickerHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  pickerCloseBtn: {
+    padding: 4,
+  },
+  pickerClockPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 14,
+  },
+  pickerClockBox: {
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    minWidth: 54,
+  },
+  pickerClockDigit: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  pickerClockSub: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#64748B',
+    marginTop: 1,
+  },
+  pickerClockColon: {
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: -4,
+  },
+  periodToggleCol: {
+    gap: 4,
+    marginLeft: 4,
+  },
+  periodToggleBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+  },
+  periodToggleBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  clockModeTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  clockModeTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  clockModeTabText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  clockDialSubInstruction: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  clockDialWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 6,
+  },
+  clockDialCircle: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockHandPivotWrap: {
+    position: 'absolute',
+    left: 125,
+    top: 125,
+    width: 0,
+    height: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 6,
+  },
+  clockHandShaft: {
+    position: 'absolute',
+    left: -1.5,
+    bottom: 0,
+    width: 3,
+    height: 86,
+    borderRadius: 1.5,
+  },
+  clockHandTipKnob: {
+    position: 'absolute',
+    left: -19,
+    top: -86 - 19,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+  },
+  clockCenterPin: {
+    position: 'absolute',
+    left: 125 - 7,
+    top: 125 - 7,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockCenterPinDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  clockDialNumberPill: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 8,
+  },
+  clockDialNumberText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  clockDialNumberTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  pickerActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12,
+  },
+  pickerCancelBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerCancelBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  pickerConfirmBtn: {
+    flex: 2,
+    height: 42,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerConfirmBtnText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+
+  // Clickable Date & Time Field Trigger Card Styles on Main Sheet
+  fieldTriggerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 12,
+  },
+  fieldTriggerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fieldTriggerSubLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  fieldTriggerMainText: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  fieldTriggerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  fieldTriggerActionText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  // Calendar Modal Styles
+  calendarModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+  },
+  calendarSelectedPreviewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  calendarSelectedPreviewText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  calendarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 12,
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  calendarNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarMonthTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  calendarWeekRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 6,
+    marginBottom: 6,
+  },
+  calendarWeekCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  calendarWeekText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDayCell: {
+    width: '14.28%',
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 2,
+  },
+  calendarDayCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDayCircleSelectedGreen: {
+    backgroundColor: '#059669',
+  },
+  calendarDayCircleSelectedBlue: {
+    backgroundColor: '#2563EB',
+  },
+  calendarDayCircleSelectedGreenBorder: {
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
+  },
+  calendarDayCircleSelectedBlueBorder: {
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  calendarDayCellBetweenIn: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 4,
+  },
+  calendarDayCellBetweenOut: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 4,
+  },
+  calendarDayNum: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  calendarDayNumPast: {
+    color: '#CBD5E1',
+  },
+  calendarDayNumWhite: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  calendarDayNumGreen: {
+    color: '#059669',
+    fontWeight: '900',
+  },
+  calendarDayNumBlue: {
+    color: '#2563EB',
+    fontWeight: '900',
+  },
+
+  // Time Main Bar & Round Clock Launcher Styles
+  timeMainBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+  },
+  timeMainBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  clockCircleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeMainBarLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  timeMainBarValue: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  openClockCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  openClockCtaBtnText: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
 });
