@@ -1331,6 +1331,16 @@ app.post('/api/orders', async (req, res) => {
     };
 
     const newOrder = await Order.create(orderData);
+    // Notify vendor backend in real-time
+    try {
+      fetch('http://127.0.0.1:8002/api/realtime/notify-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: newOrder.toObject ? newOrder.toObject() : newOrder })
+      }).catch(err => console.warn('[Connect-Backend] Vendor realtime notification warning:', err.message));
+    } catch (notifErr) {
+      console.warn('[Connect-Backend] Vendor notify error:', notifErr.message);
+    }
     clearCache();
 
     // Real-time notification to Vendor dashboard & Customer tracker
