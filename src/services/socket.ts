@@ -348,6 +348,79 @@ class SocketServiceClient {
       this.triggerLocalEvent('favorites_updated', data);
     };
 
+    // 9. Handle Notifications Read on another platform
+    const handleNotificationsRead = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/customer/customer-notifications');
+        const notifStore = require('../store/notificationStore').useNotificationStore;
+        if (data?.all) {
+          notifStore.getState().markAllAsRead();
+        } else if (data?.id) {
+          notifStore.getState().markAsRead(data.id);
+        } else {
+          notifStore.getState().fetchNotifications().catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[Socket Client] Error in handleNotificationsRead:', e);
+      }
+      this.triggerLocalEvent('notifications_read', data);
+    };
+
+    // 10. Handle Notification Deleted on another platform
+    const handleNotificationDeleted = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/customer/customer-notifications');
+        const notifStore = require('../store/notificationStore').useNotificationStore;
+        if (data?.id) {
+          notifStore.setState((state: any) => ({
+            notifications: state.notifications.filter((n: any) => n.id !== data.id),
+            unreadCount: state.notifications.filter((n: any) => n.id !== data.id && n.unread).length,
+          }));
+        } else {
+          notifStore.getState().fetchNotifications().catch(() => {});
+        }
+      } catch {}
+      this.triggerLocalEvent('notification_deleted', data);
+    };
+
+    // 11. Handle Banners Updated by Admin
+    const handleBannersUpdated = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/public/banners');
+        clearApiCache('/banners');
+        const bannerStore = require('../store/bannerStore').useBannerStore;
+        bannerStore.getState().loadBanners(true).catch(() => {});
+      } catch {}
+      this.triggerLocalEvent('banners:updated', data);
+    };
+
+    // 12. Handle Offers Updated by Admin
+    const handleOffersUpdated = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/admin/public/exclusive-offers');
+        clearApiCache('/exclusive-offers');
+      } catch {}
+      this.triggerLocalEvent('offers:updated', data);
+    };
+
+    // 13. Handle Categories Updated by Admin
+    const handleCategoriesUpdated = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/categories');
+        clearApiCache('/admin/public/categories');
+        const catService = require('./categoryService').categoryService;
+        if (catService && typeof catService.clearCache === 'function') {
+          catService.clearCache();
+        }
+      } catch {}
+      this.triggerLocalEvent('categories:updated', data);
+    };
+
     sock.on('order_status_updated', handleStatusUpdate);
     sock.on('customer_order_status', handleStatusUpdate);
     sock.on('new_order_placed', handleNewOrder);
@@ -356,6 +429,11 @@ class SocketServiceClient {
     sock.on('customer_profile_updated', handleProfileUpdated);
     sock.on('cart_updated', handleCartUpdated);
     sock.on('favorites_updated', handleFavoritesUpdated);
+    sock.on('notifications_read', handleNotificationsRead);
+    sock.on('notification_deleted', handleNotificationDeleted);
+    sock.on('banners:updated', handleBannersUpdated);
+    sock.on('offers:updated', handleOffersUpdated);
+    sock.on('categories:updated', handleCategoriesUpdated);
   }
 
 

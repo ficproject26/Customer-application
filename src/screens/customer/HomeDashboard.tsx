@@ -42,6 +42,7 @@ import { getRelevantProductImage } from '../../utils/productImages';
 import { openRespectivePage } from '../../utils/navigationHelpers';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useProductStore } from '../../store/productStore';
+import { socketService } from '../../services/socket';
 
 const { width, height } = Dimensions.get('window');
 
@@ -321,10 +322,35 @@ export default function HomeDashboard() {
   const loadHomeData = useCallback(async (force = false) => {
     try {
       await useProductStore.getState().loadAllCatalogData(force);
+      // Fetch live exclusive offers from backend
+      try {
+        const offRes: any = await apiFetch('/admin/public/exclusive-offers', { skipCache: force });
+        const offList = Array.isArray(offRes) ? offRes : (Array.isArray(offRes?.data) ? offRes.data : []);
+        if (Array.isArray(offList)) {
+          setDbOffers(offList);
+        }
+      } catch (e) {}
     } catch (err) {
       console.warn('[HomeDashboard] Error loading catalog data:', err);
     }
   }, []);
+
+  // Subscribe to real-time updates for Admin Banners, Offers & Categories
+  useEffect(() => {
+    const handleOffers = () => loadHomeData(true);
+    const handleBanners = () => useBannerStore.getState().loadBanners(true);
+    const handleCategories = () => useProductStore.getState().loadCategoryHierarchy(true);
+
+    socketService.on('offers:updated', handleOffers);
+    socketService.on('banners:updated', handleBanners);
+    socketService.on('categories:updated', handleCategories);
+
+    return () => {
+      socketService.off('offers:updated', handleOffers);
+      socketService.off('banners:updated', handleBanners);
+      socketService.off('categories:updated', handleCategories);
+    };
+  }, [loadHomeData]);
 
   // Auto-refresh silently in background with SWR freshness check (no duplicate hits on tab switch)
   useFocusEffect(

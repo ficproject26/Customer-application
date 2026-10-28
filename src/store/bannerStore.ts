@@ -22,7 +22,7 @@ export interface BannerItem {
 interface BannerStore {
   banners: BannerItem[];
   isLoading: boolean;
-  loadBanners: () => Promise<void>;
+  loadBanners: (forceRefresh?: boolean) => Promise<void>;
   addVendorBanner: (newBannerData: Omit<BannerItem, 'id'>) => Promise<BannerItem>;
   removeBanner: (bannerId: string) => Promise<void>;
 }
@@ -33,12 +33,12 @@ export const useBannerStore = create<BannerStore>()(
       banners: [],
       isLoading: false,
 
-      loadBanners: async () => {
+      loadBanners: async (forceRefresh = false) => {
         set({ isLoading: true });
         try {
-          let res: any = await apiFetch('/public/banners');
+          let res: any = await apiFetch('/public/banners', { skipCache: forceRefresh });
           if (!res || (Array.isArray(res) && res.length === 0) || (res.data && Array.isArray(res.data) && res.data.length === 0)) {
-            res = await apiFetch('/banners');
+            res = await apiFetch('/banners', { skipCache: forceRefresh });
           }
           const rawList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.banners) ? res.banners : []));
           if (Array.isArray(rawList) && rawList.length > 0) {
