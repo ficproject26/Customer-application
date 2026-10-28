@@ -121,7 +121,7 @@ const FastTabButton = React.memo((props: any) => {
       {...rest}
       onPress={onPress}
       onLongPress={onLongPress}
-      android_ripple={{ color: 'rgba(245, 184, 0, 0.12)', borderless: true, radius: 28 }}
+      android_ripple={{ color: 'rgba(255, 106, 0, 0.12)', borderless: true, radius: 28 }}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       style={[style, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}
     >

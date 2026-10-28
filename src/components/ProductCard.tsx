@@ -72,7 +72,37 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
   const catLower = useMemo(() => (item.category || '').toLowerCase().trim(), [item.category]);
   const actionType = (item as any).actionType || '';
 
-  // Check if this category supports cart
+  const isJob = useMemo(() => {
+    const combined = `${catLower} ${(item.name || '').toLowerCase()} ${(item.spec || '').toLowerCase()}`;
+    return actionType === 'APPLY' || combined.includes('job') || combined.includes('career') || combined.includes('intern');
+  }, [actionType, catLower, item.name, item.spec]);
+
+  const isServiceOrBooking = useMemo(() => {
+    const combined = `${catLower} ${(item.name || '').toLowerCase()} ${(item.spec || '').toLowerCase()} ${((item as any).subcategory || '').toLowerCase()}`;
+    return (
+      actionType === 'BOOK_SERVICE' ||
+      actionType === 'BOOK_STAY' ||
+      actionType === 'BOOK_TICKET' ||
+      combined.includes('service') ||
+      combined.includes('stay') ||
+      combined.includes('hotel') ||
+      combined.includes('resort') ||
+      combined.includes('villa') ||
+      combined.includes('travel') ||
+      combined.includes('flight') ||
+      /\bcab\b/i.test(combined) ||
+      /\bbus\b/i.test(combined) ||
+      combined.includes('technician') ||
+      combined.includes('installer') ||
+      combined.includes('electric') ||
+      combined.includes('plumb') ||
+      combined.includes('repair') ||
+      combined.includes('clean') ||
+      combined.includes('health') ||
+      combined.includes('appoint')
+    );
+  }, [actionType, catLower, item.name, item.spec, item]);
+
   const hasCart = useMemo(() => isCartableCategory(item.category, item.name), [item.category, item.name]);
 
   const handleOpenRespectivePage = useCallback(() => {
@@ -88,35 +118,18 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
       price: item.price,
     });
 
+    if (isJob) {
+      navigation.navigate('JobDetails', { job: item });
+      return;
+    }
+
     if (!hasCart) {
       handleOpenRespectivePage();
       return;
     }
 
     onPress();
-  }, [item, hasCart, handleOpenRespectivePage, onPress]);
-
-  // Determine Right button text
-  const actionBtnText = useMemo(() => {
-    if (actionType === 'APPLY' || catLower.includes('job')) return 'Apply Now';
-    if (actionType === 'RENT' || catLower.includes('rental')) return 'Rent Now';
-    if (actionType === 'BOOK_STAY' || catLower.includes('stay') || catLower.includes('hotel') || catLower.includes('resort')) return 'Reserve';
-    if (actionType === 'BOOK_TICKET' || catLower.includes('travel') || catLower.includes('flight') || /\bcab\b/i.test(catLower) || /\bbus\b/i.test(catLower)) return 'Book Ticket';
-    if (actionType === 'BOOK_SERVICE' || catLower.includes('service') || catLower.includes('health') || catLower.includes('appoint') || catLower.includes('repair') || catLower.includes('clean')) return 'Book Service';
-    if (catLower.includes('food') || catLower.includes('dine') || catLower.includes('restaurant')) return 'Order Now';
-    return 'Buy Now';
-  }, [actionType, catLower]);
-
-  // Determine label next to price block
-  const deliveryOrCategoryText = useMemo(() => {
-    if (actionType === 'APPLY' || catLower.includes('job')) return (item as any).jobType || (item as any).spec || 'Full-time';
-    if (actionType === 'RENT' || catLower.includes('rental')) return 'Flexible Rent';
-    if (actionType === 'BOOK_STAY' || catLower.includes('stay') || catLower.includes('hotel') || catLower.includes('resort')) return 'Verified Stay';
-    if (actionType === 'BOOK_TICKET' || catLower.includes('travel') || catLower.includes('flight') || /\bcab\b/i.test(catLower) || /\bbus\b/i.test(catLower)) return 'Instant Booking';
-    if (actionType === 'BOOK_SERVICE' || catLower.includes('service') || catLower.includes('health') || catLower.includes('appoint') || catLower.includes('repair') || catLower.includes('clean')) return 'Doorstep Service';
-    if (catLower.includes('food') || catLower.includes('dine') || catLower.includes('restaurant')) return 'Express Delivery';
-    return 'Free Delivery';
-  }, [actionType, catLower, item]);
+  }, [item, isJob, hasCart, handleOpenRespectivePage, navigation, onPress]);
 
   const rawImage = item.image || (item as any).img || (item as any).photo || (item as any).imageUrl;
   const cardImage = useMemo(() => {
@@ -127,14 +140,30 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
     return resolved;
   }, [rawImage, item]);
 
+  // Formatted Subtitle with pipe delimiter (e.g. "Hot & Fresh | Italian", "Private Pool | 5 BHK")
+  const formattedSubtitle = useMemo(() => {
+    if (item.spec && item.spec.includes('|')) return item.spec;
+    const subcat = (item as any).subcategory || (item as any).subcategoryName || '';
+    const brandOrCat = (item as any).brand || (item as any).company || item.category || '';
+    if (subcat && brandOrCat && subcat.toLowerCase() !== brandOrCat.toLowerCase()) {
+      return `${subcat} | ${brandOrCat}`;
+    }
+    if (item.spec) return item.spec;
+    if (isJob) return `${(item as any).company || 'Verified Employer'} | ${(item as any).location || 'India'}`;
+    return `${item.category} • Quality Assured`;
+  }, [item, isJob]);
+
+  // Handlers
   const handleAddToCart = useCallback(() => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    setTimeout(() => setIsProcessing(false), 200);
+
     if (!hasCart) {
+      showToast('Please select booking options to proceed', 'Book Now', () => handleOpenRespectivePage());
       handleOpenRespectivePage();
       return;
     }
-    if (isProcessing) return;
-    setIsProcessing(true);
-    setTimeout(() => setIsProcessing(false), 150);
 
     if (isInCart) {
       showToast('Already in your cart', 'View Cart', () => navigation.navigate('Cart'));
@@ -148,17 +177,12 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
       });
       showToast('Added to cart · View Cart', 'View Cart', () => navigation.navigate('Cart'));
     }
-  }, [hasCart, handleOpenRespectivePage, isProcessing, isInCart, item, cardImage, navigation, showToast, addToCart]);
+  }, [isProcessing, hasCart, isInCart, item, cardImage, navigation, showToast, addToCart, handleOpenRespectivePage]);
 
-  const handleBuyOrBook = useCallback(() => {
+  const handleBuyNow = useCallback(() => {
     if (isProcessing) return;
     setIsProcessing(true);
-    setTimeout(() => setIsProcessing(false), 150);
-
-    if (!hasCart) {
-      handleOpenRespectivePage();
-      return;
-    }
+    setTimeout(() => setIsProcessing(false), 200);
 
     if (!isInCart) {
       addToCart({
@@ -171,14 +195,30 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
     }
 
     navigation.navigate('Checkout', { item: { ...item, image: cardImage } });
-  }, [isProcessing, hasCart, handleOpenRespectivePage, isInCart, item, cardImage, navigation, addToCart]);
+  }, [isProcessing, isInCart, item, cardImage, navigation, addToCart]);
+
+  const handleBookNow = useCallback(() => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    setTimeout(() => setIsProcessing(false), 200);
+    handleOpenRespectivePage();
+  }, [isProcessing, handleOpenRespectivePage]);
+
+  const handleApplyNow = useCallback(() => {
+    if (isGuestUser) {
+      useAuthGuardStore.getState().showAuthModal('apply for this job position');
+      return;
+    }
+    navigation.navigate('JobDetails', { job: item, openApplySheet: true });
+  }, [isGuestUser, navigation, item]);
 
   const fallbackImage = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300&auto=format&fit=crop&q=80';
+  const reviewsCount = (item as any).reviews || (item as any).reviewsCount || item.ratingCount || '120';
 
   return (
-    <View style={[styles.card, { backgroundColor: isDark ? '#0D1636' : '#FFFFFF', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#E2E8F0' }]}>
+    <View style={[styles.card, { backgroundColor: isDark ? '#0D1636' : '#FFFFFF', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#F1EAD8' }]}>
       {/* Product Image Section */}
-      <View style={[styles.imgContainer, { backgroundColor: isDark ? '#131F48' : '#F8FAFC' }]}>
+      <View style={[styles.imgContainer, { backgroundColor: isDark ? '#131F48' : '#FAF6ED' }]}>
         <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress} style={styles.imgTouch}>
           <Image
             source={{ uri: imgError ? fallbackImage : cardImage }}
@@ -187,8 +227,14 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
           />
         </TouchableOpacity>
 
-        {/* Discount Badge */}
-        {computedDiscount ? (
+        {/* Top-Left Badge: Green Job Type Badge or Red Discount Badge */}
+        {isJob ? (
+          <View style={styles.jobBadge}>
+            <Text style={styles.jobBadgeText}>
+              {(item as any).jobType || (item as any).employmentType || 'Full Time'}
+            </Text>
+          </View>
+        ) : computedDiscount ? (
           <View style={styles.discountBadge}>
             <Text style={styles.discountBadgeText}>
               {computedDiscount.includes('OFF')
@@ -198,9 +244,16 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
           </View>
         ) : null}
 
+        {/* Floating Rating Pill at Bottom-Left of Image */}
+        <View style={styles.ratingPill}>
+          <Icons.Star color="#F59E0B" size={10} fill="#F59E0B" />
+          <Text style={styles.ratingScore}>{item.rating || '4.5'}</Text>
+          <Text style={styles.ratingCount}>({reviewsCount} reviews)</Text>
+        </View>
+
         {/* Wishlist Heart Chip */}
         <TouchableOpacity
-          style={[styles.wishlistChip, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : '#FFFFFF' }]}
+          style={[styles.wishlistChip, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : '#FFFFFF' }]}
           activeOpacity={0.8}
           onPress={() => {
             if (isGuestUser) {
@@ -217,8 +270,8 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
           }}
         >
           <Icons.Heart
-            color={isWishlisted ? '#EF4444' : isDark ? '#94A3B8' : '#374151'}
-            size={15}
+            color={isWishlisted ? '#EF4444' : isDark ? '#94A3B8' : '#475569'}
+            size={14}
             fill={isWishlisted ? '#EF4444' : 'transparent'}
           />
         </TouchableOpacity>
@@ -226,67 +279,95 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
 
       {/* Details Container */}
       <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress} style={styles.details}>
-        <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#0F172A' }]} numberOfLines={2}>
+        <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#0F172A' }]} numberOfLines={1}>
           {t(item.name)}
         </Text>
 
-        <Text style={[styles.subtitle, { color: isDark ? '#CBD5E1' : '#475569' }]} numberOfLines={1}>
-          {item.spec ? t(item.spec) : `${t(item.category)} • ${t('Certified Provider')}`}
+        <Text style={[styles.subtitle, { color: isDark ? '#CBD5E1' : '#64748B' }]} numberOfLines={1}>
+          {formattedSubtitle}
         </Text>
 
-        {/* Rating & Assured Badge Row */}
-        <View style={styles.ratingRow}>
-          <Icons.Star color="#F59E0B" size={12} fill="#F59E0B" />
-          <Text style={[styles.ratingText, { color: isDark ? '#F1F5F9' : '#334155' }]}>
-            {item.rating || '4.5'} ({item.ratingCount || '320'})
-          </Text>
-        </View>
-
-        {/* Price Block & Delivery Row */}
+        {/* Price Row */}
         <View style={styles.priceRow}>
-          <View style={styles.priceCol}>
-            <Text style={[styles.price, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>{item.price}</Text>
-            {item.originalPrice ? (
-              <Text style={[styles.strikePrice, { color: isDark ? '#94A3B8' : '#64748B' }]}>{item.originalPrice}</Text>
-            ) : null}
-          </View>
-          <Text style={[styles.deliveryText, { color: isDark ? '#CBD5E1' : '#64748B' }]}>{t(deliveryOrCategoryText)}</Text>
+          <Text style={[styles.price, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>{item.price}</Text>
+          {item.originalPrice ? (
+            <Text style={[styles.strikePrice, { color: isDark ? '#94A3B8' : '#94A3B8' }]}>{item.originalPrice}</Text>
+          ) : null}
         </View>
       </TouchableOpacity>
 
-      {/* Bottom Action Row */}
+      {/* Category-Specific Action Buttons */}
       <View style={styles.actionRow}>
-        {hasCart && (
+        {isJob ? (
+          /* Jobs: Single Full-Width Primary Button "Apply Now" */
           <TouchableOpacity
-            style={[
-              styles.cartBtn,
-              { backgroundColor: isInCart ? (isDark ? '#064E3B' : '#D1FAE5') : colors.cardBgSecondary, borderColor: colors.cardBorder }
-            ]}
-            activeOpacity={0.8}
-            onPress={handleAddToCart}
+            style={styles.fullPrimaryBtn}
+            activeOpacity={0.85}
+            onPress={handleApplyNow}
             disabled={isProcessing}
           >
-            {isInCart ? (
-              <Icons.Check color={isDark ? '#34D399' : '#059669'} size={16} strokeWidth={3} />
-            ) : (
-              <Icons.ShoppingCart color={colors.text} size={16} />
-            )}
+            <Icons.Send color="#FFFFFF" size={12} strokeWidth={2.5} />
+            <Text style={styles.fullPrimaryBtnText}>{t('Apply Now')}</Text>
           </TouchableOpacity>
-        )}
+        ) : isServiceOrBooking ? (
+          /* Services / Travel / Stay: Two Buttons "Add to Cart" + "Book Now" */
+          <>
+            <TouchableOpacity
+              style={[styles.outlineBtn, { borderColor: '#FF6A00' }]}
+              activeOpacity={0.85}
+              onPress={handleAddToCart}
+              disabled={isProcessing}
+            >
+              <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+              <Text style={styles.outlineBtnText} numberOfLines={1}>{t('Add to Cart')}</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.buyBtn,
-            { backgroundColor: colors.primary },
-            { flex: hasCart ? 1 : undefined, width: hasCart ? undefined : '100%' },
-            isProcessing && { opacity: 0.7 }
-          ]}
-          activeOpacity={0.85}
-          onPress={handleBuyOrBook}
-          disabled={isProcessing}
-        >
-          <Text style={[styles.buyBtnText, { color: colors.primaryText }]}>{t(actionBtnText)}</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              activeOpacity={0.85}
+              onPress={handleBookNow}
+              disabled={isProcessing}
+            >
+              <Icons.Calendar color="#FFFFFF" size={11} strokeWidth={2.5} />
+              <Text style={styles.primaryBtnText} numberOfLines={1}>{t('Book Now')}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          /* Products / Daily Needs / Food: Two Buttons "Add to Cart" + "Buy Now" */
+          <>
+            <TouchableOpacity
+              style={[
+                styles.outlineBtn,
+                isInCart ? { borderColor: '#16A34A', backgroundColor: isDark ? '#064E3B' : '#DCFCE7' } : { borderColor: '#FF6A00' }
+              ]}
+              activeOpacity={0.85}
+              onPress={handleAddToCart}
+              disabled={isProcessing}
+            >
+              {isInCart ? (
+                <>
+                  <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
+                  <Text style={[styles.outlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>{t('Added')}</Text>
+                </>
+              ) : (
+                <>
+                  <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                  <Text style={styles.outlineBtnText} numberOfLines={1}>{t('Add to Cart')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              activeOpacity={0.85}
+              onPress={handleBuyNow}
+              disabled={isProcessing}
+            >
+              <Icons.Zap color="#FFFFFF" size={11} strokeWidth={2.5} fill="#FFFFFF" />
+              <Text style={styles.primaryBtnText} numberOfLines={1}>{t('Buy Now')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -306,21 +387,21 @@ export default ProductCard;
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 12,
+    padding: 8.5,
     marginBottom: 14,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: '#7A6B58',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2.5,
   },
   imgContainer: {
     position: 'relative',
     width: '100%',
-    aspectRatio: 1,
-    borderRadius: 12,
+    height: 124,
+    borderRadius: 13,
     overflow: 'hidden',
   },
   imgTouch: {
@@ -336,110 +417,157 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     left: 6,
-    backgroundColor: '#16A34A',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 6.5,
+    paddingVertical: 2.5,
     borderRadius: 6,
+    zIndex: 2,
   },
   discountBadgeText: {
     color: '#FFFFFF',
     fontSize: 9.5,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  jobBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: '#10B981',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    zIndex: 2,
+  },
+  jobBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   wishlistChip: {
     position: 'absolute',
     top: 6,
     right: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 3,
     elevation: 2,
+    zIndex: 2,
+  },
+  ratingPill: {
+    position: 'absolute',
+    bottom: 5,
+    left: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 2,
+  },
+  ratingScore: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  ratingCount: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#64748B',
   },
   details: {
-    marginTop: 8,
+    marginTop: 7,
   },
   title: {
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: '800',
     lineHeight: 17,
-    minHeight: 34,
   },
   subtitle: {
     fontSize: 10.5,
-    marginTop: 2,
+    marginTop: 1.5,
     marginBottom: 4,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 6,
-  },
-  ratingText: {
-    fontSize: 10.5,
-    fontWeight: '500',
-  },
-  assuredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginLeft: 'auto',
-  },
-  assuredText: {
-    fontSize: 10.5,
-    fontWeight: 'bold',
-    color: '#059669',
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  priceCol: {
-    flexDirection: 'column',
+    alignItems: 'baseline',
+    gap: 5,
+    marginBottom: 6,
   },
   price: {
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 14.5,
+    fontWeight: '800',
   },
   strikePrice: {
-    fontSize: 10,
+    fontSize: 10.5,
     textDecorationLine: 'line-through',
-    marginTop: 1,
-  },
-  deliveryText: {
-    fontSize: 10,
     fontWeight: '500',
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 5,
   },
-  cartBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buyBtn: {
+  outlineBtn: {
     flex: 1,
-    height: 34,
-    borderRadius: 10,
+    height: 31,
+    borderRadius: 7,
+    borderWidth: 1.4,
+    backgroundColor: 'transparent',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 2,
+    gap: 3,
   },
-  buyBtnText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  outlineBtnText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FF6A00',
+  },
+  primaryBtn: {
+    flex: 1,
+    height: 31,
+    borderRadius: 7,
+    backgroundColor: '#FF6A00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  primaryBtnText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  fullPrimaryBtn: {
+    width: '100%',
+    height: 32,
+    borderRadius: 7,
+    backgroundColor: '#FF6A00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  fullPrimaryBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

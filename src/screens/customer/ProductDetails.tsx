@@ -20,7 +20,7 @@ import { apiFetch, resolveImageUrl } from '../../services/api';
 import { useThemeStore } from '../../store/themeStore';
 import { getRelevantProductImage } from '../../utils/productImages';
 import { openRespectivePage } from '../../utils/navigationHelpers';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useTranslation } from '../../store/languageStore';
 
@@ -314,8 +314,15 @@ export default function ProductDetails() {
       return;
     }
 
-    if (!useAuthStore.getState().currentUser) {
-      useAuthGuardStore.getState().showAuthModal('place an order or book this item');
+    const authUser = useAuthStore.getState().currentUser;
+    if (!isUserAuthenticated(authUser)) {
+      useAuthStore.getState().setPendingPurchaseProduct({
+        ...product,
+        quantity: qty,
+        actionType: 'buy_now',
+        returnScreen: 'ProductDetails',
+      });
+      useAuthGuardStore.getState().showAuthModal('place an order or purchase this item');
       return;
     }
     if (isProcessing) return;
@@ -508,6 +515,27 @@ export default function ProductDetails() {
           <Text style={[styles.subtext, { color: colors.subtext }]}>
             {t(product.deliveryInfo || 'Free delivery available for Connect Members')}
           </Text>
+
+          {/* Trust Features Row matching Screen 4 reference */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: isDark ? colors.cardBorder : '#F1EAD8' }}>
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Icons.Truck color="#FF6A00" size={20} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Free Delivery</Text>
+              <Text style={{ fontSize: 9.5, color: '#64748B' }}>Orders over ₹499</Text>
+            </View>
+            <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Icons.RotateCcw color="#FF6A00" size={20} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>7 Days Return</Text>
+              <Text style={{ fontSize: 9.5, color: '#64748B' }}>Easy replacement</Text>
+            </View>
+            <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Icons.ShieldCheck color="#FF6A00" size={20} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>100% Secure</Text>
+              <Text style={{ fontSize: 9.5, color: '#64748B' }}>Verified Payment</Text>
+            </View>
+          </View>
 
           {/* Product Category Specific Variants */}
           {product.variants && product.variants.length > 0 ? (
@@ -880,15 +908,15 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   discountTag: {
-    backgroundColor: 'rgba(22, 163, 74, 0.12)',
-    paddingHorizontal: 6,
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
+    borderRadius: 8,
   },
   discountText: {
     fontSize: 10.5,
-    fontWeight: 'bold',
-    color: '#16A34A',
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   subtext: {
     fontSize: 11.5,
@@ -1076,10 +1104,11 @@ const styles = StyleSheet.create({
   },
   cartBtn: {
     flex: 1,
-    height: 46,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: '#FF6A00',
+    backgroundColor: '#FFF3E8',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1090,22 +1119,27 @@ const styles = StyleSheet.create({
     borderColor: '#34D399',
   },
   cartBtnText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#172033',
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FF6A00',
   },
   buyBtn: {
     flex: 1.4,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: '#F4C400',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FF6A00',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 4,
   },
   buyBtnText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
   errorContainer: {
     flex: 1,

@@ -5,6 +5,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { AuthStackParamList } from '../navigation/AppNavigator';
 import GlassCard from '../components/GlassCard';
 import * as Icons from 'lucide-react-native';
+import { requestNotificationPermissions } from '../services/notificationService';
 
 const { height } = Dimensions.get('window');
 
@@ -46,8 +47,18 @@ export default function PermissionsScreen() {
 
   const requestNotifications = async () => {
     // Permission handler for notifications
-    setNotificationsGranted(true);
-    Alert.alert('Notifications Enabled', 'You will receive updates about orders and promotions.');
+    try {
+      const granted = await requestNotificationPermissions();
+      if (granted) {
+        setNotificationsGranted(true);
+        Alert.alert('Notifications Enabled', 'You will receive updates about orders and promotions.');
+      } else {
+        setNotificationsGranted(false);
+        Alert.alert('Notifications Notice', 'Notification permission was denied. You can enable it in device Settings anytime.');
+      }
+    } catch (e) {
+      setNotificationsGranted(true);
+    }
   };
 
   const requestCamera = async () => {

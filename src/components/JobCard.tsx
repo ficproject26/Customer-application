@@ -262,6 +262,7 @@ const JobCardComponent = memo(function JobCard({ job, onPress, onApply }: JobCar
           activeOpacity={0.85}
           onPress={handleApplyPress}
         >
+          {!hasApplied && <Icons.Send color="#FFFFFF" size={11.5} style={{ marginRight: 5 }} />}
           <Text style={[styles.applyBtnText, hasApplied && styles.appliedBtnText]}>
             {hasApplied
               ? '✓ Applied'
@@ -269,7 +270,6 @@ const JobCardComponent = memo(function JobCard({ job, onPress, onApply }: JobCar
               ? 'Apply Internship'
               : 'Apply Now'}
           </Text>
-          {!hasApplied && <Icons.ArrowRight color="#0F172A" size={12} style={{ marginLeft: 4 }} />}
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -458,15 +458,15 @@ const styles = StyleSheet.create({
   applyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5B800',
+    backgroundColor: '#FF6A00',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 6.5,
     borderRadius: 8,
   },
   applyBtnText: {
     fontSize: 11.5,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
   appliedBtn: {
     backgroundColor: 'rgba(16, 185, 129, 0.15)',

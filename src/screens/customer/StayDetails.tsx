@@ -19,12 +19,15 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import * as Icons from 'lucide-react-native';
 import { useThemeStore } from '../../store/themeStore';
 import { useWishlistStore } from '../../store/wishlistStore';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
+import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useOrderStore, Order } from '../../store/orderStore';
 import { apiFetch } from '../../services/api';
 import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
+import { prepareRazorpayOrder } from '../../services/razorpayService';
 import { RAZORPAY_KEY_ID } from '../../services/env';
 import { useTranslation } from '../../store/languageStore';
+import { dispatchCustomerNotification } from '../../services/notificationService';
 
 // Guest Information interface for each person travelling
 export interface GuestInfo {
@@ -103,6 +106,16 @@ export default function StayDetails() {
     stay.roomSize ? `${stay.roomSize}` : null,
   ].filter(Boolean) as string[];
 
+  const parsedStayPrice = typeof stay.priceNum === 'number'
+    ? stay.priceNum
+    : (typeof stay.price === 'number'
+        ? stay.price
+        : (parseFloat(String(stay.price || '0').replace(/[^\d.]/g, '')) || 0));
+
+  const parsedStayPriceStr = typeof stay.price === 'string' && stay.price.trim()
+    ? stay.price
+    : (parsedStayPrice > 0 ? `₹${parsedStayPrice.toLocaleString('en-IN')}` : 'Price on request');
+
   // Room State
   const [selectedRoom, setSelectedRoom] = useState<{
     id: string;
@@ -115,8 +128,8 @@ export default function StayDetails() {
     id: 'deluxe',
     name: defaultRoomName,
     guests: defaultRoomGuests,
-    priceNum: stay.priceNum || 7250,
-    priceStr: stay.price || '₹7,250 / night',
+    priceNum: parsedStayPrice,
+    priceStr: parsedStayPriceStr,
     inclusions: defaultRoomInclusions.length > 0 ? defaultRoomInclusions : ['Breakfast included', 'Free cancellation', 'Free Wi-Fi'],
   });
 
@@ -444,7 +457,13 @@ export default function StayDetails() {
   const childPricePerNight = Math.round(selectedRoom.priceNum * 0.5); // 50% for children
   const nightlyTotalPerRoom = (adultsCount * adultPricePerNight) + (childrenCount * childPricePerNight);
   const baseRoomCharge = nightlyTotalPerRoom * computedNights * roomsCount;
-  const taxesAndFees = Math.round(baseRoomCharge * 0.10);
+  const rawTaxRate = typeof stay.taxRate === 'number' ? stay.taxRate : (typeof stay.taxPercent === 'number' ? stay.taxPercent : null);
+  const rawTaxAmount = typeof stay.taxAmount === 'number' ? stay.taxAmount : (typeof stay.tax === 'number' ? stay.tax : null);
+  const taxesAndFees = rawTaxRate !== null && rawTaxRate > 0
+    ? Math.round(baseRoomCharge * (rawTaxRate / 100))
+    : (rawTaxAmount !== null && rawTaxAmount > 0
+        ? Math.round(rawTaxAmount * computedNights * roomsCount)
+        : 0);
   const grandTotal = baseRoomCharge + taxesAndFees;
 
   // Handle Share
@@ -633,7 +652,11 @@ export default function StayDetails() {
                 <Text style={styles.discountTagText}>{stay.discount || '24% OFF'}</Text>
               </View>
             </View>
-            <Text style={styles.taxesNoticeText}>+ ₹{Math.round((stay.priceNum || 7250) * 0.10)} taxes & fees per night</Text>
+            {taxesAndFees > 0 && (
+              <Text style={styles.taxesNoticeText}>
+                + ₹{Math.round(taxesAndFees / (computedNights * roomsCount))} taxes & fees per night
+              </Text>
+            )}
           </View>
 
           {/* ROOM SPECIFICATIONS & KEY HIGHLIGHTS */}
@@ -879,6 +902,22 @@ export default function StayDetails() {
           style={styles.stickySelectRoomBtn}
           activeOpacity={0.85}
           onPress={() => {
+            const authUser = useAuthStore.getState().currentUser;
+            if (!isUserAuthenticated(authUser)) {
+              useAuthStore.getState().setPendingPurchaseProduct({
+                ...stay,
+                selectedRoom,
+                checkIn: selectedCheckInItem.fullDateStr,
+                checkOut: selectedCheckOutItem.fullDateStr,
+                rooms: roomsCount,
+                adults: adultsCount,
+                children: childrenCount,
+                actionType: 'book_stay',
+                returnScreen: 'StayDetails',
+              });
+              useAuthGuardStore.getState().showAuthModal('select room and book your stay');
+              return;
+            }
             setBookingStep(1);
             setIsBookingModalOpen(true);
           }}
@@ -1267,13 +1306,15 @@ export default function StayDetails() {
                         </View>
                       </View>
 
-                      <View style={styles.summaryItemRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Icons.Percent color="#64748B" size={15} />
-                          <Text style={styles.summaryItemLabel}>Taxes & Fees (10%)</Text>
+                      {taxesAndFees > 0 && (
+                        <View style={styles.summaryItemRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Icons.Percent color="#64748B" size={15} />
+                            <Text style={styles.summaryItemLabel}>Taxes & Fees{rawTaxRate ? ` (${rawTaxRate}%)` : ''}</Text>
+                          </View>
+                          <Text style={styles.summaryItemValBold}>₹{taxesAndFees.toLocaleString()}</Text>
                         </View>
-                        <Text style={styles.summaryItemValBold}>₹{taxesAndFees.toLocaleString()}</Text>
-                      </View>
+                      )}
 
                       <View style={[styles.summaryItemRow, styles.summaryTotalRow]}>
                         <Text style={styles.summaryTotalLabel}>Total Amount</Text>
@@ -1518,10 +1559,12 @@ export default function StayDetails() {
                       </Text>
                       <Text style={[styles.priceValue, { color: colors.text }]}>₹{baseRoomCharge.toLocaleString()}</Text>
                     </View>
-                    <View style={styles.priceRow}>
-                      <Text style={styles.priceLabel}>Taxes & fees (10%)</Text>
-                      <Text style={[styles.priceValue, { color: colors.text }]}>₹{taxesAndFees.toLocaleString()}</Text>
-                    </View>
+                    {taxesAndFees > 0 && (
+                      <View style={styles.priceRow}>
+                        <Text style={styles.priceLabel}>Taxes & fees{rawTaxRate ? ` (${rawTaxRate}%)` : ''}</Text>
+                        <Text style={[styles.priceValue, { color: colors.text }]}>₹{taxesAndFees.toLocaleString()}</Text>
+                      </View>
+                    )}
                     <View style={[styles.priceRow, styles.totalRow]}>
                       <Text style={styles.totalLabel}>Grand Total Payable</Text>
                       <Text style={styles.totalValue}>₹{grandTotal.toLocaleString()}</Text>
@@ -1545,15 +1588,20 @@ export default function StayDetails() {
                         setConfirmedBookingId(newId);
 
                         if (paymentMethod === 'Pay at Hotel') {
+                          const authUser = useAuthStore.getState().currentUser;
+                          const guestNameVal = guestList[0]?.fullName || guestName || authUser?.name || 'Customer';
+                          const guestPhoneVal = guestList[0]?.phoneNumber || guestMobile || authUser?.phone || '';
+                          const guestEmailVal = guestEmail || authUser?.email || '';
+
                           const newStayOrder: Order = {
                             id: newId,
                             order_number: newId,
-                            vendor_id: stay.vendor_id || stay.vendorId || '',
+                            vendor_id: stay.vendor_id || stay.vendorId || 'v1',
                             vendor_name: stay.name || 'Luxury Resort & Stay',
                             category: 'Stay',
                             order_type: 'booking',
-                            customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
-                            customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+                            customer_name: guestNameVal,
+                            customer_phone: guestPhoneVal,
                             customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
                             customer_latitude: 12.9498,
                             customer_longitude: 77.6289,
@@ -1585,15 +1633,27 @@ export default function StayDetails() {
                             body: {
                               id: newId,
                               order_number: newId,
-                              vendor_id: 'v1',
-                              customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
-                              customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+                              vendor_id: stay.vendor_id || stay.vendorId || 'v1',
+                              customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+                              customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+                              customer_name: guestNameVal,
+                              customer_phone: guestPhoneVal,
+                              customer_email: guestEmailVal,
                               customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
                               amount: grandTotal,
                               order_type: 'booking',
+                              type: 'Stay',
                               category: 'Stay',
                               payment_status: 'Pending',
                               payment_method: 'Pay at Hotel',
+                              checkInDate: selectedCheckInItem.fullDateStr,
+                              checkOutDate: selectedCheckOutItem.fullDateStr,
+                              roomsCount,
+                              nightsCount: computedNights,
+                              adults: adultsCount,
+                              children: childrenCount,
+                              guestList,
+                              specialRequests: guestSpecialNote,
                             },
                           }).catch((err) => console.warn('Stay order save notice:', err));
 
@@ -1621,17 +1681,29 @@ export default function StayDetails() {
                           return;
                         }
 
-                        const orderId = `order_stay_${Date.now()}`;
-                        setRazorpayOrder({
-                          orderId,
-                          amount: grandTotal * 100, // in paise
-                          currency: 'INR',
-                          keyId: RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP',
+                        const authUser = useAuthStore.getState().currentUser;
+                        prepareRazorpayOrder({
+                          amount: grandTotal,
                           planType: 'stay_booking',
                           planName: `${stay.name} (${selectedRoom.name})`,
                           priceText: `₹${grandTotal.toLocaleString('en-IN')}`,
+                          userId: authUser?.id || '',
+                          onOrderReady: (ord) => {
+                            setRazorpayOrder(ord);
+                            setRazorpayModalVisible(true);
+                          },
+                        }).catch(() => {
+                          setRazorpayOrder({
+                            orderId: `order_stay_${Date.now()}`,
+                            amount: grandTotal * 100,
+                            currency: 'INR',
+                            keyId: RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP',
+                            planType: 'stay_booking',
+                            planName: `${stay.name} (${selectedRoom.name})`,
+                            priceText: `₹${grandTotal.toLocaleString('en-IN')}`,
+                          });
+                          setRazorpayModalVisible(true);
                         });
-                        setRazorpayModalVisible(true);
                       }}
                     >
                       <Text style={styles.modalCtaBtnText}>
@@ -1754,6 +1826,21 @@ export default function StayDetails() {
           // 1. Immediately record in local state
           useOrderStore.getState().addLocalOrder(newStayOrder);
 
+          // Notification Center & System Notification Dispatch
+          dispatchCustomerNotification({
+            title: 'Stay Reserved Successfully! 🏨',
+            body: `Reservation for ${stay.name || 'Resort'} (${selectedRoom.name}) confirmed. Dates: ${selectedCheckInItem.fullDateStr} to ${selectedCheckOutItem.fullDateStr}`,
+            icon: 'Hotel',
+            category: 'order',
+            actionLabel: 'View Booking',
+            actionType: 'booking',
+            orderType: 'booking',
+            bookingId: newId,
+            orderId: newId,
+            targetScreen: 'Orders',
+            targetParams: { activeTab: 'my bookings', category: 'Stay', orderId: newId },
+          });
+
           // 2. Verify payment on backend
           apiFetch('/razorpay/verify-payment', {
             method: 'POST',
@@ -1765,25 +1852,43 @@ export default function StayDetails() {
             },
           }).catch((err) => console.warn('Background stay payment verify notice:', err));
 
-          // 3. Save stay booking to orders on backend
+          const authUser = useAuthStore.getState().currentUser;
+          const guestNameVal = guestList[0]?.fullName || guestName || authUser?.name || 'Customer';
+          const guestPhoneVal = guestList[0]?.phoneNumber || guestMobile || authUser?.phone || '';
+          const guestEmailVal = guestEmail || authUser?.email || '';
+
+          // 3. Save stay booking to orders on backend with customer and booking details
           apiFetch('/orders', {
             method: 'POST',
             body: {
               id: newId,
               order_number: newId,
-              vendor_id: 'v1',
-              customer_name: guestName || useAuthStore.getState().currentUser?.name || 'Guest User',
-              customer_phone: guestMobile || useAuthStore.getState().currentUser?.phone || '',
+              vendor_id: stay.vendor_id || stay.vendorId || 'v1',
+              customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+              customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+              customer_name: guestNameVal,
+              customer_phone: guestPhoneVal,
+              customer_email: guestEmailVal,
               customer_address: `${stay.name}, ${stay.location || 'Bangalore'}`,
               customer_latitude: 12.9498,
               customer_longitude: 77.6289,
               product_details: `${stay.name} (${selectedRoom.name} • ${selectedCheckInItem.fullDateStr} to ${selectedCheckOutItem.fullDateStr})`,
               amount: grandTotal,
               order_type: 'booking',
+              type: 'Stay',
               category: 'Stay',
               payment_id: paymentResult.razorpay_payment_id,
+              transactionId: paymentResult.razorpay_payment_id,
               payment_status: 'Paid',
               payment_method: 'Razorpay Test Mode (Online)',
+              checkInDate: selectedCheckInItem.fullDateStr,
+              checkOutDate: selectedCheckOutItem.fullDateStr,
+              roomsCount,
+              nightsCount: computedNights,
+              adults: adultsCount,
+              children: childrenCount,
+              guestList,
+              specialRequests: guestSpecialNote,
             },
           }).catch((err) => console.warn('Background stay order save notice:', err));
 

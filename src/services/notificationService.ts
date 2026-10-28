@@ -1,4 +1,4 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, NativeModules, Vibration, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastStore } from '../store/toastStore';
 import { useNotificationStore } from '../store/notificationStore';
@@ -24,6 +24,126 @@ const BACKEND_API_BASE = Platform.select({
   ios: API_URL_IOS || 'https://api.ficapp.in/api',
   default: 'https://api.ficapp.in/api',
 }) || 'https://api.ficapp.in/api';
+
+export interface CustomerNotificationPayload {
+  title: string;
+  body: string;
+  category?: 'order' | 'offer' | 'system' | 'membership' | 'Travel' | 'Stay' | 'Services' | 'Products' | 'Jobs' | string;
+  icon?: string;
+  targetScreen?: string;
+  targetParams?: any;
+  actionLabel?: string;
+  actionType?: 'order' | 'booking' | 'job' | 'offer' | 'membership' | 'view_order' | 'view_booking' | 'view_job' | string;
+  orderType?: 'order' | 'booking' | 'job' | 'membership' | string;
+  orderId?: string;
+  bookingId?: string;
+  dedupeKey?: string;
+  channelId?: string;
+}
+
+const recentDispatchedNotifications = new Map<string, number>();
+
+/**
+ * Centralized Notification Dispatcher:
+ * Dispatches synchronously to in-app notification center store & Android System Notification Bar
+ */
+export function dispatchCustomerNotification(payload: CustomerNotificationPayload) {
+  const {
+    title,
+    body,
+    category = 'order',
+    icon = 'Bell',
+    targetScreen = 'Orders',
+    targetParams,
+    actionLabel = 'View Details',
+    actionType = 'order',
+    orderType,
+    orderId,
+    bookingId,
+    dedupeKey,
+    channelId,
+  } = payload;
+
+  // Deduplication guard (prevents duplicate notification delivery within 5 seconds)
+  const key = dedupeKey || `${title}_${body}_${orderId || ''}`;
+  const now = Date.now();
+  const lastTime = recentDispatchedNotifications.get(key) || 0;
+  if (now - lastTime < 5000) {
+    console.log('[NotificationService] Deduplicating notification for key:', key);
+    return;
+  }
+  recentDispatchedNotifications.set(key, now);
+
+  if (recentDispatchedNotifications.size > 50) {
+    const cutoff = now - 30000;
+    recentDispatchedNotifications.forEach((val, k) => {
+      if (val < cutoff) recentDispatchedNotifications.delete(k);
+    });
+  }
+
+  // 1. Dispatch In-App Notification Record (Zustand + AsyncStorage)
+  try {
+    useNotificationStore.getState().addNotification({
+      title,
+      body,
+      icon,
+      category,
+      targetScreen,
+      targetParams,
+      actionLabel,
+      actionType,
+      orderType: orderType || (actionType as any),
+      orderId,
+      bookingId: bookingId || orderId,
+    });
+  } catch (err) {
+    console.warn('[NotificationService] In-App notification error:', err);
+  }
+
+  // 2. Dispatch Android System Notification (Notification Bar / Shade)
+  try {
+    const { SystemNotification } = NativeModules;
+    if (SystemNotification) {
+      const resolvedChannel = channelId || (category === 'membership' ? 'connect_account_channel' : 'connect_orders_realtime_channel');
+      if (typeof SystemNotification.showSystemNotification === 'function') {
+        SystemNotification.showSystemNotification(
+          title,
+          body,
+          targetScreen,
+          orderId || bookingId || '',
+          resolvedChannel
+        );
+      } else if (typeof SystemNotification.showNotification === 'function') {
+        SystemNotification.showNotification(title, body);
+      }
+    }
+  } catch (err) {
+    console.warn('[NotificationService] System notification error:', err);
+  }
+
+  // 3. Gentle tactile vibration feedback
+  try {
+    Vibration.vibrate([0, 150, 60, 150]);
+  } catch {}
+}
+
+/**
+ * Check if the app was launched by tapping an Android system notification
+ */
+export async function checkPendingSystemNotificationLaunch() {
+  try {
+    const { SystemNotification } = NativeModules;
+    if (SystemNotification && typeof SystemNotification.getPendingNotificationData === 'function') {
+      const pendingData = await SystemNotification.getPendingNotificationData();
+      if (pendingData && pendingData.screen) {
+        console.log('[NotificationService] Found pending system notification launch:', pendingData);
+        handleNotificationNavigation(pendingData);
+      }
+    }
+  } catch (err) {
+    console.warn('[NotificationService] Pending notification check warning:', err);
+  }
+}
 
 /**
  * Request native Android & iOS push notification permissions
@@ -93,7 +213,7 @@ export async function registerFcmToken(): Promise<string | null> {
 }
 
 /**
- * Send token to MongoDB backend via REST API
+ * Send token to backend via REST API
  */
 async function sendTokenToBackend(token: string) {
   try {
@@ -109,29 +229,39 @@ async function sendTokenToBackend(token: string) {
     const resData = await response.json();
     console.log('Backend device token registration:', resData);
   } catch (err) {
+    // Non-critical background failure logged safely
     console.warn('Failed to send FCM token to backend:', err);
   }
 }
 
 /**
- * Navigate to target screen based on FCM payload data
+ * Navigate to target screen based on notification payload data
  */
 export function handleNotificationNavigation(data: Record<string, string> | undefined) {
   if (!data || !data.screen) return;
 
   const screen = data.screen;
-  console.log('Handling FCM Push Notification Navigation to screen:', screen, data);
+  console.log('Handling Notification Navigation to screen:', screen, data);
 
   setTimeout(() => {
     if (!navigationRefHolder || !navigationRefHolder.isReady()) {
-      console.warn('Navigation ref not ready yet for FCM deep link');
+      console.warn('Navigation ref not ready yet for notification deep link');
       return;
     }
 
     switch (screen) {
       case 'Orders':
       case 'DeliveryOrders':
-        navigationRefHolder.navigate('CustomerTabs', { screen: 'Orders' });
+        navigationRefHolder.navigate('CustomerTabs', {
+          screen: 'Orders',
+          params: {
+            orderId: data.orderId || data.targetId,
+            activeTab: data.activeTab || 'my orders',
+          },
+        });
+        break;
+      case 'Membership':
+        navigationRefHolder.navigate('CustomerTabs', { screen: 'Membership' });
         break;
       case 'PaymentSettings':
         navigationRefHolder.navigate('PaymentSettings');
@@ -163,7 +293,20 @@ export function handleNotificationNavigation(data: Record<string, string> | unde
  */
 export function setupFcmListeners(navRef?: any) {
   if (navRef) setNavigationRef(navRef);
-  if (!messagingModule) return () => {};
+
+  // Check if launched by tapping native system notification
+  checkPendingSystemNotificationLaunch();
+
+  // Listen for app coming to foreground to check tapped notifications
+  const appStateSub = AppState.addEventListener('change', (nextState) => {
+    if (nextState === 'active') {
+      checkPendingSystemNotificationLaunch();
+    }
+  });
+
+  if (!messagingModule) return () => {
+    appStateSub.remove();
+  };
 
   // 1. Foreground Notifications (App Active & Open)
   const unsubscribeForeground = messagingModule().onMessage(async (remoteMessage: any) => {
@@ -172,13 +315,14 @@ export function setupFcmListeners(navRef?: any) {
     const title = remoteMessage.notification?.title || remoteMessage.data?.title || 'Connect Alert';
     const body = remoteMessage.notification?.body || remoteMessage.data?.body || 'New update received';
 
-    // Store in-app notification store
-    useNotificationStore.getState().addNotification({
+    // Store in-app notification & dispatch system notification
+    dispatchCustomerNotification({
       title,
       body,
       icon: 'Bell',
       category: 'order',
       targetScreen: remoteMessage.data?.screen || 'Orders',
+      orderId: remoteMessage.data?.orderId,
     });
 
     // Show toast banner

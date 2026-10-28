@@ -194,11 +194,19 @@ export const useProductStore = create<ProductStoreState>()(
         lastProductsFetched: state.lastProductsFetched,
         lastHierarchyFetched: state.lastHierarchyFetched,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.hasLoadedInitial = true;
+      onRehydrateStorage: () => (state, error) => {
+        if (!error && state) {
+          useProductStore.setState({ hasLoadedInitial: true });
+        } else {
+          useProductStore.setState({ hasLoadedInitial: true });
         }
       },
     }
   )
 );
+
+// Pre-warm catalog data in background on module load (0ms main thread blocking)
+setTimeout(() => {
+  useProductStore.getState().loadAllCatalogData(false).catch(() => {});
+}, 50);
+

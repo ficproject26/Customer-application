@@ -276,29 +276,32 @@ export default function JoinNow() {
       AsyncStorage.removeItem(DRAFT_STORAGE_KEY).catch(() => {});
 
       const registeredUser = regRes?.user || regRes?.data || null;
+      const accessToken = regRes?.accessToken || regRes?.token || '';
       if (registeredUser) {
-        useAuthStore.setState({
-          currentUser: {
-            id: registeredUser.id || registeredUser._id || registeredUser.customerId || `cust_${cleanPhone}`,
-            name: registeredUser.name || cleanName,
-            email: registeredUser.email || cleanEmail,
-            phone: registeredUser.phone || `+91 ${cleanPhone}`,
-            role: 'customer',
-            membership: registeredUser.membership,
-            walletBalance: registeredUser.walletBalance || 0,
-            emailVerified: true,
-            phoneVerified: true,
-            address: {
-              address: `${house.trim()}, ${street.trim()}`,
-              house: house.trim(),
-              street: street.trim(),
-              city: city.trim() || 'Bengaluru',
-              state: state.trim() || 'Karnataka',
-              pincode: pincode.trim() || '560034',
-            },
+        const fullUser = {
+          id: registeredUser.id || registeredUser._id || registeredUser.customerId || `cust_${cleanPhone}`,
+          name: registeredUser.name || cleanName,
+          email: registeredUser.email || cleanEmail,
+          phone: registeredUser.phone || `+91 ${cleanPhone}`,
+          role: 'customer' as const,
+          membership: registeredUser.membershipTier || registeredUser.membership,
+          membershipTier: registeredUser.membershipTier,
+          membershipStatus: registeredUser.membershipStatus,
+          walletBalance: registeredUser.walletBalance || 0,
+          emailVerified: true,
+          phoneVerified: true,
+          customerId: registeredUser.customerId || registeredUser.registrationId,
+          registrationId: registeredUser.registrationId || registeredUser.customerId,
+          address: {
+            address: `${house.trim()}, ${street.trim()}`,
+            house: house.trim(),
+            street: street.trim(),
+            city: city.trim() || 'Bengaluru',
+            state: state.trim() || 'Karnataka',
+            pincode: pincode.trim() || '560034',
           },
-          isOnboarded: true,
-        });
+        };
+        await useAuthStore.getState().setSession(fullUser, accessToken);
       } else {
         register(
           {
@@ -320,6 +323,40 @@ export default function JoinNow() {
 
       setLoading(false);
       showToast(`Account created! Welcome, ${cleanName}! 🎉`);
+
+      const pendingProduct = useAuthStore.getState().pendingPurchaseProduct;
+      if (pendingProduct) {
+        useAuthStore.getState().setPendingPurchaseProduct(null);
+        if (pendingProduct.isStay || pendingProduct.category?.toLowerCase() === 'stay' || pendingProduct.id?.startsWith('st')) {
+          navigation.reset({
+            index: 1,
+            routes: [
+              { name: 'CustomerTabs' as any, params: { screen: 'Home' } },
+              { name: 'StayDetails' as any, params: { stay: pendingProduct } },
+            ],
+          });
+          return;
+        }
+        if (pendingProduct.category?.toLowerCase() === 'jobs' || pendingProduct.id?.startsWith('jb')) {
+          navigation.reset({
+            index: 1,
+            routes: [
+              { name: 'CustomerTabs' as any, params: { screen: 'Home' } },
+              { name: 'JobDetails' as any, params: { job: pendingProduct, openApplySheet: true } },
+            ],
+          });
+          return;
+        }
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: 'CustomerTabs' as any, params: { screen: 'Home' } },
+            { name: 'ProductDetails' as any, params: { item: pendingProduct, category: pendingProduct.category || 'Products' } },
+          ],
+        });
+        return;
+      }
+
       navigation.reset({
         index: 0,
         routes: [

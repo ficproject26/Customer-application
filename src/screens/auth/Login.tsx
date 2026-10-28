@@ -86,6 +86,50 @@ export default function Login() {
     };
   }, [emailOtpModalVisible, otpSent, resendTimer]);
 
+  const navigateAfterAuth = () => {
+    const pendingProduct = useAuthStore.getState().pendingPurchaseProduct;
+    if (pendingProduct) {
+      useAuthStore.getState().setPendingPurchaseProduct(null);
+      if (pendingProduct.isStay || pendingProduct.category?.toLowerCase() === 'stay' || pendingProduct.id?.startsWith('st')) {
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: 'CustomerTabs' as any, params: { screen: 'Home' } },
+            { name: 'StayDetails' as any, params: { stay: pendingProduct } },
+          ],
+        });
+        return;
+      }
+      if (pendingProduct.category?.toLowerCase() === 'jobs' || pendingProduct.id?.startsWith('jb')) {
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: 'CustomerTabs' as any, params: { screen: 'Home' } },
+            { name: 'JobDetails' as any, params: { job: pendingProduct, openApplySheet: true } },
+          ],
+        });
+        return;
+      }
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: 'CustomerTabs' as any, params: { screen: 'Home' } },
+          { name: 'ProductDetails' as any, params: { item: pendingProduct, category: pendingProduct.category || 'Products' } },
+        ],
+      });
+      return;
+    }
+    navigation.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'CustomerTabs' as any,
+          params: { screen: 'Home' },
+        },
+      ],
+    });
+  };
+
   // Primary Login Submission
   const handleLogin = async () => {
     const trimmedId = identifier.trim();
@@ -149,36 +193,33 @@ export default function Login() {
 
       // Successful DB authentication
       const loggedUser = res?.user || res?.data || null;
+      const accessToken = res?.accessToken || res?.token || '';
       if (loggedUser) {
-        useAuthStore.setState({
-          currentUser: {
-            id: loggedUser.id || loggedUser._id || loggedUser.customerId || `cust_${trimmedId}`,
-            name: loggedUser.name || (trimmedId.includes('@') ? trimmedId.split('@')[0] : 'Connect Customer'),
-            email: loggedUser.email || (trimmedId.includes('@') ? trimmedId : ''),
-            phone: loggedUser.phone || (!trimmedId.includes('@') ? trimmedId : ''),
-            role: 'customer',
-            membership: loggedUser.membership,
-            walletBalance: loggedUser.walletBalance || 0,
-            emailVerified: true,
-            phoneVerified: true,
-          },
-          isOnboarded: true,
-        });
+        const fullUser = {
+          id: loggedUser.id || loggedUser._id || loggedUser.customerId || `cust_${trimmedId}`,
+          name: loggedUser.name || (trimmedId.includes('@') ? trimmedId.split('@')[0] : 'Connect Customer'),
+          email: loggedUser.email || (trimmedId.includes('@') ? trimmedId : ''),
+          phone: loggedUser.phone || (!trimmedId.includes('@') ? trimmedId : ''),
+          role: 'customer' as const,
+          membership: loggedUser.membershipTier || loggedUser.membership,
+          membershipTier: loggedUser.membershipTier,
+          membershipStatus: loggedUser.membershipStatus,
+          walletBalance: loggedUser.walletBalance || 0,
+          emailVerified: true,
+          phoneVerified: true,
+          customerId: loggedUser.customerId || loggedUser.registrationId,
+          registrationId: loggedUser.registrationId || loggedUser.customerId,
+          address: loggedUser.address,
+          addresses: loggedUser.addresses,
+        };
+        await useAuthStore.getState().setSession(fullUser, accessToken);
       } else {
         login(trimmedId, 'customer');
       }
 
       setLoading(false);
       showToast(`Welcome back, ${loggedUser?.name || trimmedId}! 🎉`);
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: 'CustomerTabs' as any,
-            params: { screen: 'Home' },
-          },
-        ],
-      });
+      navigateAfterAuth();
     } catch (err: any) {
       setLoading(false);
       setError('Unable to connect to server. Please check your internet connection.');
@@ -214,15 +255,7 @@ export default function Login() {
           setGoogleLoading(false);
           setGoogleModalVisible(false);
           showToast(`Signed in with Google as ${accountName || user.name}! 🚀`);
-          navigation.reset({
-            index: 0,
-            routes: [
-              {
-                name: 'CustomerTabs' as any,
-                params: { screen: 'Home' },
-              },
-            ],
-          });
+          navigateAfterAuth();
         });
       }, 500);
     } catch (err: any) {
@@ -300,21 +333,26 @@ export default function Login() {
       }
 
       const loggedUser = res?.user || res?.data || null;
+      const accessToken = res?.accessToken || res?.token || '';
       if (loggedUser) {
-        useAuthStore.setState({
-          currentUser: {
-            id: loggedUser.id || loggedUser._id || loggedUser.customerId || `cust_${Date.now()}`,
-            name: loggedUser.name || 'Connect Member',
-            email: loggedUser.email || (emailForOtp.includes('@') ? emailForOtp : ''),
-            phone: loggedUser.phone || (!emailForOtp.includes('@') ? emailForOtp : ''),
-            role: 'customer',
-            membership: loggedUser.membership,
-            walletBalance: loggedUser.walletBalance || 0,
-            emailVerified: true,
-            phoneVerified: true,
-          },
-          isOnboarded: true,
-        });
+        const fullUser = {
+          id: loggedUser.id || loggedUser._id || loggedUser.customerId || `cust_${Date.now()}`,
+          name: loggedUser.name || 'Connect Member',
+          email: loggedUser.email || (emailForOtp.includes('@') ? emailForOtp : ''),
+          phone: loggedUser.phone || (!emailForOtp.includes('@') ? emailForOtp : ''),
+          role: 'customer' as const,
+          membership: loggedUser.membershipTier || loggedUser.membership,
+          membershipTier: loggedUser.membershipTier,
+          membershipStatus: loggedUser.membershipStatus,
+          walletBalance: loggedUser.walletBalance || 0,
+          emailVerified: true,
+          phoneVerified: true,
+          customerId: loggedUser.customerId || loggedUser.registrationId,
+          registrationId: loggedUser.registrationId || loggedUser.customerId,
+          address: loggedUser.address,
+          addresses: loggedUser.addresses,
+        };
+        await useAuthStore.getState().setSession(fullUser, accessToken);
       } else {
         login(emailForOtp.trim(), 'customer');
       }
@@ -322,15 +360,7 @@ export default function Login() {
       setOtpLoading(false);
       setEmailOtpModalVisible(false);
       showToast(`Welcome back, ${loggedUser?.name || 'Member'}! 🎉`);
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: 'CustomerTabs' as any,
-            params: { screen: 'Home' },
-          },
-        ],
-      });
+      navigateAfterAuth();
     } catch (err: any) {
       setOtpLoading(false);
       setOtpError(err?.message || 'Verification failed. Please try again.');
@@ -397,15 +427,7 @@ export default function Login() {
       showToast('Password updated successfully! Logging you in...');
       login(targetUser, 'customer', (user) => {
         showToast(`Welcome back, ${user.name}! Password updated successfully. 🎉`);
-        navigation.reset({
-          index: 0,
-          routes: [
-            {
-              name: 'CustomerTabs' as any,
-              params: { screen: 'Home' },
-            },
-          ],
-        });
+        navigateAfterAuth();
       });
     }, 800);
   };

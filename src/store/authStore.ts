@@ -13,7 +13,7 @@ export function clearSessionAndUserData() {
   try { useWishlistStore.getState().clearWishlist(); } catch {}
   try { useActivityStore.getState().clearActivity(); } catch {}
   try { useNotificationStore.getState().clearAll(); } catch {}
-  try { useOrderStore.getState().clearActive(); } catch {}
+  try { useOrderStore.getState().clearOrders(); } catch {}
   try { clearApiCache(); } catch {}
 }
 
@@ -41,6 +41,7 @@ export interface User {
   email: string;
   role: 'customer' | 'delivery' | 'vendor';
   membership?: 'silver' | 'gold' | 'diamond';
+  membershipTier?: string;
   status?: string;
   availability?: boolean;
   phone?: string;
@@ -56,10 +57,12 @@ export interface User {
 
 interface AuthState {
   currentUser: User | null;
+  token: string | null;
   pendingPurchaseProduct: any | null;
   isOnboarded: boolean;
   setOnboarded: (val: boolean) => void;
   setPendingPurchaseProduct: (product: any | null) => void;
+  setSession: (user: User, token?: string | null) => void;
   login: (email: string, role: User['role'], callback?: (user: User) => void) => void;
   loginGuest: (callback?: (user: User) => void) => void;
   logout: () => void;
@@ -84,17 +87,24 @@ interface AuthState {
   updateProfile: (fields: Partial<User>) => Promise<User | null>;
 }
 
-const DEFAULT_USER: User | null = null;
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       currentUser: null,
+      token: null,
       pendingPurchaseProduct: null,
       isOnboarded: true,
 
   setOnboarded: (val) => set({ isOnboarded: val }),
   setPendingPurchaseProduct: (product) => set({ pendingPurchaseProduct: product }),
+  setSession: (user, token) => {
+    clearSessionAndUserData();
+    if (token) {
+      const { setAuthToken } = require('../services/api');
+      setAuthToken(token);
+    }
+    set({ currentUser: user, token: token || null, isOnboarded: true });
+  },
   login: (identifier, role, callback) => {
     clearSessionAndUserData();
     const isEmail = identifier.includes('@');
@@ -144,12 +154,17 @@ export const useAuthStore = create<AuthState>()(
 
   loginGuest: (callback) => {
     clearSessionAndUserData();
-    set({ currentUser: null, isOnboarded: true });
+    const { setAuthToken } = require('../services/api');
+    setAuthToken(null);
+    set({ currentUser: null, token: null, isOnboarded: true });
     if (callback) callback({ id: 'guest', name: 'Guest', email: '', role: 'customer', isGuest: true });
   },
   logout: () => {
     clearSessionAndUserData();
-    set({ currentUser: null });
+    const { setAuthToken } = require('../services/api');
+    setAuthToken(null);
+    set({ currentUser: null, token: null });
+    apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
   },
   register: (formData, role, callback) => {
     clearSessionAndUserData();
@@ -231,7 +246,7 @@ export const useAuthStore = create<AuthState>()(
     const uId = state.currentUser.id;
 
     // 1. Immediately update store with 0ms UI delay
-    const updatedUser = state.currentUser ? { ...state.currentUser, membership: tier } : null;
+    const updatedUser = state.currentUser ? { ...state.currentUser, membership: tier, membershipTier: tier } : null;
     set({ currentUser: updatedUser });
 
     // 2. Non-blocking async persistence and remote sync in background
@@ -239,13 +254,14 @@ export const useAuthStore = create<AuthState>()(
     AsyncStorage.setItem(storageKey, tier).catch(() => {});
 
     if (!isGuest) {
-      apiFetch('/customer/profile', {
-        method: 'PATCH',
-        body: { membership: tier, id: uId },
+      apiFetch('/auth/customer-profile', {
+        method: 'PUT',
+        body: { membership: tier, membershipTier: tier, userId: uId, id: uId },
       })
         .then((response) => {
-          if (response && response.status === 'success' && response.data) {
-            set((s) => s.currentUser && s.currentUser.id === uId ? { currentUser: { ...s.currentUser, ...response.data, membership: tier } } : s);
+          if (response && (response.status === 'success' || response.success) && (response.data || response.user)) {
+            const profData = response.data || response.user;
+            set((s) => s.currentUser && s.currentUser.id === uId ? { currentUser: { ...s.currentUser, ...profData, membership: tier, membershipTier: tier } } : s);
           }
         })
         .catch((err) => {
@@ -299,19 +315,51 @@ export const useAuthStore = create<AuthState>()(
     const uId = state.currentUser.id;
 
     try {
-      const response = await apiFetch(`/auth/customer-profile?userId=${encodeURIComponent(uId)}`, {
-        method: 'GET',
-      });
+      const [response, membershipRes] = await Promise.all([
+        apiFetch(`/auth/customer-profile?userId=${encodeURIComponent(uId)}`, {
+          method: 'GET',
+        }),
+        apiFetch('/membership/status', { method: 'GET' }).catch(() => null),
+      ]);
+
       if (response && (response.status === 'success' || response.success) && (response.data || response.user)) {
         const profData = response.data || response.user;
-        const mergedUser = {
+
+        // Synchronize remote cart if present and not empty
+        if (Array.isArray(profData.cart) && profData.cart.length > 0) {
+          try {
+            useCartStore.getState().setCartItems(profData.cart);
+          } catch {}
+        }
+
+        // Synchronize remote favorites / wishlist
+        if (Array.isArray(profData.favorites) && profData.favorites.length > 0) {
+          try {
+            profData.favorites.forEach((favId: string) => {
+              if (favId && !useWishlistStore.getState().wishlistItems.some((w) => w.id === favId)) {
+                useWishlistStore.getState().toggleWishlist({ id: favId, name: 'Saved Item', price: '₹0', category: 'General' });
+              }
+            });
+          } catch {}
+        }
+
+        let confirmedTier = profData.membership || state.currentUser?.membership;
+        if (membershipRes && membershipRes.success) {
+          const rawTier = (membershipRes.membershipTier || '').toLowerCase();
+          if (rawTier.includes('diamond')) confirmedTier = 'diamond';
+          else if (rawTier.includes('gold')) confirmedTier = 'gold';
+          else if (rawTier.includes('silver')) confirmedTier = 'silver';
+          else if (rawTier === 'none') confirmedTier = undefined;
+        }
+
+        const mergedUser: User = {
           ...state.currentUser,
           ...profData,
-          membership: profData.membership || state.currentUser?.membership,
+          membership: confirmedTier,
           avatar: profData.avatar || state.currentUser?.avatar || '',
         };
-        set({ currentUser: mergedUser as User });
-        return mergedUser as User;
+        set({ currentUser: mergedUser });
+        return mergedUser;
       }
     } catch (err) {
       console.warn('Error fetching profile:', err);
@@ -359,7 +407,13 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'connect_app_auth_storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ currentUser: state.currentUser, isOnboarded: state.isOnboarded }),
+      partialize: (state) => ({ currentUser: state.currentUser, token: state.token, isOnboarded: state.isOnboarded }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.token) {
+          const { setAuthToken } = require('../services/api');
+          setAuthToken(state.token);
+        }
+      },
     }
   )
 );

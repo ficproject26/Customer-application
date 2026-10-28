@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { API_URL_ANDROID, API_URL_IOS } from './env';
 
@@ -12,11 +13,49 @@ const CANDIDATE_URLS = Array.from(
 );
 
 let activeBackendUrl = CANDIDATE_URLS[0];
-let hasDiscoveredHost = false;
+let currentAuthToken: string | null = null;
+let tokenLoadedPromise: Promise<string | null> | null = null;
 
 export function getActiveBackendUrl(): string {
   return activeBackendUrl;
 }
+
+export function setAuthToken(token: string | null): void {
+  currentAuthToken = token;
+  if (token) {
+    AsyncStorage.setItem('connect_auth_token', token).catch(() => {});
+    AsyncStorage.setItem('connect_token', token).catch(() => {});
+  } else {
+    AsyncStorage.removeItem('connect_auth_token').catch(() => {});
+    AsyncStorage.removeItem('connect_token').catch(() => {});
+  }
+}
+
+export function getAuthToken(): string | null {
+  return currentAuthToken;
+}
+
+export async function loadStoredAuthToken(): Promise<string | null> {
+  if (currentAuthToken) return currentAuthToken;
+  if (tokenLoadedPromise) return tokenLoadedPromise;
+  tokenLoadedPromise = (async () => {
+    try {
+      const saved = (await AsyncStorage.getItem('connect_auth_token')) || (await AsyncStorage.getItem('connect_token'));
+      if (saved) {
+        currentAuthToken = saved;
+      }
+      return currentAuthToken;
+    } catch {
+      return null;
+    } finally {
+      tokenLoadedPromise = null;
+    }
+  })();
+  return tokenLoadedPromise;
+}
+
+// Pre-load token on startup
+loadStoredAuthToken().catch(() => {});
 
 export function resolveImageUrl(url: any): string {
   if (!url || typeof url !== 'string') return '';
@@ -40,6 +79,10 @@ const inFlightRequests = new Map<string, Promise<any>>();
  * Background concurrent probe to discover the fastest reachable host
  */
 async function probeFastestHost(): Promise<string> {
+  if (CANDIDATE_URLS.length <= 1) {
+    activeBackendUrl = CANDIDATE_URLS[0];
+    return activeBackendUrl;
+  }
   const probePromises = CANDIDATE_URLS.map(async (url) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
@@ -61,10 +104,8 @@ async function probeFastestHost(): Promise<string> {
   try {
     const fastest = await Promise.any(probePromises);
     activeBackendUrl = fastest;
-    hasDiscoveredHost = true;
     return fastest;
   } catch {
-    hasDiscoveredHost = true;
     return activeBackendUrl;
   }
 }
@@ -141,8 +182,11 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
 
   const executeFetch = async () => {
     // Immediate check if request was already cancelled
-    if (options.signal?.aborted) {
-      return Promise.reject(new Error('Request aborted'));
+    // Ensure token is loaded if not already in memory
+    const token = options.token || currentAuthToken || (await loadStoredAuthToken());
+    const authHeaders: Record<string, string> = {};
+    if (token && !options.headers?.Authorization && !options.headers?.authorization) {
+      authHeaders.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
 
     const fetchOptions: any = {
@@ -151,6 +195,7 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...authHeaders,
         ...(options.headers || {}),
       },
     };

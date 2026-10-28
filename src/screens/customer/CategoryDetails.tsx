@@ -56,2004 +56,10 @@ import { getRelevantProductImage } from '../../utils/productImages';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useTranslation } from '../../store/languageStore';
 import { useNotificationStore } from '../../store/notificationStore';
+import { dispatchCustomerNotification } from '../../services/notificationService';
 
-export const CURATED_JOBS_CATALOG: JobItem[] = [
-  {
-    id: 'job_react_native_lead',
-    title: 'Senior Full Stack React Native Developer',
-    company: 'TechForge Solutions India',
-    logo: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=500&auto=format&fit=crop&q=80',
-    isVerified: true,
-    location: 'Bangalore, KA',
-    workMode: 'Hybrid',
-    experience: '2–5 yrs',
-    salary: '₹12–₹18 LPA',
-    employmentType: 'Full-time',
-    department: 'IT & Software Engineering',
-    skills: ['React Native', 'TypeScript', 'Node.js', 'GraphQL', 'MongoDB'],
-    postedDate: '1d ago',
-    deadline: '15 Sep 2026',
-    itemType: 'JOB',
-    openings: 4,
-    description: 'Lead mobile app development and cross-platform architecture at TechForge India.',
-  },
-  {
-    id: 'intern_uiux_designer',
-    title: 'UI/UX Design Intern',
-    company: 'IndieDesigns Studio',
-    logo: 'https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=500&auto=format&fit=crop&q=80',
-    isVerified: true,
-    location: 'Remote',
-    workMode: 'Remote',
-    experience: 'Fresher',
-    salary: '₹18,000 / mo',
-    employmentType: 'Internship',
-    department: 'Design',
-    skills: ['Figma', 'UI Prototyping', 'User Research', 'Design Systems'],
-    postedDate: 'Today',
-    deadline: '20 Sep 2026',
-    itemType: 'INTERNSHIP',
-    duration: '3 Months',
-    ppoAvailable: true,
-    openings: 2,
-    description: 'Design mobile & web experiences for fast-growing Indian startups with PPO opportunity.',
-  },
-  {
-    id: 'job_python_data_analyst',
-    title: 'Python Data Analyst & BI Developer',
-    company: 'TCS Digital Innovation Labs',
-    logo: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=500&auto=format&fit=crop&q=80',
-    isVerified: true,
-    location: 'Bangalore, KA',
-    workMode: 'On-site',
-    experience: '1–3 yrs',
-    salary: '₹7.5–₹11 LPA',
-    employmentType: 'Full-time',
-    department: 'Analytics & Data Science',
-    skills: ['Python', 'Pandas', 'SQL', 'Power BI', 'Tableau'],
-    postedDate: '2d ago',
-    itemType: 'JOB',
-    openings: 5,
-    description: 'Perform predictive data analytics, automated reporting, and SQL query optimizations.',
-  },
-  {
-    id: 'intern_backend_node',
-    title: 'Backend Node.js & Cloud Intern',
-    company: 'CloudScale Systems',
-    logo: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&auto=format&fit=crop&q=80',
-    isVerified: true,
-    location: 'Hyderabad, TS',
-    workMode: 'Hybrid',
-    experience: 'Fresher',
-    salary: '₹15,000 / mo',
-    employmentType: 'Internship',
-    department: 'Backend Engineering',
-    skills: ['Node.js', 'Express', 'PostgreSQL', 'AWS Lambda'],
-    postedDate: '3d ago',
-    itemType: 'INTERNSHIP',
-    duration: '6 Months',
-    ppoAvailable: true,
-    openings: 3,
-    description: 'Build robust REST APIs and serverless microservices.',
-  },
-  {
-    id: 'job_marketing_executive',
-    title: 'Growth Marketing & Social Media Executive',
-    company: 'Connect Global Marketplace',
-    logo: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=500&auto=format&fit=crop&q=80',
-    isVerified: true,
-    location: 'Mumbai, MH',
-    workMode: 'On-site',
-    experience: '0–2 yrs',
-    salary: '₹5–₹8 LPA',
-    employmentType: 'Full-time',
-    department: 'Marketing & Growth',
-    skills: ['SEO', 'Google Ads', 'Content Strategy', 'Meta Ads'],
-    postedDate: '1d ago',
-    itemType: 'JOB',
-    openings: 2,
-    description: 'Execute performance marketing campaigns and brand outreach strategies.',
-  },
-];
-
-// Curated Service Marketplace Catalog with rich data
-const CURATED_SERVICES_CATALOG: Record<string, Array<{
-  id: string;
-  name: string;
-  subcategory: string;
-  desc: string;
-  rating: string;
-  reviews: string;
-  price: string;
-  originalPrice?: string;
-  image: string;
-  assured: boolean;
-  timeSlot?: string;
-  brand?: string;
-  deliveryTime?: string;
-  location?: string;
-  locationCity?: string;
-  priceNum?: number;
-  discount?: string;
-  amenities?: string[];
-  starRating?: number;
-  propertyType?: string;
-  inStock?: boolean;
-  discountNum?: number;
-  packSize?: string;
-  cuisine?: string;
-  isVeg?: boolean;
-  hasOffer?: boolean;
-  serviceType?: string;
-  serviceTime?: string;
-  bookingMode?: 'instant' | 'scheduled' | 'both';
-  availableToday?: boolean;
-  departureTime?: string;
-  departureSlot?: string;
-  busType?: string;
-  operator?: string;
-  vehicleNumber?: string;
-  vehicleRegNo?: string;
-  busNumber?: string;
-  boardingPoints?: string[];
-  droppingPoints?: string[];
-  seatsAvailable?: number;
-  route?: string;
-  from?: string;
-  to?: string;
-  arrivalTime?: string;
-  duration?: string;
-  badge?: string;
-  seatsLeft?: number;
-  type?: string;
-  subType?: string;
-}>> = {
-  Products: [
-    {
-      id: 'prod_hpp_laptop_1',
-      name: 'HPP Laptop Pavilion 15 Core i5 12th Gen',
-      subcategory: 'Electronics',
-      brand: 'HP',
-      desc: '15.6" FHD IPS Display, 16GB DDR4 RAM, 512GB NVMe SSD, Backlit KB, Windows 11',
-      rating: '4.9',
-      reviews: '2,150+',
-      price: '₹54,990',
-      priceNum: 54990,
-      originalPrice: '₹69,990',
-      discountNum: 21,
-      image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_hpp_charger_1',
-      name: 'HPP Fast Charger 65W Smart USB-C Laptop Power Adapter',
-      subcategory: 'Electronics',
-      brand: 'HP',
-      desc: 'Original 65W USB Type-C Fast Power Delivery Charger for HPP Laptops & Devices',
-      rating: '4.8',
-      reviews: '1,840+',
-      price: '₹1,499',
-      priceNum: 1499,
-      originalPrice: '₹2,499',
-      discountNum: 40,
-      image: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_hpp_charger_2',
-      name: 'HPP 45W Smart AC Adapter Laptop Charger Pin',
-      subcategory: 'Electronics',
-      brand: 'HP',
-      desc: '4.5mm Blue Pin Power Supply Charger Adapter Cable for HPP Pavilion & Envy',
-      rating: '4.7',
-      reviews: '920+',
-      price: '₹1,199',
-      priceNum: 1199,
-      originalPrice: '₹1,999',
-      discountNum: 40,
-      image: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_1',
-      name: 'Wireless ANC Bluetooth Headphones',
-      subcategory: 'Electronics',
-      brand: 'Sony',
-      desc: 'Active Noise Cancellation, 40-hr battery & deep bass audio',
-      rating: '4.9',
-      reviews: '1,240+',
-      price: '₹2,999',
-      priceNum: 2999,
-      originalPrice: '₹4,999',
-      discountNum: 40,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_2',
-      name: 'Smart Fitness Tracker Pro Watch',
-      subcategory: 'Electronics',
-      brand: 'Fitbit',
-      desc: 'AMOLED display, SpO2 monitor, heart rate sensor & GPS tracking',
-      rating: '4.8',
-      reviews: '890+',
-      price: '₹1,999',
-      priceNum: 1999,
-      originalPrice: '₹3,499',
-      discountNum: 42,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_3',
-      name: 'Ergonomic Wireless Mechanical Keyboard',
-      subcategory: 'IT & Office',
-      brand: 'Logitech',
-      desc: 'RGB backlit, hot-swappable switches & multi-device bluetooth',
-      rating: '4.9',
-      reviews: '420+',
-      price: '₹1,499',
-      priceNum: 1499,
-      originalPrice: '₹2,499',
-      discountNum: 40,
-      image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_4',
-      name: 'Stainless Steel Electric Kettle 1.8L',
-      subcategory: 'Home Appliances',
-      brand: 'Philips',
-      desc: 'Auto shut-off, boil-dry protection & 1500W fast heating',
-      rating: '4.8',
-      reviews: '610+',
-      price: '₹899',
-      priceNum: 899,
-      originalPrice: '₹1,499',
-      discountNum: 40,
-      image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_5',
-      name: 'Bose QuietComfort 45 Headphones',
-      subcategory: 'Electronics',
-      brand: 'Bose',
-      desc: 'World-class noise cancelling, high-fidelity audio & plush comfort',
-      rating: '4.9',
-      reviews: '1,420+',
-      price: '₹29,900',
-      priceNum: 29900,
-      originalPrice: '₹34,900',
-      discountNum: 14,
-      image: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-    {
-      id: 'prod_6',
-      name: 'Vintage Instant Camera OneStep+',
-      subcategory: 'Electronics',
-      brand: 'Polaroid',
-      desc: 'Classic analogue instant photos with bluetooth app controls',
-      rating: '4.8',
-      reviews: '350+',
-      price: '₹8,990',
-      priceNum: 8990,
-      originalPrice: '₹11,500',
-      discountNum: 21,
-      image: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      inStock: true,
-    },
-  ],
-  'Daily Needs': [
-    // --- FRUITS & VEGETABLES ---
-    {
-      id: 'dn_fv_1',
-      name: 'Farm Fresh Organic Red Tomatoes 1kg',
-      brand: 'Farm Fresh',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Naturally ripened, crisp local farm fresh tomatoes delivered in 15 mins',
-      rating: '4.9',
-      reviews: '3,100+',
-      price: '₹38',
-      originalPrice: '₹55',
-      image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_2',
-      name: 'Fresh Hybrid Potatoes 1kg',
-      brand: 'Local Farms',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Freshly harvested firm potatoes ideal for curries, fries & baking',
-      rating: '4.8',
-      reviews: '2,400+',
-      price: '₹28',
-      originalPrice: '₹40',
-      image: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_3',
-      name: 'Fresh Pink Onions 1kg',
-      brand: 'Local Farms',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Crisp aromatic onions sourced direct from Nashik farms',
-      rating: '4.8',
-      reviews: '2,900+',
-      price: '₹34',
-      originalPrice: '₹50',
-      image: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_4',
-      name: 'Robusta Yellow Bananas 1kg',
-      brand: 'Fresh Fruit',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Naturally ripened sweet bananas rich in potassium & energy',
-      rating: '4.9',
-      reviews: '1,850+',
-      price: '₹45',
-      originalPrice: '₹60',
-      image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_5',
-      name: 'Royal Delicious Red Apples 4pcs',
-      brand: 'Shimla Fresh',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Crunchy sweet juicy apples harvested fresh from Kinnaur orchards',
-      rating: '4.9',
-      reviews: '2,150+',
-      price: '₹120',
-      originalPrice: '₹160',
-      image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_6',
-      name: 'Fresh Orange Carrots 500g',
-      brand: 'Farm Fresh',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Sweet & crunchy garden carrots packed with Vitamin A',
-      rating: '4.7',
-      reviews: '1,420+',
-      price: '₹29',
-      originalPrice: '₹42',
-      image: 'https://images.unsplash.com/photo-1447175008436-08417090ea76?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_7',
-      name: 'Crisp Organic Baby Spinach 250g',
-      brand: 'Farm Fresh',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Hydroponic nutrient-dense fresh spinach leaves delivered iced',
-      rating: '4.8',
-      reviews: '1,250+',
-      price: '₹24',
-      originalPrice: '₹35',
-      image: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_fv_8',
-      name: 'Fresh Juicy Lemons 250g',
-      brand: 'Farm Fresh',
-      subcategory: 'Fruits & Vegetables',
-      desc: 'Zesty citrus lemons packed with natural Vitamin C',
-      rating: '4.8',
-      reviews: '980+',
-      price: '₹18',
-      originalPrice: '₹28',
-      image: 'https://images.unsplash.com/photo-1534531141161-e41d133a8979?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-
-    // --- GROCERY & STAPLES ---
-    {
-      id: 'dn_gs_1',
-      name: 'Aashirvaad Whole Wheat Atta 5kg',
-      brand: 'Aashirvaad',
-      subcategory: 'Grocery & Staples',
-      desc: '100% pure stone-ground chakki fresh wheat flour • Free from additives',
-      rating: '4.9',
-      reviews: '5,450+',
-      price: '₹245',
-      originalPrice: '₹290',
-      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_gs_2',
-      name: 'Fortune Everyday Basmati Rice 5kg',
-      brand: 'Fortune',
-      subcategory: 'Grocery & Staples',
-      desc: 'Aromatic long-grain aged basmati rice for fluffy biryanis & pulao',
-      rating: '4.8',
-      reviews: '3,890+',
-      price: '₹425',
-      originalPrice: '₹540',
-      image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_gs_3',
-      name: 'Tata Sampann Unpolished Toor Dal 1kg',
-      brand: 'Tata Sampann',
-      subcategory: 'Grocery & Staples',
-      desc: 'High-protein unpolished yellow pigeon peas rich in natural fiber',
-      rating: '4.9',
-      reviews: '4,100+',
-      price: '₹155',
-      originalPrice: '₹185',
-      image: 'https://images.unsplash.com/photo-1515543904379-3d757afe72e3?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_gs_4',
-      name: 'Madhur Pure Crystal Sugar 1kg',
-      brand: 'Madhur',
-      subcategory: 'Grocery & Staples',
-      desc: 'Sulphur-free 100% pure refined sugar crystals for sweets & tea',
-      rating: '4.8',
-      reviews: '2,600+',
-      price: '₹52',
-      originalPrice: '₹65',
-      image: 'https://images.unsplash.com/photo-1622484210800-8851457145e4?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_gs_5',
-      name: 'Tata Salt Vacuum Evaporated Iodized 1kg',
-      brand: 'Tata',
-      subcategory: 'Grocery & Staples',
-      desc: 'Desh Ka Namak - Vacuum evaporated iodized salt for everyday cooking',
-      rating: '4.9',
-      reviews: '6,200+',
-      price: '₹24',
-      originalPrice: '₹28',
-      image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_gs_6',
-      name: 'Rajdhani Thick Poha 500g',
-      brand: 'Rajdhani',
-      subcategory: 'Grocery & Staples',
-      desc: 'Clean & fluffy flattened rice flakes for quick breakfast poha',
-      rating: '4.7',
-      reviews: '1,820+',
-      price: '₹38',
-      originalPrice: '₹50',
-      image: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-
-    // --- DAIRY, BREAD & EGGS ---
-    {
-      id: 'dn_dbe_1',
-      name: 'Fresh Toned Milk 1L (A2 Organic)',
-      brand: 'Amul',
-      subcategory: 'Dairy, Bread & Eggs',
-      desc: 'Pasteurized whole milk sourced direct from certified dairy farms',
-      rating: '4.9',
-      reviews: '4,200+',
-      price: '₹64',
-      originalPrice: '₹75',
-      image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_dbe_2',
-      name: 'Mother Dairy Classic Curd 400g',
-      brand: 'Mother Dairy',
-      subcategory: 'Dairy, Bread & Eggs',
-      desc: 'Thick & creamy probiotic dahi made with pasteurized milk',
-      rating: '4.9',
-      reviews: '3,800+',
-      price: '₹35',
-      originalPrice: '₹45',
-      image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_dbe_3',
-      name: 'Milky Mist Fresh Paneer 200g',
-      brand: 'Milky Mist',
-      subcategory: 'Dairy, Bread & Eggs',
-      desc: 'Soft & fresh cottage cheese rich in milk protein & calcium',
-      rating: '4.9',
-      reviews: '2,900+',
-      price: '₹95',
-      originalPrice: '₹115',
-      image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_dbe_4',
-      name: 'Britannia 100% Whole Wheat Bread 400g',
-      brand: 'Britannia',
-      subcategory: 'Dairy, Bread & Eggs',
-      desc: 'Freshly baked soft brown bread with zero maida & high wheat fiber',
-      rating: '4.8',
-      reviews: '4,150+',
-      price: '₹45',
-      originalPrice: '₹55',
-      image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_dbe_5',
-      name: 'Farm Fresh White Eggs (Pack of 12)',
-      brand: 'EggOZ',
-      subcategory: 'Dairy, Bread & Eggs',
-      desc: 'Antibiotic-free clean farm fresh eggs rich in Vitamin D & protein',
-      rating: '4.9',
-      reviews: '5,600+',
-      price: '₹84',
-      originalPrice: '₹105',
-      image: 'https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-    {
-      id: 'dn_dbe_6',
-      name: 'Amul Pasteurised Salted Butter 500g',
-      brand: 'Amul',
-      subcategory: 'Dairy, Bread & Eggs',
-      desc: 'Classic salted butter made from fresh cow milk cream',
-      rating: '4.9',
-      reviews: '5,100+',
-      price: '₹275',
-      originalPrice: '₹295',
-      image: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15 mins',
-    },
-
-    // --- SNACKS & BEVERAGES ---
-    {
-      id: 'dn_sb_1',
-      name: 'Parle-G Gold Glucose Biscuits 1kg',
-      brand: 'Parle',
-      subcategory: 'Snacks & Beverages',
-      desc: 'India\'s favorite energy glucose biscuits perfect with hot tea',
-      rating: '4.9',
-      reviews: '4,500+',
-      price: '₹110',
-      originalPrice: '₹135',
-      image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_sb_2',
-      name: 'Lay\'s India\'s Magic Masala Chips 115g',
-      brand: 'Lay\'s',
-      subcategory: 'Snacks & Beverages',
-      desc: 'Crispy ridged potato chips flavored with Indian spices',
-      rating: '4.8',
-      reviews: '3,700+',
-      price: '₹30',
-      originalPrice: '₹35',
-      image: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_sb_3',
-      name: 'Real Fruit Power Mixed Fruit Juice 1L',
-      brand: 'Real',
-      subcategory: 'Snacks & Beverages',
-      desc: 'Rich in Vitamin C with natural fruit goodness & zero preservatives',
-      rating: '4.8',
-      reviews: '2,900+',
-      price: '₹115',
-      originalPrice: '₹140',
-      image: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_sb_4',
-      name: 'Nescafe Classic Instant Coffee 100g Jar',
-      brand: 'Nescafe',
-      subcategory: 'Snacks & Beverages',
-      desc: '100% pure instant coffee powder crafted from Robusta beans',
-      rating: '4.9',
-      reviews: '4,800+',
-      price: '₹320',
-      originalPrice: '₹380',
-      image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_sb_5',
-      name: 'Brooke Bond Red Label Strong Tea 500g',
-      brand: 'Red Label',
-      subcategory: 'Snacks & Beverages',
-      desc: 'Rich aroma & deep color black tea leaves for perfect chai',
-      rating: '4.9',
-      reviews: '5,200+',
-      price: '₹260',
-      originalPrice: '₹310',
-      image: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_sb_6',
-      name: 'Haldiram\'s Nagpur Spicy Bhujia Sev 400g',
-      brand: 'Haldiram\'s',
-      subcategory: 'Snacks & Beverages',
-      desc: 'Crispy fried moth bean flour spicy namkeen snack',
-      rating: '4.8',
-      reviews: '3,100+',
-      price: '₹105',
-      originalPrice: '₹130',
-      image: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281273?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-
-    // --- OIL & MASALA ---
-    {
-      id: 'dn_om_1',
-      name: 'Fortune Sunlite Sunflower Oil 1L',
-      brand: 'Fortune',
-      subcategory: 'Oil & Masala',
-      desc: 'Refined sunflower cooking oil enriched with Vitamin A & D',
-      rating: '4.8',
-      reviews: '1,890+',
-      price: '₹145',
-      originalPrice: '₹175',
-      image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_om_2',
-      name: 'Freedom Filtered Groundnut Oil 1L',
-      brand: 'Freedom',
-      subcategory: 'Oil & Masala',
-      desc: 'Pure filtered peanut oil for authentic traditional aroma & fry',
-      rating: '4.8',
-      reviews: '1,650+',
-      price: '₹185',
-      originalPrice: '₹220',
-      image: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_om_3',
-      name: 'MDH Kitchen King Universal Masala 100g',
-      brand: 'MDH',
-      subcategory: 'Oil & Masala',
-      desc: 'Blend of coriander, cumin, turmeric & aromatic spices',
-      rating: '4.9',
-      reviews: '2,800+',
-      price: '₹78',
-      originalPrice: '₹95',
-      image: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_om_4',
-      name: 'Tata Sampann Red Chilli Powder 200g',
-      brand: 'Tata Sampann',
-      subcategory: 'Oil & Masala',
-      desc: 'Rich red color & pungent flavor made from stemless chilies',
-      rating: '4.8',
-      reviews: '2,100+',
-      price: '₹88',
-      originalPrice: '₹110',
-      image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_om_5',
-      name: 'Saffola Gold Pro Healthy Heart Oil 1L',
-      brand: 'Saffola',
-      subcategory: 'Oil & Masala',
-      desc: 'Dual-seed blend of rice bran & sunflower oil with Oryzanol',
-      rating: '4.9',
-      reviews: '3,400+',
-      price: '₹165',
-      originalPrice: '₹195',
-      image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_om_6',
-      name: 'Everest Pure Turmeric Powder 200g',
-      brand: 'Everest',
-      subcategory: 'Oil & Masala',
-      desc: '100% natural golden turmeric powder high in curcumin',
-      rating: '4.9',
-      reviews: '2,750+',
-      price: '₹62',
-      originalPrice: '₹78',
-      image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-
-    // --- HOUSEHOLD ---
-    {
-      id: 'dn_hh_1',
-      name: 'Surf Excel Easy Wash Detergent Powder 1kg',
-      brand: 'Surf Excel',
-      subcategory: 'Household',
-      desc: 'Super-fine washing powder that dissolves fast & removes tough stains',
-      rating: '4.9',
-      reviews: '6,100+',
-      price: '₹140',
-      originalPrice: '₹170',
-      image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_hh_2',
-      name: 'Vim Lemon Dishwash Liquid Gel 500ml',
-      brand: 'Vim',
-      subcategory: 'Household',
-      desc: '1 spoon clean power infused with real lemon juice for grease-free utensils',
-      rating: '4.9',
-      reviews: '4,900+',
-      price: '₹115',
-      originalPrice: '₹140',
-      image: 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_hh_3',
-      name: 'Lizol Disinfectant Surface Floor Cleaner Citrus 1L',
-      brand: 'Lizol',
-      subcategory: 'Household',
-      desc: 'Kills 99.9% germs & leaves pleasant citrus fragrance on marble & tile floors',
-      rating: '4.8',
-      reviews: '3,800+',
-      price: '₹210',
-      originalPrice: '₹245',
-      image: 'https://images.unsplash.com/photo-1563453392212-326f5e854473?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_hh_4',
-      name: 'Presto Medium Oxo-Biodegradable Garbage Bags 30s',
-      brand: 'Presto',
-      subcategory: 'Household',
-      desc: 'Leak-proof strong disposal bags with tie-string for kitchen waste',
-      rating: '4.7',
-      reviews: '1,950+',
-      price: '₹125',
-      originalPrice: '₹160',
-      image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_hh_5',
-      name: 'Comfort After Wash Fabric Conditioner 860ml',
-      brand: 'Comfort',
-      subcategory: 'Household',
-      desc: 'Adds softness & long-lasting morning fresh fragrance to clothes',
-      rating: '4.8',
-      reviews: '2,600+',
-      price: '₹220',
-      originalPrice: '₹270',
-      image: 'https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_hh_6',
-      name: 'Colin Glass & Surface Cleaner Spray 500ml',
-      brand: 'Colin',
-      subcategory: 'Household',
-      desc: 'Shine boosters for streak-free glass, mirror & appliance cleaning',
-      rating: '4.8',
-      reviews: '2,150+',
-      price: '₹105',
-      originalPrice: '₹130',
-      image: 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-
-    // --- PERSONAL CARE ---
-    {
-      id: 'dn_pc_1',
-      name: 'Dove Intense Repair Damage Care Shampoo 650ml',
-      brand: 'Dove',
-      subcategory: 'Personal Care',
-      desc: 'Keratin repair actives nourish damaged hair & reduce breakage',
-      rating: '4.9',
-      reviews: '5,800+',
-      price: '₹480',
-      originalPrice: '₹599',
-      image: 'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_pc_2',
-      name: 'Dettol Original Germ Protection Bathing Soap (Pack of 4)',
-      brand: 'Dettol',
-      subcategory: 'Personal Care',
-      desc: 'Iconic pine fragrance soap offering 99.9% germ protection',
-      rating: '4.9',
-      reviews: '6,400+',
-      price: '₹185',
-      originalPrice: '₹220',
-      image: 'https://images.unsplash.com/photo-1607006482602-76ca0fd2f88d?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_pc_3',
-      name: 'Colgate Strong Teeth Dental Cream Toothpaste 500g',
-      brand: 'Colgate',
-      subcategory: 'Personal Care',
-      desc: 'Amino power formula strengthens enamel & prevents cavities',
-      rating: '4.9',
-      reviews: '7,100+',
-      price: '₹215',
-      originalPrice: '₹260',
-      image: 'https://images.unsplash.com/photo-1559598467-f8b76c8155d0?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_pc_4',
-      name: 'Himalaya Purifying Neem Face Wash 150ml',
-      brand: 'Himalaya',
-      subcategory: 'Personal Care',
-      desc: 'Herbal formula with neem & turmeric prevents pimples & oily shine',
-      rating: '4.8',
-      reviews: '4,600+',
-      price: '₹165',
-      originalPrice: '₹210',
-      image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_pc_5',
-      name: 'Nivea Soft Light Moisturising Cream 200ml',
-      brand: 'Nivea',
-      subcategory: 'Personal Care',
-      desc: 'Quick-absorbing non-greasy cream enriched with Jojoba Oil & Vitamin E',
-      rating: '4.9',
-      reviews: '3,900+',
-      price: '₹265',
-      originalPrice: '₹330',
-      image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-    {
-      id: 'dn_pc_6',
-      name: 'Wild Stone Code Titanium Body Spray Deodorant 150ml',
-      brand: 'Wild Stone',
-      subcategory: 'Personal Care',
-      desc: 'Long-lasting masculine fresh fragrance for 24-hr odor control',
-      rating: '4.7',
-      reviews: '2,400+',
-      price: '₹225',
-      originalPrice: '₹299',
-      image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      deliveryTime: '⚡ 15-30 mins',
-    },
-  ],
-  Food: [
-    {
-      id: 'food_1',
-      name: 'Hyderabadi Chicken Dum Biryani Special',
-      subcategory: 'Restaurants',
-      cuisine: 'Biryani',
-      isVeg: false,
-      desc: 'Long-grain aromatic basmati rice cooked with succulent chicken & secret spices',
-      rating: '4.9',
-      reviews: '3,850+',
-      price: '₹340',
-      priceNum: 340,
-      originalPrice: '₹450',
-      discountNum: 24,
-      deliveryTime: '25 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_2',
-      name: 'Butter Chicken & Garlic Naan Combo',
-      subcategory: 'Restaurants',
-      cuisine: 'North Indian',
-      isVeg: false,
-      desc: 'Creamy Mughlai butter chicken served with 2 hot butter garlic naans',
-      rating: '4.8',
-      reviews: '2,100+',
-      price: '₹380',
-      priceNum: 380,
-      originalPrice: '₹490',
-      discountNum: 22,
-      deliveryTime: '30 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_3',
-      name: 'Gourmet Double Cheese Burger Meal',
-      subcategory: 'Fast Food',
-      cuisine: 'Fast Food',
-      isVeg: false,
-      desc: 'Grilled juicy patty with double cheddar cheese, fries & chilled soda',
-      rating: '4.8',
-      reviews: '1,450+',
-      price: '₹240',
-      priceNum: 240,
-      originalPrice: '₹320',
-      discountNum: 25,
-      deliveryTime: '20 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_4',
-      name: 'Paneer Butter Masala & Tandoori Roti Combo',
-      subcategory: 'Restaurants',
-      cuisine: 'North Indian',
-      isVeg: true,
-      desc: 'Fresh cottage cheese in rich tomato butter gravy with 3 tandoori rotis',
-      rating: '4.8',
-      reviews: '1,980+',
-      price: '₹280',
-      priceNum: 280,
-      originalPrice: '₹350',
-      discountNum: 20,
-      deliveryTime: '25 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_5',
-      name: 'Overloaded Pepperoni & Cheese Pizza 12"',
-      subcategory: 'Fast Food',
-      cuisine: 'Italian',
-      isVeg: false,
-      desc: 'Hand-tossed sourdough crust topped with mozzarella & smoky pepperoni',
-      rating: '4.9',
-      reviews: '2,750+',
-      price: '₹499',
-      priceNum: 499,
-      originalPrice: '₹650',
-      discountNum: 23,
-      deliveryTime: '35 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_6',
-      name: 'Special Masala Dosa & Filter Coffee',
-      subcategory: 'Restaurants',
-      cuisine: 'South Indian',
-      isVeg: true,
-      desc: 'Crispy golden crepe stuffed with potato masala served with sambar & coconut chutney',
-      rating: '4.9',
-      reviews: '3,120+',
-      price: '₹160',
-      priceNum: 160,
-      originalPrice: '₹200',
-      discountNum: 20,
-      deliveryTime: '20 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_7',
-      name: 'Schezwan Hakka Noodles & Chili Chicken',
-      subcategory: 'Restaurants',
-      cuisine: 'Chinese',
-      isVeg: false,
-      desc: 'Spicy wok-tossed noodles served with savory diced chili chicken gravy',
-      rating: '4.7',
-      reviews: '1,890+',
-      price: '₹290',
-      priceNum: 290,
-      originalPrice: '₹360',
-      discountNum: 19,
-      deliveryTime: '30 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'food_8',
-      name: 'Belgian Chocolate Lava Cake & Ice Cream',
-      subcategory: 'Bakeries',
-      cuisine: 'Desserts',
-      isVeg: true,
-      desc: 'Warm molten chocolate cake paired with vanilla bean ice cream scoop',
-      rating: '4.9',
-      reviews: '2,400+',
-      price: '₹180',
-      priceNum: 180,
-      originalPrice: '₹230',
-      discountNum: 21,
-      deliveryTime: '25 mins',
-      hasOffer: true,
-      image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Services: [
-    {
-      id: 'srv_1',
-      name: 'Full Home Deep Cleaning & Sanitization',
-      subcategory: 'Cleaning',
-      serviceType: 'Cleaning',
-      desc: 'Complete kitchen, bathroom, floor scrub & furniture vacuuming by experts',
-      rating: '4.9',
-      reviews: '1,420+',
-      price: '₹1,499',
-      priceNum: 1499,
-      originalPrice: '₹1,999',
-      discountNum: 25,
-      serviceTime: '1-2 hours',
-      bookingMode: 'scheduled',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_2',
-      name: 'Split AC Power Jet Servicing & Gas Check',
-      subcategory: 'AC Repair & Service',
-      serviceType: 'AC Repair & Service',
-      desc: 'Deep foam jet cleaning, filter wash, cooling coil inspection & gas pressure check',
-      rating: '4.8',
-      reviews: '2,890+',
-      price: '₹599',
-      priceNum: 599,
-      originalPrice: '₹799',
-      discountNum: 25,
-      serviceTime: '30-45 mins',
-      bookingMode: 'instant',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_3',
-      name: 'Emergency Pipe & Tap Leak Repair',
-      subcategory: 'Plumbing',
-      serviceType: 'Plumbing',
-      desc: 'Tap repair, pipe leak fix, drain unblocking & flush tank fitting by certified plumber',
-      rating: '4.8',
-      reviews: '1,150+',
-      price: '₹299',
-      priceNum: 299,
-      originalPrice: '₹399',
-      discountNum: 25,
-      serviceTime: '30-45 mins',
-      bookingMode: 'instant',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_4',
-      name: 'Electrical Repairs & MCB / Switchboard Installation',
-      subcategory: 'Electrical',
-      serviceType: 'Electrical',
-      desc: 'Short circuit fix, heavy appliance wiring, fan & light fixture fitting',
-      rating: '4.9',
-      reviews: '1,780+',
-      price: '₹349',
-      priceNum: 349,
-      originalPrice: '₹499',
-      discountNum: 30,
-      serviceTime: '30-45 mins',
-      bookingMode: 'instant',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_5',
-      name: 'Washing Machine Repair & Motor Inspection',
-      subcategory: 'Washing Machine Repair',
-      serviceType: 'Washing Machine Repair',
-      desc: 'Top load & front load diagnosis, drum belt replacement & noise fix',
-      rating: '4.7',
-      reviews: '940+',
-      price: '₹449',
-      priceNum: 449,
-      originalPrice: '₹599',
-      discountNum: 25,
-      serviceTime: '1-2 hours',
-      bookingMode: 'scheduled',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_6',
-      name: 'Double Door Refrigerator Gas Refill & Cooling Fix',
-      subcategory: 'Refrigerator Repair',
-      serviceType: 'Refrigerator Repair',
-      desc: 'Gas refilling, thermostat replacement & compressor cooling diagnosis',
-      rating: '4.8',
-      reviews: '810+',
-      price: '₹699',
-      priceNum: 699,
-      originalPrice: '₹999',
-      discountNum: 30,
-      serviceTime: '1-2 hours',
-      bookingMode: 'both',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_7',
-      name: 'Smart TV Screen & Display Panel Repair',
-      subcategory: 'TV Repair',
-      serviceType: 'TV Repair',
-      desc: 'LED/LCD panel fix, motherboard diagnosis & TV wall mounting',
-      rating: '4.7',
-      reviews: '620+',
-      price: '₹799',
-      priceNum: 799,
-      originalPrice: '₹1,099',
-      discountNum: 27,
-      serviceTime: '1-2 hours',
-      bookingMode: 'both',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_8',
-      name: 'RO Filter Replacement & Deep Servicing',
-      subcategory: 'RO / Water Purifier',
-      serviceType: 'RO / Water Purifier',
-      desc: 'Membrane cleaning, filter replacement & water leakage repair',
-      rating: '4.9',
-      reviews: '1,250+',
-      price: '₹499',
-      priceNum: 499,
-      originalPrice: '₹699',
-      discountNum: 28,
-      serviceTime: '30-45 mins',
-      bookingMode: 'instant',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_9',
-      name: 'Microwave Heating & Magnetron Repair',
-      subcategory: 'Microwave Repair',
-      serviceType: 'Microwave Repair',
-      desc: 'Magnetron replacement, touchpad repair & spark fix',
-      rating: '4.7',
-      reviews: '410+',
-      price: '₹399',
-      priceNum: 399,
-      originalPrice: '₹599',
-      discountNum: 33,
-      serviceTime: '45 mins',
-      bookingMode: 'both',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_10',
-      name: 'Electric Geyser Thermostat & Element Repair',
-      subcategory: 'Geyser Repair',
-      serviceType: 'Geyser Repair',
-      desc: 'Heating element replacement, thermostat calibration & leak check',
-      rating: '4.8',
-      reviews: '530+',
-      price: '₹449',
-      priceNum: 449,
-      originalPrice: '₹649',
-      discountNum: 30,
-      serviceTime: '45 mins',
-      bookingMode: 'instant',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_11',
-      name: 'Custom Furniture Assembly & Lock Repair',
-      subcategory: 'Carpentry',
-      serviceType: 'Carpentry',
-      desc: 'Bed assembly, door lock fitting, cabinet & drawer hinge repair',
-      rating: '4.9',
-      reviews: '740+',
-      price: '₹399',
-      priceNum: 399,
-      originalPrice: '₹549',
-      discountNum: 27,
-      serviceTime: '1-2 hours',
-      bookingMode: 'scheduled',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_12',
-      name: 'HD CCTV Camera Setup & Remote Viewing',
-      subcategory: 'CCTV Installation',
-      serviceType: 'CCTV Installation',
-      desc: 'IP camera mounting, DVR wiring & mobile live view configuration',
-      rating: '4.9',
-      reviews: '890+',
-      price: '₹999',
-      priceNum: 999,
-      originalPrice: '₹1,499',
-      discountNum: 33,
-      serviceTime: '1-2 hours',
-      bookingMode: 'both',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_13',
-      name: 'Rooftop Solar Panel Cleaning & Maintenance',
-      subcategory: 'Solar Service',
-      serviceType: 'Solar Service',
-      desc: 'Solar array pressure wash, inverter health check & wiring inspection',
-      rating: '4.8',
-      reviews: '310+',
-      price: '₹1,199',
-      priceNum: 1199,
-      originalPrice: '₹1,699',
-      discountNum: 29,
-      serviceTime: '1-2 hours',
-      bookingMode: 'scheduled',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_14',
-      name: 'Kitchen Chimney Deep Cleaning & Motor Fix',
-      subcategory: 'Appliance Repair',
-      serviceType: 'Appliance Repair',
-      desc: 'Blower degreasing, mesh filter wash & suction motor servicing',
-      rating: '4.8',
-      reviews: '670+',
-      price: '₹549',
-      priceNum: 549,
-      originalPrice: '₹799',
-      discountNum: 31,
-      serviceTime: '1 hour',
-      bookingMode: 'both',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_15',
-      name: 'Full Home Wall Painting & Damp Proofing',
-      subcategory: 'Painting',
-      serviceType: 'Painting',
-      desc: 'Emulsion painting, wall putty sanding & moisture leak treatment',
-      rating: '4.9',
-      reviews: '1,120+',
-      price: '₹2,499',
-      priceNum: 2499,
-      originalPrice: '₹3,499',
-      discountNum: 28,
-      serviceTime: 'Full Day',
-      bookingMode: 'scheduled',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_16',
-      name: 'Herbal Pest & Cockroach Control Service',
-      subcategory: 'Pest Control',
-      serviceType: 'Pest Control',
-      desc: 'Odorless gel application, termite treatment & bed bug spray with 90-day warranty',
-      rating: '4.8',
-      reviews: '980+',
-      price: '₹699',
-      priceNum: 699,
-      originalPrice: '₹999',
-      discountNum: 30,
-      serviceTime: '1 hour',
-      bookingMode: 'instant',
-      availableToday: true,
-      image: 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Stay: [
-    {
-      id: 'stay_1',
-      name: 'Coorg Heritage Villa',
-      subcategory: 'Villas',
-      propertyType: 'Villas',
-      starRating: 5,
-      location: 'Coorg, Karnataka',
-      locationCity: 'Coorg',
-      desc: 'Luxury villa nestled amidst coffee plantations with private plunge pool and breakfast.',
-      rating: '4.9',
-      reviews: '630',
-      price: '₹7,250 / night',
-      priceNum: 7250,
-      originalPrice: '₹9,500',
-      discount: '24% OFF',
-      image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Pool', 'Free Wi-Fi', 'Breakfast', 'Parking', 'AC'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_2',
-      name: 'Goa Luxury Beachfront Resort',
-      subcategory: 'Resorts',
-      propertyType: 'Resorts',
-      starRating: 5,
-      location: 'Goa',
-      locationCity: 'Goa',
-      desc: 'Direct beach access resort with infinity pool, sea view balconies & luxury spa.',
-      rating: '4.9',
-      reviews: '920',
-      price: '₹4,999 / night',
-      priceNum: 4999,
-      originalPrice: '₹7,500',
-      discount: '33% OFF',
-      image: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Beach Access', 'Pool', 'Spa', 'Free Wi-Fi', 'AC', 'Restaurant'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_3',
-      name: 'Ooty Tea Estate Cottage',
-      subcategory: 'Homestays',
-      propertyType: 'Homestays',
-      starRating: 4,
-      location: 'Ooty, Tamil Nadu',
-      locationCity: 'Ooty',
-      desc: 'Panoramic Nilgiri hills view cottage with bonfire lounge & organic farm dining.',
-      rating: '4.8',
-      reviews: '480',
-      price: '₹3,200 / night',
-      priceNum: 3200,
-      originalPrice: '₹4,800',
-      discount: '33% OFF',
-      image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Breakfast', 'Parking', 'Free Wi-Fi', 'AC'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_4',
-      name: 'Jaipur Royal Heritage Palace',
-      subcategory: 'Hotels',
-      propertyType: 'Hotels',
-      starRating: 5,
-      location: 'Jaipur, Rajasthan',
-      locationCity: 'Jaipur',
-      desc: 'Traditional Rajasthani heritage palace hotel with royal suites & courtyard shows.',
-      rating: '4.9',
-      reviews: '810',
-      price: '₹5,499 / night',
-      priceNum: 5499,
-      originalPrice: '₹7,999',
-      discount: '31% OFF',
-      image: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Restaurant', 'Pool', 'Free Wi-Fi', 'AC', 'Spa'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_5',
-      name: 'Bengaluru Central Business Hotel',
-      subcategory: 'Hotels',
-      propertyType: 'Hotels',
-      starRating: 4,
-      location: 'Bengaluru, Karnataka',
-      locationCity: 'Bengaluru',
-      desc: 'Modern corporate hotel in MG Road with 24/7 fitness center & fine dining.',
-      rating: '4.7',
-      reviews: '340',
-      price: '₹3,899 / night',
-      priceNum: 3899,
-      originalPrice: '₹5,200',
-      discount: '25% OFF',
-      image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Free Wi-Fi', 'Gym', 'Restaurant', 'AC', 'Parking'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_6',
-      name: 'Mysuru Palace View Suites',
-      subcategory: 'Hotels',
-      propertyType: 'Hotels',
-      starRating: 3,
-      location: 'Mysuru, Karnataka',
-      locationCity: 'Mysuru',
-      desc: 'Boutique hotel offering direct royal palace views, rooftop dining & heritage suites.',
-      rating: '4.8',
-      reviews: '290',
-      price: '₹2,799 / night',
-      priceNum: 2799,
-      originalPrice: '₹3,999',
-      discount: '30% OFF',
-      image: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Parking', 'Breakfast', 'Free Wi-Fi', 'AC', 'Restaurant'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_7',
-      name: 'Wayanad Forest Retreat',
-      subcategory: 'Resorts',
-      propertyType: 'Resorts',
-      starRating: 5,
-      location: 'Wayanad, Kerala',
-      locationCity: 'Wayanad',
-      desc: 'Eco resort set in Western Ghats rainforests with infinity pool & wildlife safaris.',
-      rating: '4.8',
-      reviews: '510',
-      price: '₹6,499 / night',
-      priceNum: 6499,
-      originalPrice: '₹8,500',
-      discount: '23% OFF',
-      image: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Pool', 'Nature View', 'Breakfast', 'Free Wi-Fi', 'AC', 'Spa'],
-      deliveryTime: 'Free cancellation',
-    },
-    {
-      id: 'stay_8',
-      name: 'Bengaluru Luxury Serviced Apartment',
-      subcategory: 'Apartments',
-      propertyType: 'Apartments',
-      starRating: 4,
-      location: 'Bengaluru, Karnataka',
-      locationCity: 'Bengaluru',
-      desc: 'Spacious 2BHK luxury serviced apartment with modular kitchen & high-speed Wi-Fi.',
-      rating: '4.6',
-      reviews: '210',
-      price: '₹4,299 / night',
-      priceNum: 4299,
-      originalPrice: '₹5,800',
-      discount: '25% OFF',
-      image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&auto=format&fit=crop&q=80',
-      assured: true,
-      amenities: ['Kitchen', 'Free Wi-Fi', 'Parking', 'AC', 'Gym'],
-      deliveryTime: 'Free cancellation',
-    },
-  ],
-  Travel: [
-    {
-      id: 'bus_vrl_1',
-      name: 'Multi-Axle Volvo AC Sleeper (2+1)',
-      subcategory: 'AC Sleeper',
-      operator: 'VRL Travels',
-      type: 'Bus',
-      subType: 'AC Sleeper',
-      busType: 'AC Sleeper',
-      from: 'Bangalore',
-      to: 'Chennai',
-      route: 'Bangalore ➔ Chennai',
-      departureTime: '21:30',
-      arrivalTime: '05:30',
-      duration: '8h 00m',
-      departureSlot: 'Night (After 11 PM)',
-      boardingPoints: ['Majestic (09:30 PM)', 'Madiwala (10:15 PM)', 'Electronic City (10:45 PM)'],
-      droppingPoints: ['Sriperumbudur (04:30 AM)', 'Koyambedu (05:15 AM)', 'Guindy (05:30 AM)'],
-      seatsAvailable: 12,
-      seatsLeft: 12,
-      desc: 'Individual TV, clean blankets, charging point, water bottle & live GPS tracking',
-      rating: '4.8',
-      reviews: '1,420 reviews',
-      price: '₹950',
-      priceNum: 950,
-      originalPrice: '₹1,200',
-      discountNum: 21,
-      image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      badge: 'Top Rated Bus',
-      amenities: ['AC Sleeper', 'Live GPS', 'Charging Point', 'Blanket', 'Water Bottle'],
-    },
-    {
-      id: 'bus_ksrtc_2',
-      name: 'Airavat Club Class - Volvo Multi-Axle',
-      subcategory: 'Volvo Multi-Axle',
-      operator: 'KSRTC Airavat',
-      type: 'Bus',
-      subType: 'Semi-Sleeper AC',
-      busType: 'Volvo Multi-Axle',
-      from: 'Bangalore',
-      to: 'Chennai',
-      route: 'Bangalore ➔ Chennai',
-      departureTime: '22:15',
-      arrivalTime: '06:00',
-      duration: '7h 45m',
-      departureSlot: 'Night (After 11 PM)',
-      boardingPoints: ['Kempegowda Bus Station (10:15 PM)', 'Shantinagar (10:45 PM)', 'Hosur (11:30 PM)'],
-      droppingPoints: ['Poonamallee (05:15 AM)', 'Koyambedu CMBT (06:00 AM)'],
-      seatsAvailable: 8,
-      seatsLeft: 8,
-      desc: 'Premium Volvo Club Class with reclining ergonomic seats & free Wi-Fi',
-      rating: '4.7',
-      reviews: '980 reviews',
-      price: '₹820',
-      priceNum: 820,
-      originalPrice: '₹950',
-      discountNum: 14,
-      image: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      badge: 'Government Certified',
-      amenities: ['Semi-Sleeper AC', 'Live Tracking', 'Emergency Button', 'CCTV'],
-    },
-    {
-      id: 'bus_intrcity_3',
-      name: 'SmartBus Luxury AC Sleeper (Washroom)',
-      subcategory: 'Electric Bus',
-      operator: 'IntrCity SmartBus',
-      type: 'Bus',
-      subType: 'Electric Bus',
-      busType: 'Electric Bus',
-      from: 'Bangalore',
-      to: 'Hyderabad',
-      route: 'Bangalore ➔ Hyderabad',
-      departureTime: '22:00',
-      arrivalTime: '06:30',
-      duration: '8h 30m',
-      departureSlot: 'Night (After 11 PM)',
-      boardingPoints: ['Anand Rao Circle (10:00 PM)', 'Hebbal (10:45 PM)', 'Yelahanka (11:15 PM)'],
-      droppingPoints: ['Shamshabad (05:45 AM)', 'Gachibowli (06:15 AM)', 'Ameerpet (06:30 AM)'],
-      seatsAvailable: 6,
-      seatsLeft: 6,
-      desc: 'Smart lounge boarding, private cabin sleeper pods with personal display screen',
-      rating: '4.9',
-      reviews: '2,240 reviews',
-      price: '₹1,150',
-      priceNum: 1150,
-      originalPrice: '₹1,450',
-      discountNum: 21,
-      image: 'https://images.unsplash.com/photo-1557223562-6c77ef16210f?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      badge: 'Luxury Sleeper',
-      amenities: ['Washroom Onboard', 'Smart Bus Lounge', 'Free Wi-Fi', 'Snack Box'],
-    },
-    {
-      id: 'bus_orange_4',
-      name: 'BharatBenz AC Seater Express',
-      subcategory: 'AC Seater',
-      operator: 'Orange Tours & Travels',
-      type: 'Bus',
-      subType: 'AC Seater',
-      busType: 'AC Seater',
-      from: 'Bangalore',
-      to: 'Coimbatore',
-      route: 'Bangalore ➔ Coimbatore',
-      departureTime: '06:30',
-      arrivalTime: '13:00',
-      duration: '6h 30m',
-      departureSlot: 'Morning (6 AM - 12 PM)',
-      boardingPoints: ['Kalasipalyam (06:30 AM)', 'Silk Board (07:15 AM)', 'Electronic City (07:35 AM)'],
-      droppingPoints: ['Salem Bypass (10:45 AM)', 'Gandhipuram Omni Bus Stand (01:00 PM)'],
-      seatsAvailable: 18,
-      seatsLeft: 18,
-      desc: 'Semi-sleeper pushback seats with high-speed USB-C chargers & air suspension',
-      rating: '4.6',
-      reviews: '760 reviews',
-      price: '₹650',
-      priceNum: 650,
-      originalPrice: '₹850',
-      discountNum: 24,
-      image: 'https://images.unsplash.com/photo-1494515843206-f3117d3f51b7?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      badge: 'Day Express',
-      amenities: ['Comfort Recliner', 'AC', 'USB Charging', 'Reading Light'],
-    },
-    {
-      id: 'bus_morningstar_5',
-      name: 'Scania AC Multi-Axle Sleeper',
-      subcategory: 'Volvo Multi-Axle',
-      operator: 'Morning Star Travels',
-      type: 'Bus',
-      subType: 'Volvo Multi-Axle',
-      busType: 'Volvo Multi-Axle',
-      from: 'Chennai',
-      to: 'Bangalore',
-      route: 'Chennai ➔ Bangalore',
-      departureTime: '23:00',
-      arrivalTime: '06:30',
-      duration: '7h 30m',
-      departureSlot: 'Night (After 11 PM)',
-      boardingPoints: ['Koyambedu (11:00 PM)', 'Porur Toll (11:30 PM)', 'Sriperumbudur (11:55 PM)'],
-      droppingPoints: ['Hosur (05:30 AM)', 'Electronic City (06:00 AM)', 'Madiwala (06:30 AM)'],
-      seatsAvailable: 14,
-      seatsLeft: 14,
-      desc: 'Premium Scania Multi-Axle with smooth air suspension & charging points',
-      rating: '4.8',
-      reviews: '890 reviews',
-      price: '₹890',
-      priceNum: 890,
-      originalPrice: '₹1,100',
-      discountNum: 19,
-      image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      badge: 'Super Fast',
-      amenities: ['AC Sleeper', 'Live GPS', 'Clean Linens', 'Luggage Tag'],
-    },
-    {
-      id: 'bus_srs_6',
-      name: 'SRS Travels - Non-AC Sleeper Coach',
-      subcategory: 'Non-AC Sleeper',
-      operator: 'SRS Travels',
-      type: 'Bus',
-      subType: 'Non-AC Sleeper',
-      busType: 'Non-AC Sleeper',
-      from: 'Bangalore',
-      to: 'Goa',
-      route: 'Bangalore ➔ Goa',
-      departureTime: '19:30',
-      arrivalTime: '08:00',
-      duration: '12h 30m',
-      departureSlot: 'Evening (6 PM - 11 PM)',
-      boardingPoints: ['Yesvantpur (07:30 PM)', 'Goraguntepalya (08:00 PM)', 'Tumkur Bypass (09:00 PM)'],
-      droppingPoints: ['Margao (06:45 AM)', 'Panaji Kadamba Bus Terminus (07:30 AM)', 'Mapusa (08:00 AM)'],
-      seatsAvailable: 9,
-      seatsLeft: 9,
-      desc: 'Affordable sleeper berths with curtains, charging sockets & luggage hold',
-      rating: '4.4',
-      reviews: '650 reviews',
-      price: '₹1,100',
-      priceNum: 1100,
-      originalPrice: '₹1,350',
-      discountNum: 19,
-      image: 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-      badge: 'Popular Route',
-      amenities: ['Double Sleeper', 'Blanket', 'Emergency Kit'],
-    },
-  ],
-  Healthcare: [
-    {
-      id: 'srv_hc_1',
-      name: 'Doctor Video Consultation',
-      subcategory: 'Clinics',
-      desc: 'Connect with verified MBBS/MD specialist • Instant 15 mins slot',
-      rating: '4.9',
-      reviews: '520+',
-      price: '₹399',
-      originalPrice: '₹699',
-      image: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_hc_2',
-      name: 'Full Body Health Checkup',
-      subcategory: 'Diagnostic Centers',
-      desc: '65+ essential blood tests with free doorstep sample collection',
-      rating: '4.8',
-      reviews: '340+',
-      price: '₹999',
-      originalPrice: '₹1,999',
-      image: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_hc_3',
-      name: 'Dental Care & Scaling',
-      subcategory: 'Dental Care',
-      desc: 'Pain-free consultation, teeth cleaning & cavity inspection',
-      rating: '4.9',
-      reviews: '210+',
-      price: '₹499',
-      originalPrice: '₹999',
-      image: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_hc_4',
-      name: 'Home Physiotherapy Session',
-      subcategory: 'Physiotherapy',
-      desc: 'Certified physiotherapist for back, joint & rehabilitation care',
-      rating: '4.9',
-      reviews: '180+',
-      price: '₹699',
-      originalPrice: '₹1,200',
-      image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  'Home Services': [
-    {
-      id: 'srv_hs_1',
-      name: 'AC Repair & Deep Jet Wash',
-      subcategory: 'AC Repair',
-      desc: 'Complete cooling coil jet wash, gas leak check & 30-day warranty',
-      rating: '4.9',
-      reviews: '850+',
-      price: '₹499',
-      originalPrice: '₹899',
-      image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_hs_2',
-      name: 'Electrician Home Inspection',
-      subcategory: 'Electrician',
-      desc: 'Switchboard, MCB, appliance wiring & chandelier fitting',
-      rating: '4.8',
-      reviews: '410+',
-      price: '₹199',
-      originalPrice: '₹349',
-      image: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_hs_3',
-      name: 'Plumbing & Leakage Fix',
-      subcategory: 'Plumber',
-      desc: 'Tap, flush tank, sink pipe repair & bathroom drainage clearing',
-      rating: '4.8',
-      reviews: '390+',
-      price: '₹249',
-      originalPrice: '₹499',
-      image: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_hs_4',
-      name: 'Complete Home Deep Cleaning',
-      subcategory: 'Home Cleaning',
-      desc: 'Kitchen, bathroom & living room machine scrubbing & sanitization',
-      rating: '4.9',
-      reviews: '620+',
-      price: '₹1,499',
-      originalPrice: '₹2,499',
-      image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Legal: [
-    {
-      id: 'srv_leg_1',
-      name: 'Legal Consultation',
-      subcategory: 'Legal Consultation',
-      desc: '30-minute private phone consultation with High Court Advocate',
-      rating: '4.9',
-      reviews: '310+',
-      price: '₹799',
-      originalPrice: '₹1,500',
-      image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_leg_2',
-      name: 'Rental Agreement Drafting',
-      subcategory: 'Agreement Drafting',
-      desc: 'E-stamped government legal draft delivered to doorstep',
-      rating: '4.8',
-      reviews: '480+',
-      price: '₹499',
-      originalPrice: '₹899',
-      image: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_leg_3',
-      name: 'Company & GST Registration',
-      subcategory: 'Company Registration',
-      desc: 'Private Limited / LLP setup with DIN, PAN & certificate of incorporation',
-      rating: '4.9',
-      reviews: '190+',
-      price: '₹2,499',
-      originalPrice: '₹4,500',
-      image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Financial: [
-    {
-      id: 'srv_fin_1',
-      name: 'CA Tax & ITR Filing',
-      subcategory: 'Tax Planning',
-      desc: 'Expert CA review, maximum deductions & hassle-free e-filing',
-      rating: '4.9',
-      reviews: '670+',
-      price: '₹699',
-      originalPrice: '₹1,200',
-      image: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_fin_2',
-      name: 'Home Loan & Advisory',
-      subcategory: 'Home Loans',
-      desc: 'Lowest interest rates comparison across top 12 banks with 0 fee',
-      rating: '4.8',
-      reviews: '280+',
-      price: '₹299',
-      originalPrice: '₹500',
-      image: 'https://images.unsplash.com/photo-1565372195458-9de0b320ef04?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Digital: [
-    {
-      id: 'srv_dig_1',
-      name: 'Website & App Development',
-      subcategory: 'Website Development',
-      desc: 'Custom modern responsive React website with SEO & hosting setup',
-      rating: '4.9',
-      reviews: '140+',
-      price: '₹8,999',
-      originalPrice: '₹15,000',
-      image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_dig_2',
-      name: 'UI/UX & Branding Design',
-      subcategory: 'UI/UX Design',
-      desc: 'Modern mobile app UI/UX, brand identity & logo design package',
-      rating: '4.9',
-      reviews: '195+',
-      price: '₹3,499',
-      originalPrice: '₹6,000',
-      image: 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Automobile: [
-    {
-      id: 'srv_auto_1',
-      name: 'Doorstep Foam Car Wash',
-      subcategory: 'Car Wash',
-      desc: 'High-pressure foam wash, interior vacuuming & tyre polish',
-      rating: '4.8',
-      reviews: '560+',
-      price: '₹449',
-      originalPrice: '₹799',
-      image: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_auto_2',
-      name: 'Periodic Car Service',
-      subcategory: 'Car Service',
-      desc: 'Engine oil replacement, oil filter & 35-point health check',
-      rating: '4.9',
-      reviews: '310+',
-      price: '₹1,899',
-      originalPrice: '₹2,800',
-      image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Education: [
-    {
-      id: 'srv_edu_1',
-      name: '1-on-1 Online Tutoring',
-      subcategory: 'Online Courses',
-      desc: 'Personalized Math, Science & Coding sessions with top educators',
-      rating: '4.9',
-      reviews: '410+',
-      price: '₹499',
-      originalPrice: '₹800',
-      image: 'https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_edu_2',
-      name: 'AI & Data Science Masterclass',
-      subcategory: 'Skill Development',
-      desc: 'Industry-certified project masterclass with placement assistance',
-      rating: '4.9',
-      reviews: '290+',
-      price: '₹4,999',
-      originalPrice: '₹8,999',
-      image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Fitness: [
-    {
-      id: 'srv_fit_1',
-      name: 'Personal Fitness Trainer',
-      subcategory: 'Personal Training',
-      desc: 'Home or online 1-on-1 workout training with customized diet plan',
-      rating: '4.9',
-      reviews: '230+',
-      price: '₹899',
-      originalPrice: '₹1,500',
-      image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-    {
-      id: 'srv_fit_2',
-      name: 'Full Body Ayurvedic Massage',
-      subcategory: 'Spa Services',
-      desc: '60-min herbal oil deep relaxation therapy by certified therapists',
-      rating: '4.8',
-      reviews: '175+',
-      price: '₹1,299',
-      originalPrice: '₹2,100',
-      image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-  Events: [
-    {
-      id: 'srv_ev_1',
-      name: 'Event & Wedding Photography',
-      subcategory: 'Photography',
-      desc: 'Full-day candid & traditional photography with edited digital album',
-      rating: '4.9',
-      reviews: '190+',
-      price: '₹3,999',
-      originalPrice: '₹6,500',
-      image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=500&auto=format&fit=crop&q=80',
-      assured: true,
-    },
-  ],
-};
+export const CURATED_JOBS_CATALOG: JobItem[] = [];
+const CURATED_SERVICES_CATALOG: Record<string, Array<any>> = {};
 
 // General category icon mapping
 const getCategoryIconName = (name: string) => {
@@ -2231,7 +237,7 @@ const TravelPriceSlider = ({
           }}
         >
           <Text style={{ fontSize: 13, fontWeight: '900', color: '#B45309' }}>
-            ₹300 – ₹{value.toLocaleString('en-IN')}
+            â‚¹300 â€“ â‚¹{value.toLocaleString('en-IN')}
           </Text>
         </View>
       </View>
@@ -2292,18 +298,18 @@ const TravelPriceSlider = ({
 
       {/* Min & Max Labels */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2, marginBottom: 8 }}>
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>₹300</Text>
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>₹10,000</Text>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>â‚¹300</Text>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>â‚¹10,000</Text>
       </View>
 
       {/* Quick Select Presets */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
         {[
-          { label: '₹750', val: 750 },
-          { label: '₹1,200', val: 1200 },
-          { label: '₹2,500', val: 2500 },
-          { label: '₹5,000', val: 5000 },
-          { label: '₹10,000 (Max)', val: 10000 },
+          { label: 'â‚¹750', val: 750 },
+          { label: 'â‚¹1,200', val: 1200 },
+          { label: 'â‚¹2,500', val: 2500 },
+          { label: 'â‚¹5,000', val: 5000 },
+          { label: 'â‚¹10,000 (Max)', val: 10000 },
         ].map((pr) => {
           const isAct = value === pr.val;
           return (
@@ -2349,6 +355,13 @@ export default function CategoryDetails() {
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubcat, setSelectedSubcat] = useState<string>(routeParams?.subCategoryName || 'All');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
+  useEffect(() => {
+    setPage(1);
+  }, [categoryName, selectedSubcat, searchQuery]);
+
   const [schedulingItem, setSchedulingItem] = useState<any | null>(null);
   const [selectedDateObj, setSelectedDateObj] = useState<any | null>(null);
   const [selectedSlotObj, setSelectedSlotObj] = useState<any | null>(null);
@@ -2596,7 +609,7 @@ export default function CategoryDetails() {
             const def = parsed.find((a: any) => a.isDefault) || parsed[0];
             const parts = [def.house, def.street, def.city, def.pincode].filter(Boolean);
             if (parts.length > 0) {
-              setSelectedAddress(`${def.label || 'Home'} — ${parts.join(', ')}`);
+              setSelectedAddress(`${def.label || 'Home'} â€” ${parts.join(', ')}`);
               return;
             }
           }
@@ -2685,7 +698,7 @@ export default function CategoryDetails() {
 
   // Filter, Sort & Map State
   const [isStayFilterOpen, setIsStayFilterOpen] = useState(false);
-  const [selectedStaySort, setSelectedStaySort] = useState<'Recommended' | 'Price Low → High' | 'Price High → Low' | 'Rating'>('Recommended');
+  const [selectedStaySort, setSelectedStaySort] = useState<'Recommended' | 'Price Low â†’ High' | 'Price High â†’ Low' | 'Rating'>('Recommended');
   const [isStaySortOpen, setIsStaySortOpen] = useState(false);
   const [isStayMapOpen, setIsStayMapOpen] = useState(false);
 
@@ -3125,7 +1138,7 @@ export default function CategoryDetails() {
     setTravelType('all');
     setTravelPassengers(1);
     setSelectedSubcat('All');
-    setSelectedBusSort('Price Low → High');
+    setSelectedBusSort('Price Low â†’ High');
     setSelectedBusAcType('All');
     setSelectedBusOperator('All');
     setSelectedBusDepartureTime('All');
@@ -3149,7 +1162,7 @@ export default function CategoryDetails() {
   const [selectedBusMaxPrice, setSelectedBusMaxPrice] = useState<number>(10000);
   const [selectedBusBoarding, setSelectedBusBoarding] = useState<string>('All');
   const [selectedBusDropping, setSelectedBusDropping] = useState<string>('All');
-  const [selectedBusSort, setSelectedBusSort] = useState<string>('Price Low → High');
+  const [selectedBusSort, setSelectedBusSort] = useState<string>('Price Low â†’ High');
 
   // Draft States for Bus Filter Modal
   const [draftBusDepartureTime, setDraftBusDepartureTime] = useState<string>('All');
@@ -3159,7 +1172,7 @@ export default function CategoryDetails() {
   const [draftBusMaxPrice, setDraftBusMaxPrice] = useState<number>(10000);
   const [draftBusBoarding, setDraftBusBoarding] = useState<string>('All');
   const [draftBusDropping, setDraftBusDropping] = useState<string>('All');
-  const [draftBusSort, setDraftBusSort] = useState<string>('Price Low → High');
+  const [draftBusSort, setDraftBusSort] = useState<string>('Price Low â†’ High');
 
   const [isBusFilterOpen, setIsBusFilterOpen] = useState(false);
 
@@ -3200,7 +1213,7 @@ export default function CategoryDetails() {
   // Dynamic Route Buses (buses matching from & to)
   const currentRouteBuses = useMemo(() => {
     if (!isTravelCategory) return [];
-    let items = [...((CURATED_SERVICES_CATALOG['Travel'] as any[]) || []), ...dynamicVendorTravelItems];
+    let items = dynamicVendorTravelItems || [];
     const reqFrom = (routeParams.from || '').trim().toLowerCase();
     const reqTo = (routeParams.to || '').trim().toLowerCase();
     if (reqFrom || reqTo) {
@@ -3222,7 +1235,7 @@ export default function CategoryDetails() {
   // Dynamic Unique Bus Operators
   const availableBusOperators = useMemo(() => {
     const opsSet = new Set<string>();
-    const allTravelCatalog = (CURATED_SERVICES_CATALOG['Travel'] as any[]) || [];
+    const allTravelCatalog = dynamicVendorTravelItems || [];
     allTravelCatalog.forEach((b: any) => {
       if (b.operator) opsSet.add(b.operator);
     });
@@ -3310,7 +1323,7 @@ export default function CategoryDetails() {
     setDraftBusMaxPrice(10000);
     setDraftBusBoarding('All');
     setDraftBusDropping('All');
-    setDraftBusSort('Price Low → High');
+    setDraftBusSort('Price Low â†’ High');
   };
 
   const applyBusFilters = () => {
@@ -3334,7 +1347,7 @@ export default function CategoryDetails() {
     if (selectedBusMaxPrice < 10000) count++;
     if (selectedBusBoarding !== 'All') count++;
     if (selectedBusDropping !== 'All') count++;
-    if (selectedBusSort !== 'Price Low → High') count++;
+    if (selectedBusSort !== 'Price Low â†’ High') count++;
     return count;
   }, [
     selectedBusDepartureTime,
@@ -3453,8 +1466,8 @@ export default function CategoryDetails() {
       checkIn: '12 Sep',
       checkOut: '15 Sep',
       nights: 3,
-      guests: '2 Adults • 1 Room',
-      totalPaid: '₹23,925',
+      guests: '2 Adults â€¢ 1 Room',
+      totalPaid: 'â‚¹23,925',
       status: 'Confirmed',
       image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
     },
@@ -3698,10 +1711,17 @@ export default function CategoryDetails() {
       return ['All', ...rawSubcats];
     }
 
-    // Fallback to curated catalog keys
-    if (CURATED_SERVICES_CATALOG[categoryName]) {
-      const subSet = new Set(CURATED_SERVICES_CATALOG[categoryName].map((i) => i.subcategory));
-      return ['All', ...Array.from(subSet)];
+    // Fallback to dynamic api products subcategories
+    const apiSubcats = new Set<string>();
+    (apiProducts || []).forEach((p: any) => {
+      const pCat = (p.category || p.vendorType || '').toLowerCase();
+      if (pCat === categoryName.toLowerCase() || pCat.includes(categoryName.toLowerCase())) {
+        const sub = p.subcategory || p.subCategory;
+        if (sub) apiSubcats.add(sub);
+      }
+    });
+    if (apiSubcats.size > 0) {
+      return ['All', ...Array.from(apiSubcats)];
     }
 
     const rawSubcats = Object.keys(SIDEBAR_DATA['Services']?.subcategories || {});
@@ -3839,7 +1859,7 @@ export default function CategoryDetails() {
       if (isGranted) {
         setIsVoiceListening(true);
         setSearchQuery('');
-        showToast('Listening... Speak now 🎙️');
+        showToast('Listening... Speak now ðŸŽ™ï¸');
 
         if (voiceTimeoutRef.current) {
           clearTimeout(voiceTimeoutRef.current);
@@ -3884,17 +1904,13 @@ export default function CategoryDetails() {
     }
   };
 
-  // Compile active catalog items matching selected category & search query
-  const displayedServices = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
+  // Helper to strip emojis and clean strings for matching
+  const cleanStr = (str: string) => (str || '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}]/gu, '').toLowerCase().trim();
+
+  // Map dynamic API products matching target category
+  const mappedApiProds = useMemo(() => {
     const targetCategory = (categoryName || 'Services').toLowerCase().trim();
-    let allServices: Array<any> = [];
-
-    // Helper to strip emojis and clean strings for matching
-    const cleanStr = (str: string) => (str || '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}]/gu, '').toLowerCase().trim();
-
-    // Map dynamic API products matching target category
-    const mappedApiProds = apiProducts
+    return (apiProducts || [])
       .filter((p: any) => {
         if (targetCategory === 'all') return true;
         const pCat = cleanStr(p.category || p.vendorType);
@@ -3965,6 +1981,8 @@ export default function CategoryDetails() {
         const resolvedTo = p.to || p.destination || (p.dropPoint ? p.dropPoint.split('(')[0]?.trim() : (typeof p.droppingPoints?.[0] === 'string' ? p.droppingPoints[0].split('(')[0]?.trim() : 'Chennai'));
         const resolvedBusType = p.itemType || p.busType || p.subType || (cleanSub.includes('bus') ? 'AC Sleeper' : displaySub);
         const numPrice = typeof p.price === 'number' ? p.price : (parseInt(String(p.price || '0').replace(/[^\d]/g, ''), 10) || 799);
+        const origPriceNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : parseInt(String(p.originalPrice).replace(/[^\d]/g, ''), 10)) : 0;
+        const discountNum = origPriceNum > numPrice ? Math.round(((origPriceNum - numPrice) / origPriceNum) * 100) : (p.discount ? parseInt(String(p.discount).replace(/[^\d]/g, ''), 10) || 0 : 0);
 
         return {
           id: p._id || p.id,
@@ -3978,9 +1996,21 @@ export default function CategoryDetails() {
           price: typeof p.price === 'number' ? `₹${p.price.toLocaleString('en-IN')}` : String(p.price || '₹0'),
           priceNum: numPrice,
           originalPrice: p.originalPrice ? (typeof p.originalPrice === 'number' ? `₹${p.originalPrice.toLocaleString('en-IN')}` : String(p.originalPrice)) : undefined,
+          discountNum,
           image: resolveImageUrl(p.image || p.imageUrl) || 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=400&q=70',
           assured: p.assured ?? true,
           rawProduct: p,
+          brand: p.brand || p.brandName || '',
+          inStock: p.inStock ?? (p.stock !== undefined ? Number(p.stock) > 0 : true),
+          deliveryTime: p.deliveryTime || '30 mins',
+          cuisine: p.cuisine || p.foodType || '',
+          isVeg: p.isVeg ?? (p.vegNonVeg === 'veg' || p.foodType === 'veg' || false),
+          hasOffer: Boolean(p.hasOffer || p.discount || p.originalPrice),
+          serviceType: p.serviceType || p.itemType || '',
+          availableToday: p.availableToday ?? true,
+          serviceTime: p.serviceTime || p.duration || '45 mins',
+          bookingMode: p.bookingMode || 'Online & Home Service',
+          departureSlot: p.departureSlot || p.departureTime || '',
           // Travel specific fields for customer travel card
           type: 'Bus',
           subType: resolvedBusType,
@@ -3999,36 +2029,12 @@ export default function CategoryDetails() {
           badge: p.badge || (isTravelItem ? 'Top Rated Bus' : undefined),
         };
       });
+  }, [apiProducts, categoryName]);
 
-    allServices = [...mappedApiProds];
-
-    // Flatten catalog items matching category
-    Object.keys(CURATED_SERVICES_CATALOG).forEach((catKey) => {
-      const catKeyLower = catKey.toLowerCase().trim();
-      let isMatch = false;
-
-      if (targetCategory === 'all') {
-        isMatch = true;
-      } else if (targetCategory === 'services') {
-        // Services category must exclude non-service categories
-        isMatch = !['products', 'daily needs', 'food', 'stay', 'travel'].includes(catKeyLower);
-      } else if (targetCategory === 'electronics' || targetCategory === 'electronic') {
-        isMatch = catKeyLower === 'products';
-      } else {
-        isMatch =
-          catKeyLower === targetCategory ||
-          catKeyLower.includes(targetCategory) ||
-          targetCategory.includes(catKeyLower);
-      }
-
-      if (isMatch) {
-        const items = CURATED_SERVICES_CATALOG[catKey].map((it) => ({
-          ...it,
-          mainCategory: catKey,
-        }));
-        allServices = [...allServices, ...items];
-      }
-    });
+  // Compile active catalog items matching selected category & search query
+  const displayedServices = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    let allServices: Array<any> = [...mappedApiProds];
 
     // Real Travel Search & Availability filter based on live criteria
     if (isTravelCategory) {
@@ -4105,6 +2111,7 @@ export default function CategoryDetails() {
     }
 
     // If no direct catalog matches, generate from SIDEBAR_DATA for categoryName
+    const targetCategory = (categoryName || '').toLowerCase();
     if (allServices.length === 0 && targetCategory !== 'all') {
       const catSidebarKey = Object.keys(SIDEBAR_DATA).find(
         (k) => k.toLowerCase() === targetCategory || targetCategory.includes(k.toLowerCase())
@@ -4122,8 +2129,8 @@ export default function CategoryDetails() {
             desc: `Verified ${leafName.toLowerCase()} with quality warranty & fast doorstep delivery.`,
             rating: (4.7 + (lIdx % 3) * 0.1).toFixed(1),
             reviews: `${(lIdx + 2) * 110}+`,
-            price: `₹${299 + (lIdx % 5) * 200}`,
-            originalPrice: `₹${599 + (lIdx % 5) * 250}`,
+            price: `â‚¹${299 + (lIdx % 5) * 200}`,
+            originalPrice: `â‚¹${599 + (lIdx % 5) * 250}`,
             image: getRelevantProductImage(leafName, subName, categoryName),
             assured: true,
           });
@@ -4204,7 +2211,7 @@ export default function CategoryDetails() {
 
         // Smart route query match e.g. "bangalore to vellore" or "bangalore vellore"
         if (isTravelCategory) {
-          const parts = query.replace(/\bto\b|\b➔\b|->|-/gi, ' ').split(/\s+/).filter(Boolean);
+          const parts = query.replace(/\bto\b|\bâž”\b|->|-/gi, ' ').split(/\s+/).filter(Boolean);
           if (parts.length >= 2) {
             const partFrom = parts[0];
             const partTo = parts[parts.length - 1];
@@ -4233,16 +2240,16 @@ export default function CategoryDetails() {
           (s) => s.brand && s.brand.toLowerCase() === selectedProdBrand.toLowerCase()
         );
       }
-      if (selectedProdPrice === 'Under ₹1,500') {
+      if (selectedProdPrice === 'Under â‚¹1,500') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 1500
         );
-      } else if (selectedProdPrice === '₹1,500 - ₹5,000') {
+      } else if (selectedProdPrice === 'â‚¹1,500 - â‚¹5,000') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 1500 && p <= 5000;
         });
-      } else if (selectedProdPrice === '₹5,000+') {
+      } else if (selectedProdPrice === 'â‚¹5,000+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 5000
         );
@@ -4274,16 +2281,16 @@ export default function CategoryDetails() {
           (s) => s.brand && s.brand.toLowerCase() === selectedDnBrand.toLowerCase()
         );
       }
-      if (selectedDnPrice === 'Under ₹50') {
+      if (selectedDnPrice === 'Under â‚¹50') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 50
         );
-      } else if (selectedDnPrice === '₹50 - ₹200') {
+      } else if (selectedDnPrice === 'â‚¹50 - â‚¹200') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 50 && p <= 200;
         });
-      } else if (selectedDnPrice === '₹200+') {
+      } else if (selectedDnPrice === 'â‚¹200+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 200
         );
@@ -4307,7 +2314,7 @@ export default function CategoryDetails() {
       }
       if (selectedDnDeliveryTime !== 'All') {
         allServices = allServices.filter(
-          (s) => s.deliveryTime && s.deliveryTime.includes(selectedDnDeliveryTime.replace('⚡ ', ''))
+          (s) => s.deliveryTime && s.deliveryTime.includes(selectedDnDeliveryTime.replace('âš¡ ', ''))
         );
       }
     }
@@ -4327,16 +2334,16 @@ export default function CategoryDetails() {
       } else if (selectedFoodVegMode === 'Non-Veg') {
         allServices = allServices.filter((s) => s.isVeg === false);
       }
-      if (selectedFoodPrice === 'Under ₹200') {
+      if (selectedFoodPrice === 'Under â‚¹200') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 200
         );
-      } else if (selectedFoodPrice === '₹200 - ₹500') {
+      } else if (selectedFoodPrice === 'â‚¹200 - â‚¹500') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 200 && p <= 500;
         });
-      } else if (selectedFoodPrice === '₹500+') {
+      } else if (selectedFoodPrice === 'â‚¹500+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 500
         );
@@ -4370,16 +2377,16 @@ export default function CategoryDetails() {
             s.name.toLowerCase().includes(selectedSrvType.toLowerCase())
         );
       }
-      if (selectedSrvPrice === 'Under ₹500') {
+      if (selectedSrvPrice === 'Under â‚¹500') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 500
         );
-      } else if (selectedSrvPrice === '₹500 - ₹1,500') {
+      } else if (selectedSrvPrice === 'â‚¹500 - â‚¹1,500') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 500 && p <= 1500;
         });
-      } else if (selectedSrvPrice === '₹1,500+') {
+      } else if (selectedSrvPrice === 'â‚¹1,500+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 1500
         );
@@ -4486,19 +2493,19 @@ export default function CategoryDetails() {
       ? selectedBusSort
       : 'Recommended';
 
-    if (activeSort === 'Price Low → High') {
+    if (activeSort === 'Price Low â†’ High') {
       allServices.sort((a, b) => {
         const pA = a.priceNum || parseInt((a.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         const pB = b.priceNum || parseInt((b.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         return pA - pB;
       });
-    } else if (activeSort === 'Price High → Low') {
+    } else if (activeSort === 'Price High â†’ Low') {
       allServices.sort((a, b) => {
         const pA = a.priceNum || parseInt((a.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         const pB = b.priceNum || parseInt((b.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         return pB - pA;
       });
-    } else if (activeSort === 'Rating High → Low' || activeSort === 'Rating') {
+    } else if (activeSort === 'Rating High â†’ Low' || activeSort === 'Rating') {
       allServices.sort((a, b) => {
         const rA = parseFloat(a.rating || '0') || 0;
         const rB = parseFloat(b.rating || '0') || 0;
@@ -4516,7 +2523,7 @@ export default function CategoryDetails() {
         const tB = parseTimeToMinutes(b.departureTime);
         return tB - tA;
       });
-    } else if (activeSort === 'Discount High → Low') {
+    } else if (activeSort === 'Discount High â†’ Low') {
       allServices.sort((a, b) => {
         const dA = a.discountNum || 0;
         const dB = b.discountNum || 0;
@@ -4588,7 +2595,10 @@ export default function CategoryDetails() {
   // Draft preview products list for modal result count
   const draftProdDisplayedServices = useMemo(() => {
     if (!isProductsCategory) return [];
-    let items = (CURATED_SERVICES_CATALOG['Products'] as any[]) || [];
+    let items = (mappedApiProds || []).filter((p) => {
+      const cat = (p.mainCategory || '').toLowerCase();
+      return cat === 'products' || cat === 'product';
+    });
     const query = searchQuery.toLowerCase().trim();
 
     if (selectedSubcat !== 'All') {
@@ -4611,14 +2621,14 @@ export default function CategoryDetails() {
     if (draftProdBrand !== 'All') {
       items = items.filter((s) => s.brand && s.brand.toLowerCase() === draftProdBrand.toLowerCase());
     }
-    if (draftProdPrice === 'Under ₹1,500') {
+    if (draftProdPrice === 'Under â‚¹1,500') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 1500);
-    } else if (draftProdPrice === '₹1,500 - ₹5,000') {
+    } else if (draftProdPrice === 'â‚¹1,500 - â‚¹5,000') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 1500 && p <= 5000;
       });
-    } else if (draftProdPrice === '₹5,000+') {
+    } else if (draftProdPrice === 'â‚¹5,000+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 5000);
     }
     if (draftProdRating !== null) {
@@ -4650,7 +2660,7 @@ export default function CategoryDetails() {
   // Draft preview Daily Needs list for modal result count
   const draftDnDisplayedServices = useMemo(() => {
     if (!isDailyNeedsCategory) return [];
-    let items = (CURATED_SERVICES_CATALOG['Daily Needs'] as any[]) || [];
+    let items = (mappedApiProds || []).filter((p) => (p.mainCategory || '').toLowerCase().includes('daily'));
     const query = searchQuery.toLowerCase().trim();
 
     if (selectedSubcat !== 'All') {
@@ -4673,14 +2683,14 @@ export default function CategoryDetails() {
     if (draftDnBrand !== 'All') {
       items = items.filter((s) => s.brand && s.brand.toLowerCase() === draftDnBrand.toLowerCase());
     }
-    if (draftDnPrice === 'Under ₹50') {
+    if (draftDnPrice === 'Under â‚¹50') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 50);
-    } else if (draftDnPrice === '₹50 - ₹200') {
+    } else if (draftDnPrice === 'â‚¹50 - â‚¹200') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 50 && p <= 200;
       });
-    } else if (draftDnPrice === '₹200+') {
+    } else if (draftDnPrice === 'â‚¹200+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 200);
     }
     if (draftDnRating !== null) {
@@ -4697,7 +2707,7 @@ export default function CategoryDetails() {
       items = items.filter((s) => s.inStock !== false);
     }
     if (draftDnDeliveryTime !== 'All') {
-      items = items.filter((s) => s.deliveryTime && s.deliveryTime.includes(draftDnDeliveryTime.replace('⚡ ', '')));
+      items = items.filter((s) => s.deliveryTime && s.deliveryTime.includes(draftDnDeliveryTime.replace('âš¡ ', '')));
     }
 
     return items;
@@ -4716,7 +2726,7 @@ export default function CategoryDetails() {
   // Draft preview Food list for modal result count
   const draftFoodDisplayedServices = useMemo(() => {
     if (!isFoodCategory) return [];
-    let items = (CURATED_SERVICES_CATALOG['Food'] as any[]) || [];
+    let items = (mappedApiProds || []).filter((p) => (p.mainCategory || '').toLowerCase() === 'food');
     const query = searchQuery.toLowerCase().trim();
 
     if (selectedSubcat !== 'All') {
@@ -4746,14 +2756,14 @@ export default function CategoryDetails() {
     } else if (draftFoodVegMode === 'Non-Veg') {
       items = items.filter((s) => s.isVeg === false);
     }
-    if (draftFoodPrice === 'Under ₹200') {
+    if (draftFoodPrice === 'Under â‚¹200') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 200);
-    } else if (draftFoodPrice === '₹200 - ₹500') {
+    } else if (draftFoodPrice === 'â‚¹200 - â‚¹500') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 200 && p <= 500;
       });
-    } else if (draftFoodPrice === '₹500+') {
+    } else if (draftFoodPrice === 'â‚¹500+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 500);
     }
     if (draftFoodRating !== null) {
@@ -4789,7 +2799,7 @@ export default function CategoryDetails() {
   // Draft preview Services list for modal result count
   const draftSrvDisplayedServices = useMemo(() => {
     if (!isServicesCategory) return [];
-    let items = (CURATED_SERVICES_CATALOG['Services'] as any[]) || [];
+    let items = (mappedApiProds || []).filter((p) => (p.mainCategory || '').toLowerCase() === 'services');
     const query = searchQuery.toLowerCase().trim();
 
     if (selectedSubcat !== 'All') {
@@ -4814,14 +2824,14 @@ export default function CategoryDetails() {
           s.name.toLowerCase().includes(draftSrvType.toLowerCase())
       );
     }
-    if (draftSrvPrice === 'Under ₹500') {
+    if (draftSrvPrice === 'Under â‚¹500') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 500);
-    } else if (draftSrvPrice === '₹500 - ₹1,500') {
+    } else if (draftSrvPrice === 'â‚¹500 - â‚¹1,500') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 500 && p <= 1500;
       });
-    } else if (draftSrvPrice === '₹1,500+') {
+    } else if (draftSrvPrice === 'â‚¹1,500+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 1500);
     }
     if (draftSrvRating !== null) {
@@ -4854,7 +2864,7 @@ export default function CategoryDetails() {
   // Draft preview Bus list for modal result count
   const draftBusDisplayedServices = useMemo(() => {
     if (!isTravelCategory) return [];
-    let items = [...((CURATED_SERVICES_CATALOG['Travel'] as any[]) || []), ...dynamicVendorTravelItems];
+    let items = dynamicVendorTravelItems || [];
     const reqFrom = (routeParams.from || '').trim().toLowerCase();
     const reqTo = (routeParams.to || '').trim().toLowerCase();
     if (reqFrom || reqTo) {
@@ -5054,11 +3064,11 @@ export default function CategoryDetails() {
     }
 
     // 4. Filter by Price Range
-    if (priceRange === 'Under ₹3,500') {
+    if (priceRange === 'Under â‚¹3,500') {
       items = items.filter((s) => (s.priceNum || 0) < 3500);
-    } else if (priceRange === '₹3,500 - ₹6,000') {
+    } else if (priceRange === 'â‚¹3,500 - â‚¹6,000') {
       items = items.filter((s) => (s.priceNum || 0) >= 3500 && (s.priceNum || 0) <= 6000);
-    } else if (priceRange === '₹6,000+') {
+    } else if (priceRange === 'â‚¹6,000+') {
       items = items.filter((s) => (s.priceNum || 0) > 6000);
     }
 
@@ -5117,9 +3127,9 @@ export default function CategoryDetails() {
     }
 
     // 10. Sort
-    if (sortOpt === 'Price Low → High') {
+    if (sortOpt === 'Price Low â†’ High') {
       items.sort((a, b) => (a.priceNum || 0) - (b.priceNum || 0));
-    } else if (sortOpt === 'Price High → Low') {
+    } else if (sortOpt === 'Price High â†’ Low') {
       items.sort((a, b) => (b.priceNum || 0) - (a.priceNum || 0));
     } else if (sortOpt === 'Rating') {
       items.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
@@ -5182,9 +3192,9 @@ export default function CategoryDetails() {
           desc: p.detail || p.description || p.desc || 'Premium comfortable stay with world class hospitality and top tier amenities.',
           rating: String(p.rating || '4.8'),
           reviews: String(p.reviewsCount || p.ratingCount || '320'),
-          price: `₹${numPrice.toLocaleString('en-IN')} / night`,
+          price: `â‚¹${numPrice.toLocaleString('en-IN')} / night`,
           priceNum: numPrice,
-          originalPrice: `₹${origNum.toLocaleString('en-IN')}`,
+          originalPrice: `â‚¹${origNum.toLocaleString('en-IN')}`,
           discount: `${discountPct > 0 ? discountPct : 20}% OFF`,
           image: resolveImageUrl(p.image || p.imageUrl) || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
           assured: true,
@@ -5230,7 +3240,7 @@ export default function CategoryDetails() {
       }
     });
 
-    const catalog = [...((CURATED_SERVICES_CATALOG['Stay'] as any[]) || []), ...dynamicVendorStayItems];
+    const catalog = dynamicVendorStayItems || [];
     catalog.forEach((s) => {
       if (s.name.toLowerCase().includes(q) || (s.location && s.location.toLowerCase().includes(q))) {
         if (!results.some((r) => r.title.toLowerCase() === s.name.toLowerCase())) {
@@ -5280,7 +3290,7 @@ export default function CategoryDetails() {
 
   // Main screen stays (committed applied filter state)
   const displayedStays = useMemo(() => {
-    const catalog = [...((CURATED_SERVICES_CATALOG['Stay'] as any[]) || []), ...dynamicVendorStayItems];
+    const catalog = dynamicVendorStayItems || [];
     return filterStayList(
       catalog,
       selectedDestination,
@@ -5312,7 +3322,7 @@ export default function CategoryDetails() {
 
   // Modal preview stays count (draft uncommitted filter state)
   const draftDisplayedStays = useMemo(() => {
-    const catalog = [...((CURATED_SERVICES_CATALOG['Stay'] as any[]) || []), ...dynamicVendorStayItems];
+    const catalog = dynamicVendorStayItems || [];
     return filterStayList(
       catalog,
       selectedDestination,
@@ -5354,7 +3364,7 @@ export default function CategoryDetails() {
         const sub = p.subCategory || p.subcategory || 'General';
         const roleName = p.itemType || p.childCategory || p.role || p.name || 'Job Role';
         const rawSalary = p.salaryPackage || p.price || '';
-        const salaryStr = rawSalary ? (String(rawSalary).startsWith('₹') ? String(rawSalary) : `₹${rawSalary}`) : 'Competitive';
+        const salaryStr = rawSalary ? (String(rawSalary).startsWith('â‚¹') ? String(rawSalary) : `â‚¹${rawSalary}`) : 'Competitive';
 
         let skills: string[] = [];
         if (Array.isArray(p.skillsRequirement)) {
@@ -5384,7 +3394,7 @@ export default function CategoryDetails() {
           isVerified: true,
           location: workLoc,
           workMode,
-          experience: p.experienceRequired || '1–3 yrs',
+          experience: p.experienceRequired || '1â€“3 yrs',
           salary: salaryStr,
           employmentType: p.jobType || 'Full-time',
           department: sub,
@@ -5405,7 +3415,7 @@ export default function CategoryDetails() {
   }, [apiProducts]);
 
   const filteredJobs = useMemo(() => {
-    const allJobs = [...dynamicVendorJobs, ...CURATED_JOBS_CATALOG];
+    const allJobs = dynamicVendorJobs || [];
     const incomingSub = routeParams.subCategoryName;
 
     return allJobs.filter((job: JobItem) => {
@@ -5481,22 +3491,22 @@ export default function CategoryDetails() {
   }, [categoryName]);
 
   const getCalculatedServicePrice = useCallback((item: any) => {
-    if (!item) return { numPrice: 499, priceStr: '₹499', packageLabel: '' };
+    if (!item) return { numPrice: 499, priceStr: 'â‚¹499', packageLabel: '' };
 
     const cat = getEffectiveCategory(item);
 
     if (cat === 'Education') {
       if (selectedDuration.includes('899') || selectedDuration.includes('2 Hours')) {
-        return { numPrice: 899, priceStr: '₹899', packageLabel: '2 Hours Intensive (₹899)' };
+        return { numPrice: 899, priceStr: 'â‚¹899', packageLabel: '2 Hours Intensive (â‚¹899)' };
       }
-      return { numPrice: 499, priceStr: '₹499', packageLabel: '1 Hour Session (₹499)' };
+      return { numPrice: 499, priceStr: 'â‚¹499', packageLabel: '1 Hour Session (â‚¹499)' };
     }
 
     if (cat === 'Healthcare') {
       if (consultationMode === 'clinic') {
-        return { numPrice: 699, priceStr: '₹699', packageLabel: 'In-Clinic Visit (₹699)' };
+        return { numPrice: 699, priceStr: 'â‚¹699', packageLabel: 'In-Clinic Visit (â‚¹699)' };
       }
-      return { numPrice: 399, priceStr: '₹399', packageLabel: 'Video Call (₹399)' };
+      return { numPrice: 399, priceStr: 'â‚¹399', packageLabel: 'Video Call (â‚¹399)' };
     }
 
     const basePriceNum = parseInt((item.price || '499').replace(/[^\d]/g, ''), 10) || 499;
@@ -5504,13 +3514,13 @@ export default function CategoryDetails() {
     if (cat === 'Home Services' || cat === 'Automobile') {
       if (selectedProblemPackage.includes('350') || selectedProblemPackage.includes('Jet Wash')) {
         const total = basePriceNum + 350;
-        return { numPrice: total, priceStr: `₹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
+        return { numPrice: total, priceStr: `â‚¹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
       }
       if (selectedProblemPackage.includes('500') || selectedProblemPackage.includes('Gas Leak')) {
         const total = basePriceNum + 500;
-        return { numPrice: total, priceStr: `₹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
+        return { numPrice: total, priceStr: `â‚¹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
       }
-      return { numPrice: basePriceNum, priceStr: `₹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
+      return { numPrice: basePriceNum, priceStr: `â‚¹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
     }
 
     if (cat === 'Travel' || cat === 'Stay') {
@@ -5518,12 +3528,12 @@ export default function CategoryDetails() {
       const total = basePriceNum * guestMultiplier;
       return {
         numPrice: total,
-        priceStr: `₹${total.toLocaleString('en-IN')}`,
+        priceStr: `â‚¹${total.toLocaleString('en-IN')}`,
         packageLabel: `${travelGuests} (${guestMultiplier}x)`,
       };
     }
 
-    return { numPrice: basePriceNum, priceStr: `₹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: '' };
+    return { numPrice: basePriceNum, priceStr: `â‚¹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: '' };
   }, [getEffectiveCategory, selectedDuration, consultationMode, selectedProblemPackage, travelGuests, getTargetGuestCount, travelerList.length]);
 
   const getConfirmCtaLabel = useCallback((item: any) => {
@@ -5534,20 +3544,20 @@ export default function CategoryDetails() {
       case 'Healthcare':
       case 'Legal':
       case 'Financial':
-        return `Book Consultation • ${priceStr}`;
+        return `Book Consultation â€¢ ${priceStr}`;
       case 'Education':
-        return `Book Session • ${priceStr}`;
+        return `Book Session â€¢ ${priceStr}`;
       case 'Automobile':
       case 'Home Services':
-        return `Book Service • ${priceStr}`;
+        return `Book Service â€¢ ${priceStr}`;
       case 'IT/Digital':
-        return `Request Service • ${priceStr}`;
+        return `Request Service â€¢ ${priceStr}`;
       case 'Travel':
-        return `Book Trip • ${priceStr}`;
+        return `Book Trip â€¢ ${priceStr}`;
       case 'Stay':
-        return `Reserve Stay • ${priceStr}`;
+        return `Reserve Stay â€¢ ${priceStr}`;
       default:
-        return `Book Service • ${priceStr}`;
+        return `Book Service â€¢ ${priceStr}`;
     }
   }, [getEffectiveCategory, getCalculatedServicePrice]);
 
@@ -5675,11 +3685,11 @@ export default function CategoryDetails() {
     const bookingId = `BK-${Date.now().toString().slice(-6)}`;
 
     const travelerSummaryStr = bookingInfo.travelers && bookingInfo.travelers.length > 0
-      ? ` • ${bookingInfo.travelers.length} Person(s): ` + bookingInfo.travelers.map((t: any, i: number) => `P${i+1}: ${t.name} (Aadhaar: ${t.aadhar}, Mob: ${t.phone})`).join('; ')
+      ? ` â€¢ ${bookingInfo.travelers.length} Person(s): ` + bookingInfo.travelers.map((t: any, i: number) => `P${i+1}: ${t.name} (Aadhaar: ${t.aadhar}, Mob: ${t.phone})`).join('; ')
       : '';
 
     const boardingDroppingSummary = bookingInfo.boardingPoint && bookingInfo.droppingPoint
-      ? ` • Boarding: ${bookingInfo.boardingPoint} ➔ Dropping: ${bookingInfo.droppingPoint}`
+      ? ` â€¢ Boarding: ${bookingInfo.boardingPoint} âž” Dropping: ${bookingInfo.droppingPoint}`
       : '';
 
     const resolvedVendorName = (bookingInfo.effectiveCat === 'Travel')
@@ -5708,7 +3718,7 @@ export default function CategoryDetails() {
       customer_address: bookingInfo.address || 'Indiranagar, Bangalore',
       customer_latitude: 12.9498,
       customer_longitude: 77.6289,
-      product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} • ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
+      product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} â€¢ ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
       provider_name: bookingInfo.operator || bookingInfo.name,
       operator_name: bookingInfo.operator || '',
       bus_name: bookingInfo.name || '',
@@ -5738,9 +3748,9 @@ export default function CategoryDetails() {
 
     // Notification Center Dispatch based on category
     if (bookingInfo.effectiveCat === 'Travel') {
-      useNotificationStore.getState().addNotification({
-        title: 'Ticket Booked! Payment Complete 🚍',
-        body: `Your bus ticket #${bookingId} (${bookingInfo.name}${bookingInfo.vehicleNumber ? ` • Reg: ${bookingInfo.vehicleNumber}` : ''}) is booked! Seat allocation pending from operator.`,
+      dispatchCustomerNotification({
+        title: 'Ticket Booked! Payment Complete ðŸš',
+        body: `Your bus ticket #${bookingId} (${bookingInfo.name}${bookingInfo.vehicleNumber ? ` â€¢ Reg: ${bookingInfo.vehicleNumber}` : ''}) is booked! Seat allocation pending from operator.`,
         icon: 'Bus',
         category: 'order',
         actionLabel: 'View Booking',
@@ -5752,8 +3762,8 @@ export default function CategoryDetails() {
         targetParams: { activeTab: 'my bookings', category: 'Travel', orderId: bookingId },
       });
     } else if (bookingInfo.effectiveCat === 'Stay') {
-      useNotificationStore.getState().addNotification({
-        title: 'Stay Booked! Payment Complete 🏨',
+      dispatchCustomerNotification({
+        title: 'Stay Booked! Payment Complete ðŸ¨',
         body: `Your hotel stay #${bookingId} for ${bookingInfo.name} on ${bookingInfo.date} is booked and confirmed!`,
         icon: 'Hotel',
         category: 'order',
@@ -5766,8 +3776,8 @@ export default function CategoryDetails() {
         targetParams: { activeTab: 'my bookings', category: 'Stay', orderId: bookingId },
       });
     } else {
-      useNotificationStore.getState().addNotification({
-        title: 'Service Booked! Payment Complete 🛠️',
+      dispatchCustomerNotification({
+        title: 'Service Booked! Payment Complete ðŸ› ï¸',
         body: `Your appointment #${bookingId} for ${bookingInfo.name} is booked for ${bookingInfo.date} at ${bookingInfo.slot}.`,
         icon: 'Wrench',
         category: 'order',
@@ -5807,7 +3817,7 @@ export default function CategoryDetails() {
         customer_address: bookingInfo.address,
         customer_latitude: 12.9498,
         customer_longitude: 77.6289,
-        product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} • ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
+        product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} â€¢ ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
         provider_name: bookingInfo.operator || bookingInfo.name,
         operator_name: bookingInfo.operator || '',
         bus_name: bookingInfo.name || '',
@@ -5981,7 +3991,7 @@ export default function CategoryDetails() {
               <TextInput
                 ref={searchInputRef}
                 style={[styles.searchInput, { color: colors.text, flex: 1 }]}
-                placeholder={isVoiceListening ? "Listening... Speak now 🎙️" : catMeta.searchPlaceholder}
+                placeholder={isVoiceListening ? "Listening... Speak now ðŸŽ™ï¸" : catMeta.searchPlaceholder}
                 placeholderTextColor={isVoiceListening ? "#D97706" : isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)'}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -6062,6 +4072,13 @@ export default function CategoryDetails() {
           { paddingBottom: Math.max(insets.bottom, 20) + 70 },
         ]}
         showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 150) {
+            setPage((prev) => prev + 1);
+          }
+        }}
+        scrollEventThrottle={200}
       >
         {isStayCategory ? (
           <View style={{ width: '100%' }}>
@@ -6236,8 +4253,9 @@ export default function CategoryDetails() {
             </View>
 
             {displayedStays.length > 0 ? (
-              <View style={styles.compact2ColGrid}>
-                {displayedStays.map((hotel) => {
+              <>
+                <View style={styles.compact2ColGrid}>
+                {displayedStays.slice(0, page * PAGE_SIZE).map((hotel) => {
                   const isWishlisted = isInWishlist(hotel.id);
                   return (
                     <TouchableOpacity
@@ -6295,7 +4313,7 @@ export default function CategoryDetails() {
                         </Text>
 
                         <Text style={styles.compactCategorySub} numberOfLines={1}>
-                          {hotel.location || `${hotel.subcategory} • ${hotel.locationCity || 'India'}`}
+                          {hotel.location || `${hotel.subcategory} â€¢ ${hotel.locationCity || 'India'}`}
                         </Text>
 
                         <View style={styles.compactRatingRow}>
@@ -6305,7 +4323,7 @@ export default function CategoryDetails() {
                         </View>
 
                         <Text style={styles.stayAmenitiesSummaryText} numberOfLines={1}>
-                          {(hotel.amenities || ['Pool', 'Free Wi-Fi', 'Breakfast']).join(' • ')}
+                          {(hotel.amenities || ['Pool', 'Free Wi-Fi', 'Breakfast']).join(' â€¢ ')}
                         </Text>
 
                         <View style={styles.compactPriceRow}>
@@ -6319,28 +4337,75 @@ export default function CategoryDetails() {
 
                         <Text style={styles.stayFreeCancelTag}>Free cancellation</Text>
 
-                        <TouchableOpacity
-                          style={styles.stayViewRoomsBtn}
-                          activeOpacity={0.85}
-                          onPress={() =>
-                            navigation.navigate('StayDetails', {
-                              stay: hotel,
-                              checkIn: formatStayDateDisplay(checkInDateObj),
-                              checkOut: formatStayDateDisplay(checkOutDateObj),
-                              nights: stayNights,
-                              adults: stayAdults,
-                              children: stayChildren,
-                              rooms: stayRooms,
-                            })
-                          }
-                        >
-                          <Text style={styles.stayViewRoomsBtnText}>View Rooms</Text>
-                        </TouchableOpacity>
+                        <View style={styles.compactActionRow}>
+                          <TouchableOpacity
+                            style={styles.compactOutlineBtn}
+                            activeOpacity={0.85}
+                            onPress={(e) => {
+                              e.stopPropagation?.();
+                              showToast('Please select dates & room to complete stay booking', 'Book Stay', () =>
+                                navigation.navigate('StayDetails', {
+                                  stay: hotel,
+                                  checkIn: formatStayDateDisplay(checkInDateObj),
+                                  checkOut: formatStayDateDisplay(checkOutDateObj),
+                                  nights: stayNights,
+                                  adults: stayAdults,
+                                  children: stayChildren,
+                                  rooms: stayRooms,
+                                })
+                              );
+                              navigation.navigate('StayDetails', {
+                                stay: hotel,
+                                checkIn: formatStayDateDisplay(checkInDateObj),
+                                checkOut: formatStayDateDisplay(checkOutDateObj),
+                                nights: stayNights,
+                                adults: stayAdults,
+                                children: stayChildren,
+                                rooms: stayRooms,
+                              });
+                            }}
+                          >
+                            <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                            <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.compactPrimaryBtn}
+                            activeOpacity={0.85}
+                            onPress={(e) => {
+                              e.stopPropagation?.();
+                              navigation.navigate('StayDetails', {
+                                stay: hotel,
+                                checkIn: formatStayDateDisplay(checkInDateObj),
+                                checkOut: formatStayDateDisplay(checkOutDateObj),
+                                nights: stayNights,
+                                adults: stayAdults,
+                                children: stayChildren,
+                                rooms: stayRooms,
+                              });
+                            }}
+                          >
+                            <Icons.Calendar color="#FFFFFF" size={11} strokeWidth={2.5} />
+                            <Text style={styles.compactPrimaryBtnText} numberOfLines={1}>Book Now</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </TouchableOpacity>
                   );
                 })}
               </View>
+              {displayedStays.length > page * PAGE_SIZE && (
+                <TouchableOpacity
+                  style={styles.loadMoreBtn}
+                  activeOpacity={0.8}
+                  onPress={() => setPage((prev) => prev + 1)}
+                >
+                  <Text style={styles.loadMoreBtnText}>
+                    Load More ({Math.min(page * PAGE_SIZE, displayedStays.length)} of {displayedStays.length})
+                  </Text>
+                </TouchableOpacity>
+              )}
+              </>
             ) : (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <Icons.Bed color="#94A3B8" size={36} />
@@ -6366,13 +4431,26 @@ export default function CategoryDetails() {
             </View>
 
             {filteredJobs.length > 0 ? (
-              filteredJobs.map((job) => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  onPress={() => navigation.navigate('JobDetails', { job })}
-                />
-              ))
+              <>
+                {filteredJobs.slice(0, page * PAGE_SIZE).map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    onPress={() => navigation.navigate('JobDetails', { job })}
+                  />
+                ))}
+                {filteredJobs.length > page * PAGE_SIZE && (
+                  <TouchableOpacity
+                    style={styles.loadMoreBtn}
+                    activeOpacity={0.8}
+                    onPress={() => setPage((prev) => prev + 1)}
+                  >
+                    <Text style={styles.loadMoreBtnText}>
+                      Load More ({Math.min(page * PAGE_SIZE, filteredJobs.length)} of {filteredJobs.length})
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
               <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <Icons.Briefcase color="#94A3B8" size={36} />
@@ -6613,11 +4691,11 @@ export default function CategoryDetails() {
                       <Text style={styles.travelRouteBannerText}>
                         Showing verified travel options for{' '}
                         <Text style={{ fontWeight: '800', color: '#B45309' }}>
-                          {travelFrom || 'All Cities'} ➔ {travelTo || 'All Destinations'}
+                          {travelFrom || 'All Cities'} âž” {travelTo || 'All Destinations'}
                         </Text>
                         {travelJourneyDate ? (
                           <>
-                            {' '}•{' '}
+                            {' '}â€¢{' '}
                             <Text style={{ fontWeight: '700', color: '#B45309' }}>
                               {travelJourneyDate}
                             </Text>
@@ -6625,7 +4703,7 @@ export default function CategoryDetails() {
                         ) : null}
                         {travelPassengers > 1 ? (
                           <>
-                            {' '}•{' '}
+                            {' '}â€¢{' '}
                             <Text style={{ fontWeight: '700', color: '#B45309' }}>
                               {travelPassengers} Passengers
                             </Text>
@@ -6633,7 +4711,7 @@ export default function CategoryDetails() {
                         ) : null}
                       </Text>
                       <Text style={{ fontSize: 11, color: '#B45309', marginTop: 2, fontWeight: '600' }}>
-                        {displayedServices.length} {displayedServices.length === 1 ? 'option' : 'options'} found • Tap to edit search
+                        {displayedServices.length} {displayedServices.length === 1 ? 'option' : 'options'} found â€¢ Tap to edit search
                       </Text>
                     </View>
                     <View
@@ -6654,7 +4732,7 @@ export default function CategoryDetails() {
                   </TouchableOpacity>
 
                   <View style={styles.travelListContainer}>
-                    {displayedServices.map((service: any) => {
+                    {displayedServices.slice(0, page * PAGE_SIZE).map((service: any) => {
                       return (
                         <View
                           key={service.id}
@@ -6671,7 +4749,7 @@ export default function CategoryDetails() {
                             <View style={styles.travelVehicleBadge}>
                               <Icons.Bus size={12} color="#D97706" style={{ marginRight: 4 }} />
                               <Text style={styles.travelVehicleBadgeText}>
-                                {(service.type || 'BUS').toUpperCase()} • {service.subType || service.busType || service.subcategory || 'AC Sleeper'}
+                                {(service.type || 'BUS').toUpperCase()} â€¢ {service.subType || service.busType || service.subcategory || 'AC Sleeper'}
                               </Text>
                             </View>
                             {service.badge ? (
@@ -6823,36 +4901,83 @@ export default function CategoryDetails() {
                               </Text>
                             </View>
 
-                            <TouchableOpacity
-                              style={styles.travelSelectSeatsBtn}
-                              activeOpacity={0.88}
-                              onPress={() => {
-                                const nextDays = NEXT_7_DAYS;
-                                const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
-                                const firstAvailSlot =
-                                  TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                setSelectedDateObj(firstAvailDay);
-                                setSelectedSlotObj(firstAvailSlot);
-                                setTravelBookingStep('GUESTS');
-                                const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
-                                const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
-                                setSelectedBoardingPoint(defBoarding);
-                                setSelectedDroppingPoint(defDropping);
-                                setSchedulingItem(service);
-                              }}
-                            >
-                              <Text style={styles.travelSelectSeatsBtnText}>Select Seats</Text>
-                              <Icons.ArrowRight size={14} color="#0F172A" style={{ marginLeft: 4 }} />
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
+                              <TouchableOpacity
+                                style={styles.compactOutlineBtn}
+                                activeOpacity={0.85}
+                                onPress={() => {
+                                  showToast('Please select seats to complete your travel booking', 'Book Seats', () => {
+                                    const nextDays = NEXT_7_DAYS;
+                                    const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                    const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                    setSelectedDateObj(firstAvailDay);
+                                    setSelectedSlotObj(firstAvailSlot);
+                                    setTravelBookingStep('GUESTS');
+                                    const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
+                                    const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
+                                    setSelectedBoardingPoint(defBoarding);
+                                    setSelectedDroppingPoint(defDropping);
+                                    setSchedulingItem(service);
+                                  });
+                                  const nextDays = NEXT_7_DAYS;
+                                  const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                  const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                  setSelectedDateObj(firstAvailDay);
+                                  setSelectedSlotObj(firstAvailSlot);
+                                  setTravelBookingStep('GUESTS');
+                                  const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
+                                  const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
+                                  setSelectedBoardingPoint(defBoarding);
+                                  setSelectedDroppingPoint(defDropping);
+                                  setSchedulingItem(service);
+                                }}
+                              >
+                                <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                                <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.compactPrimaryBtn}
+                                activeOpacity={0.88}
+                                onPress={() => {
+                                  const nextDays = NEXT_7_DAYS;
+                                  const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                  const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                  setSelectedDateObj(firstAvailDay);
+                                  setSelectedSlotObj(firstAvailSlot);
+                                  setTravelBookingStep('GUESTS');
+                                  const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
+                                  const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
+                                  setSelectedBoardingPoint(defBoarding);
+                                  setSelectedDroppingPoint(defDropping);
+                                  setSchedulingItem(service);
+                                }}
+                              >
+                                <Icons.Calendar size={11} color="#FFFFFF" strokeWidth={2.5} />
+                                <Text style={styles.compactPrimaryBtnText} numberOfLines={1}>Book Now</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         </View>
                       );
                     })}
                   </View>
+                  {displayedServices.length > page * PAGE_SIZE && (
+                    <TouchableOpacity
+                      style={styles.loadMoreBtn}
+                      activeOpacity={0.8}
+                      onPress={() => setPage((prev) => prev + 1)}
+                    >
+                      <Text style={styles.loadMoreBtnText}>
+                        Load More ({Math.min(page * PAGE_SIZE, displayedServices.length)} of {displayedServices.length})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               ) : (
-                <View style={styles.compact2ColGrid}>
-                {displayedServices.map((service) => {
+                <>
+                  <View style={styles.compact2ColGrid}>
+                {displayedServices.slice(0, page * PAGE_SIZE).map((service) => {
                   const isWishlisted = wishlistItems.some((w) => w.id === service.id);
                   const discBadge = getDiscountBadgeText(service.price, service.originalPrice);
                   const isCartCategory = catMeta.actionType === 'cart';
@@ -6924,7 +5049,7 @@ export default function CategoryDetails() {
 
                         <Text style={styles.compactCategorySub} numberOfLines={1}>
                           {service.brand
-                            ? `${service.brand} • ${service.subcategory}`
+                            ? `${service.brand} â€¢ ${service.subcategory}`
                             : `${service.subcategory || service.mainCategory || categoryName}`}
                         </Text>
 
@@ -6946,7 +5071,7 @@ export default function CategoryDetails() {
                             )}
                           </View>
                           <Text style={[styles.compactFreeDeliveryText, { marginLeft: 0, marginTop: 2 }]} numberOfLines={1}>
-                            {service.deliveryTime || (isCartCategory ? 'Free Delivery' : '⚡ 15-30 mins')}
+                            {service.deliveryTime || (isCartCategory ? 'Free Delivery' : 'âš¡ 15-30 mins')}
                           </Text>
                         </View>
 
@@ -6954,69 +5079,116 @@ export default function CategoryDetails() {
                         <View style={styles.compactActionRow}>
                           {(() => {
                             const cartItem = cartItems.find((c) => c.id === service.id);
-                            if (cartItem && cartItem.quantity > 0) {
-                              return (
-                                <View style={styles.stepperContainer}>
-                                  <TouchableOpacity
-                                    style={styles.stepperBtn}
-                                    onPress={() => {
-                                      if (cartItem.quantity > 1) {
-                                        updateQuantity(service.id, cartItem.quantity - 1);
-                                      } else {
-                                        removeFromCart(service.id);
-                                      }
-                                    }}
-                                  >
-                                    <Text style={styles.stepperBtnText}>-</Text>
-                                  </TouchableOpacity>
-                                  <Text style={styles.stepperQtyText}>{cartItem.quantity}</Text>
-                                  <TouchableOpacity
-                                    style={styles.stepperBtn}
-                                    onPress={() => updateQuantity(service.id, cartItem.quantity + 1)}
-                                  >
-                                    <Text style={styles.stepperBtnText}>+</Text>
-                                  </TouchableOpacity>
-                                </View>
-                              );
-                            }
+                            const isInCart = cartItem && cartItem.quantity > 0;
 
                             if (catMeta.actionType === 'cart') {
                               return (
-                                <TouchableOpacity
-                                  style={styles.compactAddBtn}
-                                  activeOpacity={0.85}
-                                  onPress={() => {
-                                    addToCart({
-                                      id: service.id,
-                                      name: service.name,
-                                      price: String(service.price || '₹299'),
-                                      category: categoryName,
-                                      image: service.image,
-                                      quantity: 1,
-                                    });
-                                  }}
-                                >
-                                  <Icons.Plus color="#0F172A" size={14} />
-                                  <Text style={styles.compactAddBtnText}>ADD</Text>
-                                </TouchableOpacity>
+                                <>
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.compactOutlineBtn,
+                                      isInCart ? styles.compactOutlineBtnActive : null
+                                    ]}
+                                    activeOpacity={0.85}
+                                    onPress={(e) => {
+                                      e.stopPropagation?.();
+                                      if (isInCart) {
+                                        showToast('Already in your cart', 'View Cart', () => setIsCartVisible(true));
+                                      } else {
+                                        addToCart({
+                                          id: service.id,
+                                          name: service.name,
+                                          price: String(service.price || '₹299'),
+                                          category: categoryName,
+                                          image: service.image,
+                                          quantity: 1,
+                                        });
+                                        showToast('Added to cart · View Cart', 'View Cart', () => setIsCartVisible(true));
+                                      }
+                                    }}
+                                  >
+                                    {isInCart ? (
+                                      <>
+                                        <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
+                                        <Text style={[styles.compactOutlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>Added</Text>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                                        <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                      </>
+                                    )}
+                                  </TouchableOpacity>
+
+                                  <TouchableOpacity
+                                    style={styles.compactPrimaryBtn}
+                                    activeOpacity={0.85}
+                                    onPress={(e) => {
+                                      e.stopPropagation?.();
+                                      if (!isInCart) {
+                                        addToCart({
+                                          id: service.id,
+                                          name: service.name,
+                                          price: String(service.price || '₹299'),
+                                          category: categoryName,
+                                          image: service.image,
+                                          quantity: 1,
+                                        });
+                                      }
+                                      navigation.navigate('Checkout', { item: service });
+                                    }}
+                                  >
+                                    <Icons.Zap color="#FFFFFF" size={11} strokeWidth={2.5} fill="#FFFFFF" />
+                                    <Text style={styles.compactPrimaryBtnText} numberOfLines={1}>Buy Now</Text>
+                                  </TouchableOpacity>
+                                </>
                               );
                             }
 
                             return (
-                              <TouchableOpacity
-                                style={[styles.compactCtaButton, { flex: 1 }]}
-                                activeOpacity={0.85}
-                                onPress={() => {
-                                  const nextDays = NEXT_7_DAYS;
-                                  const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
-                                  const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                  setSelectedDateObj(firstAvailDay);
-                                  setSelectedSlotObj(firstAvailSlot);
-                                  setSchedulingItem(service);
-                                }}
-                              >
-                                <Text style={styles.compactCtaButtonText}>Book Service</Text>
-                              </TouchableOpacity>
+                              <>
+                                <TouchableOpacity
+                                  style={styles.compactOutlineBtn}
+                                  activeOpacity={0.85}
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    showToast('Please select service schedule to proceed', 'Book Now', () => {
+                                      const nextDays = NEXT_7_DAYS;
+                                      const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                      const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                      setSelectedDateObj(firstAvailDay);
+                                      setSelectedSlotObj(firstAvailSlot);
+                                      setSchedulingItem(service);
+                                    });
+                                    const nextDays = NEXT_7_DAYS;
+                                    const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                    const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                    setSelectedDateObj(firstAvailDay);
+                                    setSelectedSlotObj(firstAvailSlot);
+                                    setSchedulingItem(service);
+                                  }}
+                                >
+                                  <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                                  <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={styles.compactPrimaryBtn}
+                                  activeOpacity={0.85}
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    const nextDays = NEXT_7_DAYS;
+                                    const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                    const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                    setSelectedDateObj(firstAvailDay);
+                                    setSelectedSlotObj(firstAvailSlot);
+                                    setSchedulingItem(service);
+                                  }}
+                                >
+                                  <Icons.Calendar color="#FFFFFF" size={11} strokeWidth={2.5} />
+                                  <Text style={styles.compactPrimaryBtnText} numberOfLines={1}>Book Now</Text>
+                                </TouchableOpacity>
+                              </>
                             );
                           })()}
                         </View>
@@ -7025,7 +5197,19 @@ export default function CategoryDetails() {
                   );
                 })}
               </View>
-            )
+              {displayedServices.length > page * PAGE_SIZE && (
+                <TouchableOpacity
+                  style={styles.loadMoreBtn}
+                  activeOpacity={0.8}
+                  onPress={() => setPage((prev) => prev + 1)}
+                >
+                  <Text style={styles.loadMoreBtnText}>
+                    Load More ({Math.min(page * PAGE_SIZE, displayedServices.length)} of {displayedServices.length})
+                  </Text>
+                </TouchableOpacity>
+              )}
+                </>
+              )
           ) : (
               isTravelCategory ? (
                 <View style={styles.travelEmptyContainer}>
@@ -7153,13 +5337,13 @@ export default function CategoryDetails() {
                     <Text style={styles.modalCategoryBadge}>
                       {getEffectiveCategory(schedulingItem).toUpperCase()}
                     </Text>
-                    <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '800' }}>● LIVE SLOTS</Text>
+                    <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '800' }}>â— LIVE SLOTS</Text>
                   </View>
                   <Text style={[styles.schedulerModalTitle, { color: colors.text }]} numberOfLines={1}>
                     {schedulingItem?.name}
                   </Text>
                   <Text style={[styles.schedulerItemName, { color: '#D97706' }]} numberOfLines={1}>
-                    Starting at {schedulingItem?.price || '₹499'} • Certified Provider
+                    Starting at {schedulingItem?.price || 'â‚¹499'} â€¢ Certified Provider
                   </Text>
                   {schedulingItem?.vehicleNumber ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
@@ -7202,7 +5386,7 @@ export default function CategoryDetails() {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ fontSize: 14, fontWeight: '800', color: isLight ? '#0F172A' : '#F8FAFC' }}>
-                        {schedulingItem?.from || routeParams.from || 'Bangalore'} ➔ {schedulingItem?.to || routeParams.to || 'Chennai'}
+                        {schedulingItem?.from || routeParams.from || 'Bangalore'} âž” {schedulingItem?.to || routeParams.to || 'Chennai'}
                       </Text>
                       <View style={{ backgroundColor: '#F5B800', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
                         <Text style={{ fontSize: 11, fontWeight: '800', color: '#0F172A' }}>
@@ -7212,10 +5396,10 @@ export default function CategoryDetails() {
                     </View>
                     <Text style={{ fontSize: 12, color: isLight ? '#475569' : '#CBD5E1', marginBottom: 4 }}>
                       Bus: <Text style={{ fontWeight: '700' }}>{schedulingItem?.name}</Text>
-                      {schedulingItem?.vehicleNumber ? ` (Reg: ${schedulingItem.vehicleNumber})` : ''} • Departure: <Text style={{ fontWeight: '700' }}>{schedulingItem?.departureTime || 'Direct Express'}</Text>
+                      {schedulingItem?.vehicleNumber ? ` (Reg: ${schedulingItem.vehicleNumber})` : ''} â€¢ Departure: <Text style={{ fontWeight: '700' }}>{schedulingItem?.departureTime || 'Direct Express'}</Text>
                     </Text>
                     <Text style={{ fontSize: 11.5, color: '#D97706', fontWeight: '700' }}>
-                      👥 {travelerList.map((t, idx) => `P${idx+1}: ${t.name || 'Guest'}`).join(', ')} ({travelerList.length} {travelerList.length === 1 ? 'Person' : 'Persons'})
+                      ðŸ‘¥ {travelerList.map((t, idx) => `P${idx+1}: ${t.name || 'Guest'}`).join(', ')} ({travelerList.length} {travelerList.length === 1 ? 'Person' : 'Persons'})
                     </Text>
                   </View>
 
@@ -7387,7 +5571,7 @@ export default function CategoryDetails() {
                         ? 'Select Boarding Point'
                         : !selectedDroppingPoint
                         ? 'Select Dropping Point'
-                        : `Proceed to Payment • ${getCalculatedServicePrice(schedulingItem).priceStr}`}
+                        : `Proceed to Payment â€¢ ${getCalculatedServicePrice(schedulingItem).priceStr}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -7404,8 +5588,8 @@ export default function CategoryDetails() {
                       <View style={[styles.providerInfoCard, { backgroundColor: isLight ? '#FEF3C7' : 'rgba(245, 184, 0, 0.1)', borderColor: isLight ? '#FDE68A' : 'rgba(245, 184, 0, 0.25)' }]}>
                         <Icons.UserCheck color="#D97706" size={16} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.providerTitle, { color: colors.text }]}>Dr. Ananya Sharma • MBBS, MD</Text>
-                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Senior Cardiologist • 15+ yrs Exp • 4.9 ★ (120+ Reviews)</Text>
+                          <Text style={[styles.providerTitle, { color: colors.text }]}>Dr. Ananya Sharma â€¢ MBBS, MD</Text>
+                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Senior Cardiologist â€¢ 15+ yrs Exp â€¢ 4.9 â˜… (120+ Reviews)</Text>
                         </View>
                       </View>
 
@@ -7416,14 +5600,14 @@ export default function CategoryDetails() {
                           onPress={() => setConsultationMode('video')}
                         >
                           <Icons.Video color={consultationMode === 'video' ? '#0F172A' : colors.text} size={14} />
-                          <Text style={[styles.chipBtnText, consultationMode === 'video' && styles.chipBtnTextActive, { color: consultationMode === 'video' ? '#0F172A' : colors.text }]}>Video Call (₹399)</Text>
+                          <Text style={[styles.chipBtnText, consultationMode === 'video' && styles.chipBtnTextActive, { color: consultationMode === 'video' ? '#0F172A' : colors.text }]}>Video Call (â‚¹399)</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.chipBtn, consultationMode === 'clinic' && styles.chipBtnActive]}
                           onPress={() => setConsultationMode('clinic')}
                         >
                           <Icons.Building color={consultationMode === 'clinic' ? '#0F172A' : colors.text} size={14} />
-                          <Text style={[styles.chipBtnText, consultationMode === 'clinic' && styles.chipBtnTextActive, { color: consultationMode === 'clinic' ? '#0F172A' : colors.text }]}>In-Clinic Visit (₹699)</Text>
+                          <Text style={[styles.chipBtnText, consultationMode === 'clinic' && styles.chipBtnTextActive, { color: consultationMode === 'clinic' ? '#0F172A' : colors.text }]}>In-Clinic Visit (â‚¹699)</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -7450,7 +5634,7 @@ export default function CategoryDetails() {
                     <View style={styles.customFieldsSection}>
                       <Text style={[styles.fieldLabel, { color: colors.text }]}>SERVICE PACKAGE</Text>
                       <View style={styles.chipOptionsRow}>
-                        {['Standard Cleaning (₹499)', 'Deep Jet Wash (+₹350)', 'Gas Leak Fix (+₹500)'].map((pkg) => (
+                        {['Standard Cleaning (â‚¹499)', 'Deep Jet Wash (+â‚¹350)', 'Gas Leak Fix (+â‚¹500)'].map((pkg) => (
                           <TouchableOpacity
                             key={pkg}
                             style={[styles.chipBtn, selectedProblemPackage === pkg && styles.chipBtnActive]}
@@ -7478,8 +5662,8 @@ export default function CategoryDetails() {
                       <View style={[styles.providerInfoCard, { backgroundColor: isLight ? '#FEF3C7' : 'rgba(245, 184, 0, 0.1)', borderColor: isLight ? '#FDE68A' : 'rgba(245, 184, 0, 0.25)' }]}>
                         <Icons.Scale color="#D97706" size={16} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.providerTitle, { color: colors.text }]}>Adv. Rajesh Varma • High Court Advocate</Text>
-                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Corporate & Property Law • 18+ yrs Exp • 4.9 ★</Text>
+                          <Text style={[styles.providerTitle, { color: colors.text }]}>Adv. Rajesh Varma â€¢ High Court Advocate</Text>
+                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Corporate & Property Law â€¢ 18+ yrs Exp â€¢ 4.9 â˜…</Text>
                         </View>
                       </View>
                       <Text style={[styles.fieldLabel, { color: colors.text, marginTop: 10 }]}>CASE BRIEF & REQUIREMENTS</Text>
@@ -7498,7 +5682,7 @@ export default function CategoryDetails() {
                     <View style={styles.customFieldsSection}>
                       <Text style={[styles.fieldLabel, { color: colors.text }]}>SESSION DURATION</Text>
                       <View style={styles.chipOptionsRow}>
-                        {['1 Hour Session (₹499)', '2 Hours Intensive (₹899)'].map((dur) => (
+                        {['1 Hour Session (â‚¹499)', '2 Hours Intensive (â‚¹899)'].map((dur) => (
                           <TouchableOpacity
                             key={dur}
                             style={[styles.chipBtn, selectedDuration === dur && styles.chipBtnActive]}
@@ -7833,7 +6017,7 @@ export default function CategoryDetails() {
                       >
                         <Icons.Sparkles color="#D97706" size={16} />
                         <Text style={{ flex: 1, fontSize: 11.5, color: isLight ? '#92400E' : '#FCD34D', fontWeight: '700' }}>
-                          Doorstep expert arrives in this selected slot • Free cancellation up to 2 hrs prior
+                          Doorstep expert arrives in this selected slot â€¢ Free cancellation up to 2 hrs prior
                         </Text>
                       </View>
                     </>
@@ -7849,16 +6033,16 @@ export default function CategoryDetails() {
                       )}
                       <Text style={[styles.summaryLabel, { color: isLight ? '#0F172A' : '#FFF' }]}>
                         {getEffectiveCategory(schedulingItem) === 'Travel'
-                          ? `${schedulingItem?.from || routeParams.from || 'Bangalore'} ➔ ${schedulingItem?.to || routeParams.to || 'Chennai'} • ${routeParams.journeyDate || 'Today'} • ${getCalculatedServicePrice(schedulingItem).priceStr}`
-                          : `${selectedDateObj ? selectedDateObj.fullDateStr : 'Select Date'} • ${selectedSlotObj ? selectedSlotObj.time : 'Select Slot'} • ${getCalculatedServicePrice(schedulingItem).priceStr}`}
+                          ? `${schedulingItem?.from || routeParams.from || 'Bangalore'} âž” ${schedulingItem?.to || routeParams.to || 'Chennai'} â€¢ ${routeParams.journeyDate || 'Today'} â€¢ ${getCalculatedServicePrice(schedulingItem).priceStr}`
+                          : `${selectedDateObj ? selectedDateObj.fullDateStr : 'Select Date'} â€¢ ${selectedSlotObj ? selectedSlotObj.time : 'Select Slot'} â€¢ ${getCalculatedServicePrice(schedulingItem).priceStr}`}
                       </Text>
                     </View>
                     <View style={styles.summaryRow}>
                       <Icons.ShieldCheck color="#10B981" size={14} />
                       <Text style={[styles.summarySubText, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>
                         {getEffectiveCategory(schedulingItem) === 'Travel'
-                          ? `Departure: ${schedulingItem?.departureTime || 'Direct Express'} • ${travelerList.length} ${travelerList.length === 1 ? 'Guest' : 'Guests'} • Free cancellation up to 2 hrs before`
-                          : `${getCalculatedServicePrice(schedulingItem).packageLabel ? `${getCalculatedServicePrice(schedulingItem).packageLabel} • ` : ''}Free cancellation up to 2 hrs before`}
+                          ? `Departure: ${schedulingItem?.departureTime || 'Direct Express'} â€¢ ${travelerList.length} ${travelerList.length === 1 ? 'Guest' : 'Guests'} â€¢ Free cancellation up to 2 hrs before`
+                          : `${getCalculatedServicePrice(schedulingItem).packageLabel ? `${getCalculatedServicePrice(schedulingItem).packageLabel} â€¢ ` : ''}Free cancellation up to 2 hrs before`}
                       </Text>
                     </View>
                   </View>
@@ -7898,7 +6082,7 @@ export default function CategoryDetails() {
                       }}
                     >
                       <Text style={styles.confirmBookingBtnText}>
-                        Select Boarding & Dropping Points ➔
+                        Select Boarding & Dropping Points âž”
                       </Text>
                     </TouchableOpacity>
                   ) : (
@@ -8618,12 +6802,12 @@ export default function CategoryDetails() {
                     >
                       {isOct2 && !isSelectedRange && (
                         <View style={styles.holidayAvatarSmall}>
-                          <Text style={{ fontSize: 9 }}>🕊️</Text>
+                          <Text style={{ fontSize: 9 }}>ðŸ•Šï¸</Text>
                         </View>
                       )}
                       {isOct20 && !isSelectedRange && (
                         <View style={styles.holidayAvatarSmall}>
-                          <Text style={{ fontSize: 9 }}>🏹</Text>
+                          <Text style={{ fontSize: 9 }}>ðŸ¹</Text>
                         </View>
                       )}
 
@@ -8840,7 +7024,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Stays</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {stayActiveFiltersCount > 0 ? `⚡ ${stayActiveFiltersCount} filter(s) active` : 'Select preferences to refine results'}
+                  {stayActiveFiltersCount > 0 ? `âš¡ ${stayActiveFiltersCount} filter(s) active` : 'Select preferences to refine results'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -8865,10 +7049,10 @@ export default function CategoryDetails() {
                 {/* Price Step Cards */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { label: 'All', icon: '🏷️' },
-                    { label: 'Under ₹3,500', icon: '💰' },
-                    { label: '₹3,500 - ₹6,000', icon: '✨' },
-                    { label: '₹6,000+', icon: '👑' },
+                    { label: 'All', icon: 'ðŸ·ï¸' },
+                    { label: 'Under â‚¹3,500', icon: 'ðŸ’°' },
+                    { label: 'â‚¹3,500 - â‚¹6,000', icon: 'âœ¨' },
+                    { label: 'â‚¹6,000+', icon: 'ðŸ‘‘' },
                   ].map((prOpt) => {
                     const isSel = draftStayPriceRange === prOpt.label;
                     return (
@@ -8903,11 +7087,11 @@ export default function CategoryDetails() {
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PROPERTY TYPE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { type: 'Hotels', icon: '🏨' },
-                    { type: 'Resorts', icon: '🌴' },
-                    { type: 'Villas', icon: '🏡' },
-                    { type: 'Homestays', icon: '🌄' },
-                    { type: 'Apartments', icon: '🏢' },
+                    { type: 'Hotels', icon: 'ðŸ¨' },
+                    { type: 'Resorts', icon: 'ðŸŒ´' },
+                    { type: 'Villas', icon: 'ðŸ¡' },
+                    { type: 'Homestays', icon: 'ðŸŒ„' },
+                    { type: 'Apartments', icon: 'ðŸ¢' },
                   ].map((item) => {
                     const isSel = draftStayPropTypes.includes(item.type);
                     return (
@@ -8960,9 +7144,9 @@ export default function CategoryDetails() {
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>STAR RATING</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { star: 5, label: '5 Star ★★★★★' },
-                    { star: 4, label: '4 Star ★★★★' },
-                    { star: 3, label: '3 Star ★★★' },
+                    { star: 5, label: '5 Star â˜…â˜…â˜…â˜…â˜…' },
+                    { star: 4, label: '4 Star â˜…â˜…â˜…â˜…' },
+                    { star: 3, label: '3 Star â˜…â˜…â˜…' },
                   ].map((stObj) => {
                     const isSel = draftStayStarRatings.includes(stObj.star);
                     return (
@@ -9026,7 +7210,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftStayGuestRating(isSel ? null : grObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{grObj.label}
+                          {isSel ? 'âœ“ ' : ''}{grObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9039,15 +7223,15 @@ export default function CategoryDetails() {
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>AMENITIES</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { amen: 'Pool', icon: '🏊' },
-                    { amen: 'Free Wi-Fi', icon: '📶' },
-                    { amen: 'Breakfast', icon: '🍳' },
-                    { amen: 'Parking', icon: '🅿️' },
-                    { amen: 'AC', icon: '❄️' },
-                    { amen: 'Spa', icon: '💆' },
-                    { amen: 'Gym', icon: '💪' },
-                    { amen: 'Kitchen', icon: '🍳' },
-                    { amen: 'Restaurant', icon: '🍽️' },
+                    { amen: 'Pool', icon: 'ðŸŠ' },
+                    { amen: 'Free Wi-Fi', icon: 'ðŸ“¶' },
+                    { amen: 'Breakfast', icon: 'ðŸ³' },
+                    { amen: 'Parking', icon: 'ðŸ…¿ï¸' },
+                    { amen: 'AC', icon: 'â„ï¸' },
+                    { amen: 'Spa', icon: 'ðŸ’†' },
+                    { amen: 'Gym', icon: 'ðŸ’ª' },
+                    { amen: 'Kitchen', icon: 'ðŸ³' },
+                    { amen: 'Restaurant', icon: 'ðŸ½ï¸' },
                   ].map((item) => {
                     const isSel = draftStayAmenities.includes(item.amen);
                     return (
@@ -9165,7 +7349,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Products</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {prodActiveFiltersCount > 0 ? `⚡ ${prodActiveFiltersCount} filter(s) active` : 'Select filters to refine product list'}
+                  {prodActiveFiltersCount > 0 ? `âš¡ ${prodActiveFiltersCount} filter(s) active` : 'Select filters to refine product list'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -9182,7 +7366,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Discount High → Low'].map((sOpt) => {
+                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Discount High â†’ Low'].map((sOpt) => {
                     const isSel = draftProdSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -9199,7 +7383,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{sOpt}
+                          {isSel ? 'âœ“ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9228,7 +7412,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdCategory(catOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{catOpt}
+                          {isSel ? 'âœ“ ' : ''}{catOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9257,7 +7441,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdBrand(bOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{bOpt}
+                          {isSel ? 'âœ“ ' : ''}{bOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9269,7 +7453,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under ₹1,500', '₹1,500 - ₹5,000', '₹5,000+'].map((pOpt) => {
+                  {['All', 'Under â‚¹1,500', 'â‚¹1,500 - â‚¹5,000', 'â‚¹5,000+'].map((pOpt) => {
                     const isSel = draftProdPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -9286,7 +7470,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{pOpt}
+                          {isSel ? 'âœ“ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9319,7 +7503,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{rObj.label}
+                          {isSel ? 'âœ“ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9348,7 +7532,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdDiscount(dOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{dOpt}
+                          {isSel ? 'âœ“ ' : ''}{dOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9438,7 +7622,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Daily Needs</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {dnActiveFiltersCount > 0 ? `⚡ ${dnActiveFiltersCount} filter(s) active` : 'Select filters to refine grocery list'}
+                  {dnActiveFiltersCount > 0 ? `âš¡ ${dnActiveFiltersCount} filter(s) active` : 'Select filters to refine grocery list'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -9455,7 +7639,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Discount High → Low'].map((sOpt) => {
+                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Discount High â†’ Low'].map((sOpt) => {
                     const isSel = draftDnSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -9472,7 +7656,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{sOpt}
+                          {isSel ? 'âœ“ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9501,7 +7685,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnCategory(catOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{catOpt}
+                          {isSel ? 'âœ“ ' : ''}{catOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9530,7 +7714,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnBrand(bOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{bOpt}
+                          {isSel ? 'âœ“ ' : ''}{bOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9542,7 +7726,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under ₹50', '₹50 - ₹200', '₹200+'].map((pOpt) => {
+                  {['All', 'Under â‚¹50', 'â‚¹50 - â‚¹200', 'â‚¹200+'].map((pOpt) => {
                     const isSel = draftDnPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -9559,7 +7743,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{pOpt}
+                          {isSel ? 'âœ“ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9592,7 +7776,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{rObj.label}
+                          {isSel ? 'âœ“ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9621,7 +7805,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnPackSize(psOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{psOpt}
+                          {isSel ? 'âœ“ ' : ''}{psOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9633,7 +7817,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>DELIVERY TIME</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', '⚡ 15 mins', '⚡ 15-30 mins'].map((dtOpt) => {
+                  {['All', 'âš¡ 15 mins', 'âš¡ 15-30 mins'].map((dtOpt) => {
                     const isSel = draftDnDeliveryTime === dtOpt;
                     return (
                       <TouchableOpacity
@@ -9650,7 +7834,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnDeliveryTime(dtOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{dtOpt}
+                          {isSel ? 'âœ“ ' : ''}{dtOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9740,7 +7924,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Food & Restaurants</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {foodActiveFiltersCount > 0 ? `⚡ ${foodActiveFiltersCount} filter(s) active` : 'Select filters to refine food list'}
+                  {foodActiveFiltersCount > 0 ? `âš¡ ${foodActiveFiltersCount} filter(s) active` : 'Select filters to refine food list'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -9757,7 +7941,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Delivery Time'].map((sOpt) => {
+                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Delivery Time'].map((sOpt) => {
                     const isSel = draftFoodSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -9774,7 +7958,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{sOpt}
+                          {isSel ? 'âœ“ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9803,7 +7987,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodCuisine(cOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{cOpt}
+                          {isSel ? 'âœ“ ' : ''}{cOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9817,8 +8001,8 @@ export default function CategoryDetails() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
                     { key: 'All', label: 'All Dishes' },
-                    { key: 'Pure Veg', label: 'Pure Veg 🌱' },
-                    { key: 'Non-Veg', label: 'Non-Veg 🍗' },
+                    { key: 'Pure Veg', label: 'Pure Veg ðŸŒ±' },
+                    { key: 'Non-Veg', label: 'Non-Veg ðŸ—' },
                   ].map((vObj) => {
                     const isSel = draftFoodVegMode === vObj.key;
                     return (
@@ -9836,7 +8020,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodVegMode(vObj.key)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{vObj.label}
+                          {isSel ? 'âœ“ ' : ''}{vObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9848,7 +8032,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE FOR TWO</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under ₹200', '₹200 - ₹500', '₹500+'].map((pOpt) => {
+                  {['All', 'Under â‚¹200', 'â‚¹200 - â‚¹500', 'â‚¹500+'].map((pOpt) => {
                     const isSel = draftFoodPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -9865,7 +8049,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{pOpt}
+                          {isSel ? 'âœ“ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9898,7 +8082,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{rObj.label}
+                          {isSel ? 'âœ“ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -9927,7 +8111,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodDeliveryTime(dtOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{dtOpt}
+                          {isSel ? 'âœ“ ' : ''}{dtOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10017,7 +8201,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Home Services</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {srvActiveFiltersCount > 0 ? `⚡ ${srvActiveFiltersCount} filter(s) active` : 'Select filters to refine services'}
+                  {srvActiveFiltersCount > 0 ? `âš¡ ${srvActiveFiltersCount} filter(s) active` : 'Select filters to refine services'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -10034,7 +8218,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low'].map((sOpt) => {
+                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low'].map((sOpt) => {
                     const isSel = draftSrvSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -10051,7 +8235,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{sOpt}
+                          {isSel ? 'âœ“ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10080,7 +8264,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvType(sType)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{sType}
+                          {isSel ? 'âœ“ ' : ''}{sType}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10092,7 +8276,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under ₹500', '₹500 - ₹1,500', '₹1,500+'].map((pOpt) => {
+                  {['All', 'Under â‚¹500', 'â‚¹500 - â‚¹1,500', 'â‚¹1,500+'].map((pOpt) => {
                     const isSel = draftSrvPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -10109,7 +8293,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{pOpt}
+                          {isSel ? 'âœ“ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10142,7 +8326,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{rObj.label}
+                          {isSel ? 'âœ“ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10182,7 +8366,7 @@ export default function CategoryDetails() {
                       {draftSrvAvailability && <Icons.Check color="#FFFFFF" size={13} strokeWidth={3} />}
                     </View>
                     <Text style={{ fontSize: 13, fontWeight: draftSrvAvailability ? '800' : '600', color: colors.text }}>
-                      Available Today Only ⚡
+                      Available Today Only âš¡
                     </Text>
                   </View>
                   <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#059669', backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
@@ -10212,7 +8396,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvTime(stOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{stOpt}
+                          {isSel ? 'âœ“ ' : ''}{stOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10226,8 +8410,8 @@ export default function CategoryDetails() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
                     { key: 'All', label: 'All Modes' },
-                    { key: 'Instant', label: 'Instant Booking ⚡' },
-                    { key: 'Scheduled', label: 'Scheduled Booking 📅' },
+                    { key: 'Instant', label: 'Instant Booking âš¡' },
+                    { key: 'Scheduled', label: 'Scheduled Booking ðŸ“…' },
                   ].map((bMode) => {
                     const isSel = draftSrvBookingMode === bMode.key;
                     return (
@@ -10245,7 +8429,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvBookingMode(bMode.key)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{bMode.label}
+                          {isSel ? 'âœ“ ' : ''}{bMode.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10294,7 +8478,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter & Sort Buses</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {busActiveFiltersCount > 0 ? `⚡ ${busActiveFiltersCount} filter(s) active` : 'Refine bus options for your route'}
+                  {busActiveFiltersCount > 0 ? `âš¡ ${busActiveFiltersCount} filter(s) active` : 'Refine bus options for your route'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -10311,7 +8495,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Price Low → High', 'Price High → Low', 'Rating High → Low', 'Early Departure', 'Late Departure'].map((sOpt) => {
+                  {['Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Early Departure', 'Late Departure'].map((sOpt) => {
                     const isSel = draftBusSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -10328,7 +8512,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{sOpt}
+                          {isSel ? 'âœ“ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10363,7 +8547,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusDepartureTime(dSlot)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{dSlot}
+                          {isSel ? 'âœ“ ' : ''}{dSlot}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10407,7 +8591,7 @@ export default function CategoryDetails() {
                         }}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{bType}
+                          {isSel ? 'âœ“ ' : ''}{bType}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10437,7 +8621,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusAcType(acOpt.key)}
                       >
                         <Text style={{ fontSize: 11.5, fontWeight: isSel ? '900' : '700', color: isSel ? '#FFFFFF' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{acOpt.label}
+                          {isSel ? 'âœ“ ' : ''}{acOpt.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10466,7 +8650,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusOperator(op)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{op}
+                          {isSel ? 'âœ“ ' : ''}{op}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10506,7 +8690,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusBoarding(bp)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{bp}
+                          {isSel ? 'âœ“ ' : ''}{bp}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10535,7 +8719,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusDropping(dp)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? '✓ ' : ''}{dp}
+                          {isSel ? 'âœ“ ' : ''}{dp}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -10586,7 +8770,7 @@ export default function CategoryDetails() {
             </View>
 
             <View style={{ gap: 8, marginVertical: 12 }}>
-              {(['Recommended', 'Price Low → High', 'Price High → Low', 'Rating'] as const).map((sortOpt) => {
+              {(['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating'] as const).map((sortOpt) => {
                 const isSel = selectedStaySort === sortOpt;
                 return (
                   <TouchableOpacity
@@ -10635,12 +8819,12 @@ export default function CategoryDetails() {
             <View style={{ gap: 8, marginVertical: 12 }}>
               {(() => {
                 const sortOptions = isTravelCategory
-                  ? ['Price Low → High', 'Price High → Low', 'Rating High → Low', 'Early Departure', 'Late Departure']
+                  ? ['Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Early Departure', 'Late Departure']
                   : isFoodCategory
-                  ? ['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Delivery Time']
+                  ? ['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Delivery Time']
                   : isProductsCategory || isDailyNeedsCategory
-                  ? ['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Discount High → Low']
-                  : ['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low'];
+                  ? ['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Discount High â†’ Low']
+                  : ['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low'];
 
                 const activeSort = isProductsCategory
                   ? selectedProdSort
@@ -10781,8 +8965,8 @@ export default function CategoryDetails() {
                       <Image source={{ uri: bk.image }} style={styles.bookingCardImg} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.roomTitle, { color: colors.text }]}>{bk.hotelName}</Text>
-                        <Text style={styles.roomSub}>{bk.roomName} • {bk.location}</Text>
-                        <Text style={styles.bookingSummaryDates}>{bk.checkIn} → {bk.checkOut} ({bk.nights} nights)</Text>
+                        <Text style={styles.roomSub}>{bk.roomName} â€¢ {bk.location}</Text>
+                        <Text style={styles.bookingSummaryDates}>{bk.checkIn} â†’ {bk.checkOut} ({bk.nights} nights)</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
                           <Text style={styles.priceRowTotalVal}>{bk.totalPaid}</Text>
                           <View style={styles.confirmedStatusTag}>
@@ -10818,7 +9002,7 @@ export default function CategoryDetails() {
               <Text style={styles.floatingCartCountText}>{totalCartCount}</Text>
             </View>
             <Text style={styles.floatingCartPriceText}>
-              ₹{cartItems.reduce((sum, item) => {
+              â‚¹{cartItems.reduce((sum, item) => {
                 const p = parseInt(String(item.price || '0').replace(/[^\d]/g, ''), 10) || 0;
                 return sum + p * item.quantity;
               }, 0)}
@@ -10845,7 +9029,7 @@ export default function CategoryDetails() {
           email: useAuthStore.getState().currentUser?.email || 'guest@example.com',
           phone: useAuthStore.getState().currentUser?.phone || '',
         }}
-        merchantName="Forge India Connect • Services"
+        merchantName="Forge India Connect â€¢ Services"
         onSuccess={handleRazorpaySuccess}
         onCancel={handleRazorpayCancel}
       />
@@ -11432,15 +9616,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: '#10B981',
-    paddingHorizontal: 7,
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   compactDiscountBadgeText: {
     color: '#FFFFFF',
-    fontSize: 9.5,
-    fontWeight: '900',
+    fontSize: 10,
+    fontWeight: '800',
   },
   compactWishlistBtn: {
     position: 'absolute',
@@ -11516,7 +9700,46 @@ const styles = StyleSheet.create({
   compactActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    marginTop: 4,
+  },
+  compactOutlineBtn: {
+    flex: 1,
+    height: 31,
+    borderRadius: 7,
+    borderWidth: 1.4,
+    borderColor: '#FF6A00',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  compactOutlineBtnActive: {
+    borderColor: '#16A34A',
+    backgroundColor: '#DCFCE7',
+  },
+  compactOutlineBtnText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FF6A00',
+  },
+  compactPrimaryBtn: {
+    flex: 1,
+    height: 31,
+    borderRadius: 7,
+    backgroundColor: '#FF6A00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  compactPrimaryBtnText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   compactCartIconButton: {
     width: 32,
@@ -11531,7 +9754,7 @@ const styles = StyleSheet.create({
   compactCtaButton: {
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F5B800',
+    backgroundColor: '#FF6A00',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
@@ -11539,7 +9762,7 @@ const styles = StyleSheet.create({
   compactCtaButtonText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
   stepperContainer: {
     flexDirection: 'row',
@@ -11576,14 +9799,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     height: 32,
-    borderRadius: 8,
-    backgroundColor: '#F5B800',
+    borderRadius: 10,
+    backgroundColor: '#FF6A00',
     flex: 1,
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2,
   },
   compactAddBtnText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   floatingCartBar: {
     position: 'absolute',
@@ -13493,5 +11721,19 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  loadMoreBtn: {
+    marginVertical: 18,
+    marginHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5B800',
+  },
+  loadMoreBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
 });

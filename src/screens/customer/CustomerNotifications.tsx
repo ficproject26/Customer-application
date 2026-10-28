@@ -11,6 +11,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,12 +34,18 @@ export default function CustomerNotifications() {
   const markAsRead = useNotificationStore((state) => state.markAsRead);
   const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
   const clearAll = useNotificationStore((state) => state.clearAll);
+  const fetchNotifications = useNotificationStore((state) => state.fetchNotifications);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'order' | 'offer'>('all');
 
   // Smooth Fade & Scale Animation States
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.88)).current;
+
+  useEffect(() => {
+    fetchNotifications().catch(() => {});
+  }, [fetchNotifications]);
 
   useEffect(() => {
     Animated.parallel([
@@ -298,7 +305,22 @@ export default function CustomerNotifications() {
         )}
 
         {/* Notifications List Content */}
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={async () => {
+                setIsRefreshing(true);
+                await fetchNotifications().catch(() => {});
+                setIsRefreshing(false);
+              }}
+              tintColor="#F5B800"
+              colors={['#F5B800']}
+            />
+          }
+        >
           {filteredNotifications.length > 0 ? (
             filteredNotifications.map((notif) => (
               <TouchableOpacity

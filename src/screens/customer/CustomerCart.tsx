@@ -6,7 +6,7 @@ import { useToastStore } from '../../store/toastStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useTranslation } from '../../store/languageStore';
 
@@ -55,7 +55,8 @@ export default function CustomerCart() {
       showToast('Your cart is empty');
       return;
     }
-    if (!useAuthStore.getState().currentUser) {
+    const authUser = useAuthStore.getState().currentUser;
+    if (!isUserAuthenticated(authUser)) {
       useAuthGuardStore.getState().showAuthModal('proceed to checkout and place your order');
       return;
     }
@@ -227,6 +228,46 @@ export default function CustomerCart() {
                 </View>
               );
             })}
+
+            {/* Apply Coupon Card matching Screen 5 reference */}
+            <View
+              style={{
+                marginHorizontal: 16,
+                marginTop: 12,
+                marginBottom: 8,
+                backgroundColor: isLight ? '#FFFFFF' : 'rgba(255,255,255,0.03)',
+                borderColor: isLight ? '#F1EAD8' : colors.cardBorder,
+                borderWidth: 1,
+                borderRadius: 14,
+                padding: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255, 106, 0, 0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icons.Tag color="#FF6A00" size={17} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>CONNECTGOLD</Text>
+                  <Text style={{ fontSize: 10.5, color: '#16A34A', fontWeight: '600' }}>Save extra 10% on this order</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#FFF3E8',
+                  borderWidth: 1,
+                  borderColor: '#FF6A00',
+                  paddingHorizontal: 12,
+                  paddingVertical: 5,
+                  borderRadius: 8,
+                }}
+                onPress={() => showToast('Coupon CONNECTGOLD applied!', 'success')}
+              >
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#FF6A00' }}>APPLY</Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
 
           {/* Checkout Floating Footer */}
@@ -273,7 +314,7 @@ export default function CustomerCart() {
                 onPress={handleProceedToCheckout}
               >
                 <Text style={styles.checkoutBtnText}>{t('Proceed to Checkout')}</Text>
-                <Icons.ArrowRight color="#0F172A" size={16} />
+                <Icons.ArrowRight color="#FFFFFF" size={16} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
           </View>
@@ -505,14 +546,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F5B800',
-    paddingVertical: 12,
+    backgroundColor: '#FF6A00',
+    paddingVertical: 13,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 14,
+    shadowColor: '#FF6A00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
   },
   checkoutBtnText: {
-    color: '#0F172A',
-    fontSize: 13,
-    fontWeight: '900',
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });

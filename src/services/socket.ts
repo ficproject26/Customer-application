@@ -4,6 +4,7 @@ import { SOCKET_URL_ANDROID, SOCKET_URL_IOS } from './env';
 import { useOrderStore } from '../store/orderStore';
 import { useToastStore } from '../store/toastStore';
 import { useNotificationStore } from '../store/notificationStore';
+import { dispatchCustomerNotification } from './notificationService';
 
 const CONFIGURED_SOCKET_URL = Platform.select({
   android: SOCKET_URL_ANDROID || 'https://api.ficapp.in',
@@ -193,43 +194,24 @@ class SocketServiceClient {
         useOrderStore.getState().loadAllOrders(true).catch(() => {});
       }
 
-      // 2. Play joyful haptic vibration (once)
-      try {
-        Vibration.vibrate([0, 180, 80, 180]);
-      } catch {}
-
-      // 3. (In-app popup toast removed as requested by user)
-
-      // 4. Save to Notification Center Store (once)
-      try {
-        useNotificationStore.getState().addNotification({
-          title: joyfulTitle,
-          body: joyfulMsg,
-          icon: notifIcon,
-          category: 'order',
-          actionLabel,
-          actionType,
-          orderType: actionType,
+      // 2. Dispatch to Notification Center & Android System Notification with sound, vibration & deep-linking
+      dispatchCustomerNotification({
+        title: joyfulTitle,
+        body: joyfulMsg,
+        icon: notifIcon,
+        category: 'order',
+        actionLabel,
+        actionType,
+        orderType: actionType,
+        orderId,
+        bookingId: isBooking ? orderId : undefined,
+        targetScreen: 'Orders',
+        targetParams: {
+          activeTab: isBooking ? 'my bookings' : isJob ? 'job applied' : 'my orders',
+          category,
           orderId,
-          bookingId: isBooking ? orderId : undefined,
-          targetScreen: 'Orders',
-          targetParams: {
-            activeTab: isBooking ? 'my bookings' : isJob ? 'job applied' : 'my orders',
-            category,
-            orderId,
-          },
-        });
-      } catch {}
-
-      // 5. Trigger Native Heads-Up System Notification (once)
-      try {
-        const { SystemNotification } = NativeModules;
-        if (SystemNotification && typeof SystemNotification.showNotification === 'function') {
-          SystemNotification.showNotification(joyfulTitle, joyfulMsg);
-        }
-      } catch (err) {
-        console.warn('[Socket Notification Native Module]', err);
-      }
+        },
+      });
 
       // 6. Notify any subscribed local callbacks
       this.triggerLocalEvent('order_status_updated', data);

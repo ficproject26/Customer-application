@@ -11,6 +11,7 @@ export interface TravelRideItem {
   from: string;
   to: string;
   departureTime: string;
+  departureSlot?: string;
   arrivalTime: string;
   duration: string;
   price: number;

@@ -13,11 +13,12 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { CustomerStackParamList } from '../../navigation/AppNavigator';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import GlassCard from '../../components/GlassCard';
 import { useUIStore } from '../../store/uiStore';
 import MembershipCard from '../../components/MembershipCard';
 import * as Icons from 'lucide-react-native';
+import Svg, { Rect, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRecommendedProducts, normalizeMainCategoryName } from '../../services/categoryService';
 import { useOrderStore } from '../../store/orderStore';
@@ -138,14 +139,14 @@ const SkeletonGridCard = React.memo(({ isLightActive, cardWidth }: { isLightActi
 ));
 
 const DISCOVERY_CATEGORIES = [
-  { name: 'All', icon: 'LayoutGrid', color: '#F5B800', bg: 'rgba(245, 184, 0, 0.12)' },
-  { name: 'Services', icon: 'Wrench', color: '#0284C7', bg: 'rgba(2, 132, 199, 0.12)' },
-  { name: 'Products', icon: 'ShoppingBag', color: '#D97706', bg: 'rgba(217, 119, 6, 0.12)' },
-  { name: 'Daily Needs', icon: 'Milk', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' },
-  { name: 'Food', icon: 'Utensils', color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)' },
-  { name: 'Stay', icon: 'Bed', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
-  { name: 'Travel', icon: 'Bus', color: '#F97316', bg: 'rgba(249, 115, 22, 0.12)' },
-  { name: 'Jobs', icon: 'Briefcase', color: '#14B8A6', bg: 'rgba(20, 184, 166, 0.12)' },
+  { name: 'All', icon: 'LayoutGrid', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+  { name: 'Services', icon: 'Wrench', color: '#0284C7', bg: '#F0F9FF', border: '#BAE6FD' },
+  { name: 'Products', icon: 'ShoppingBag', color: '#EA580C', bg: '#FFF7ED', border: '#FED7AA' },
+  { name: 'Daily Needs', icon: 'Store', color: '#059669', bg: '#ECFDF5', border: '#A7F3D0' },
+  { name: 'Food', icon: 'UtensilsCrossed', color: '#E11D48', bg: '#FFF1F2', border: '#FECDD3' },
+  { name: 'Stay', icon: 'Hotel', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
+  { name: 'Travel', icon: 'Compass', color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' },
+  { name: 'Jobs', icon: 'Briefcase', color: '#0D9488', bg: '#F0FDFA', border: '#99F6E4' },
 ];
 
 
@@ -329,7 +330,6 @@ export default function HomeDashboard() {
   useFocusEffect(
     useCallback(() => {
       loadHomeData(false);
-      useOrderStore.getState().loadAllOrders().catch(() => {});
     }, [loadHomeData])
   );
 
@@ -734,7 +734,8 @@ export default function HomeDashboard() {
       ratingCount: item.ratingCount || '1.2k',
       image: itemImg,
       img: itemImg,
-      category: item.category || 'Product',
+      category: item.mainCategory || item.subNavbarCategory || item.category || 'Product',
+      subcategory: item.subcategory,
       assured: Boolean(item.isAssured || item.assured),
       actionType: item.actionType,
     };
@@ -766,6 +767,10 @@ export default function HomeDashboard() {
 
   const travelList = useMemo(() => {
     return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Travel');
+  }, [dbProducts]);
+
+  const jobsList = useMemo(() => {
+    return dbProducts.filter((p) => normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory) === 'Jobs');
   }, [dbProducts]);
 
   // Memoized cards for 2-column personalized Picked For You feed
@@ -933,10 +938,10 @@ export default function HomeDashboard() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const renderCategoryIcon = (iconName: string, color = '#F4C400') => {
+  const renderCategoryIcon = (iconName: string, color = '#F4C400', size = 24) => {
     const IconComp = (Icons as any)[iconName];
-    if (!IconComp) return <Icons.HelpCircle color={color} size={24} />;
-    return <IconComp color={color} size={24} />;
+    if (!IconComp) return <Icons.HelpCircle color={color} size={size} strokeWidth={2.2} />;
+    return <IconComp color={color} size={size} strokeWidth={2.2} />;
   };
 
   return (
@@ -948,12 +953,13 @@ export default function HomeDashboard() {
       />
       {/* Top Mobile Commerce Header with SafeAreaView - Always fully visible above side drawer */}
       <SafeAreaView
-        edges={['top']}
+        edges={Platform.OS === 'android' ? [] : ['top']}
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
         style={{
           backgroundColor: isLightActive ? '#FFF3D6' : colors.background,
           borderBottomWidth: 1,
           borderBottomColor: isLightActive ? 'rgba(242, 183, 5, 0.3)' : colors.cardBorder,
+          paddingTop: Platform.OS === 'android' ? Math.max(insets.top, (StatusBar.currentHeight || 0) > 0 ? (StatusBar.currentHeight || 0) : 24) : 0,
           zIndex: 1000,
           elevation: 12,
           shadowColor: '#000',
@@ -963,34 +969,33 @@ export default function HomeDashboard() {
         }}
       >
         <View style={styles.navbar}>
-          {/* Row 1: Toolbar - Logo + Welcome Text on Left, Wishlist/Cart/Notif/Hamburger on Right */}
+          {/* Row 1: Location & User on Left, Wishlist/Cart/Notif/Hamburger on Right */}
           <View style={styles.topHeaderRow}>
-            {/* 1. Official Logo & Compact Welcome Text */}
+            {/* 1. Official Logo & Location Selector Chip matching reference */}
             <TouchableOpacity
               style={styles.headerWelcomeGroup}
               activeOpacity={0.8}
               onPress={() => {
-                if (!currentUser || currentUser.isGuest) {
-                  navigation.navigate('Login');
-                } else {
-                  navigation.navigate('CustomerTabs', { screen: 'Profile' });
-                }
+                setIsSidebarOpen(true);
               }}
             >
               <Image
                 source={require('../../assets/images/forge_india_logo.jpg')}
                 style={[
                   styles.headerConnectLogo,
-                  { borderColor: isLightActive ? '#FDE68A' : colors.cardBorder }
+                  { borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder }
                 ]}
                 resizeMode="cover"
               />
               <View style={styles.headerWelcomeTextCol}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={[styles.headerWelcomeNameText, { color: colors.text }]} numberOfLines={1}>
+                    {selectedCity || selectedState || 'Tamil Nadu'}
+                  </Text>
+                  <Icons.ChevronDown color={colors.text} size={13} strokeWidth={2.5} />
+                </View>
                 <Text style={[styles.headerWelcomeSubtext, { color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)' }]} numberOfLines={1}>
-                  {t('Welcome back,')}
-                </Text>
-                <Text style={[styles.headerWelcomeNameText, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
-                  {currentUser?.name || t('Guest')}
+                  {displayName}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1004,12 +1009,12 @@ export default function HomeDashboard() {
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               >
                 <Icons.Heart 
-                  color={wishlistItems.length > 0 ? "#FF2E93" : colors.text} 
+                  color={wishlistItems.length > 0 ? "#FF3B30" : colors.text} 
                   size={20} 
-                  fill={wishlistItems.length > 0 ? "#FF2E93" : "transparent"} 
+                  fill={wishlistItems.length > 0 ? "#FF3B30" : "transparent"} 
                 />
                 {wishlistItems.length > 0 && (
-                  <View style={styles.badge}>
+                  <View style={[styles.badge, { backgroundColor: '#FF6A00' }]}>
                     <Text style={styles.badgeText}>{wishlistItems.length}</Text>
                   </View>
                 )}
@@ -1023,7 +1028,7 @@ export default function HomeDashboard() {
               >
                 <Icons.ShoppingCart color={colors.text} size={20} />
                 {totalCartCount > 0 && (
-                  <View style={styles.badge}>
+                  <View style={[styles.badge, { backgroundColor: '#FF6A00' }]}>
                     <Text style={styles.badgeText}>{totalCartCount}</Text>
                   </View>
                 )}
@@ -1037,7 +1042,7 @@ export default function HomeDashboard() {
               >
                 <Icons.Bell color={colors.text} size={20} />
                 {unreadNotifCount > 0 && (
-                  <View style={styles.badge}>
+                  <View style={[styles.badge, { backgroundColor: '#FF6A00' }]}>
                     <Text style={styles.badgeText}>{unreadNotifCount}</Text>
                   </View>
                 )}
@@ -1054,12 +1059,13 @@ export default function HomeDashboard() {
             </View>
           </View>
 
-          {/* Row 2: Full-Width Search Bar with warm yellow border */}
+          {/* Row 2: Full-Width Search Bar */}
           <View style={[
             styles.commerceSearchBar,
             {
               backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.07)',
-              borderColor: isLightActive ? '#FDE68A' : colors.cardBorder,
+              borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+              borderRadius: 12,
             }
           ]}>
             <TouchableOpacity
@@ -1067,8 +1073,8 @@ export default function HomeDashboard() {
               activeOpacity={0.85}
               onPress={handleSearchPress}
             >
-              <Icons.Search color="#F5B800" size={17} />
-              <Text style={[styles.searchPlaceholderText, { color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)' }]} numberOfLines={1}>
+              <Icons.Search color="#FF6A00" size={17} />
+              <Text style={[styles.searchPlaceholderText, { color: isLightActive ? '#94A3B8' : 'rgba(255, 255, 255, 0.6)' }]} numberOfLines={1}>
                 {t('search_placeholder')}
               </Text>
             </TouchableOpacity>
@@ -1080,7 +1086,7 @@ export default function HomeDashboard() {
                 activeOpacity={0.7}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Icons.Mic color={isListening ? "#F59E0B" : colors.text} size={19} />
+                <Icons.Mic color={isListening ? "#FF6A00" : colors.text} size={19} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1270,85 +1276,104 @@ export default function HomeDashboard() {
             }}
             scrollEventThrottle={16}
           >
-            {(banners || []).map((banner) => {
+            {(banners || []).map((banner, bannerIdx) => {
               const IconComp = (banner.iconName && typeof (Icons as any)[banner.iconName] === 'function') ? (Icons as any)[banner.iconName] : Icons.Tag;
-              const theme = getBannerTheme(banner.bgColor);
+
+              // Extract discount percentage from text for the circular badge (Matching Reference Image)
+              const rawTextForDiscount = `${banner.badgeText || ''} ${banner.title || ''} ${banner.subtitle || ''}`;
+              const discountMatch = rawTextForDiscount.match(/(\d+)%\s*off/i) || rawTextForDiscount.match(/(\d+)%/i);
+              const discountPercent = discountMatch ? `${discountMatch[1]}%` : (banner.badgeText && banner.badgeText.includes('%') ? banner.badgeText : '50%');
+
+              // Two-tone headline parsing for bold contrast
+              const titleWords = (banner.title || 'Special Promotion').trim().split(' ');
+              const firstLine = titleWords.length > 1 ? titleWords[0] : banner.title;
+              const secondLine = titleWords.length > 1 ? titleWords.slice(1).join(' ') : 'Happier You!';
+
+              // Fallback food/promotion image if banner.image is missing
+              const resolvedBannerImg = banner.image ? resolveImageUrl(banner.image) : 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=80';
+              const gradId = `bannerGrad_${banner.id || bannerIdx}`;
 
               return (
-                <View key={banner.id} style={{ width: width, alignItems: 'center' }}>
+                <View key={banner.id || bannerIdx} style={{ width: width, alignItems: 'center' }}>
                   <TouchableOpacity
-                    activeOpacity={0.9}
+                    activeOpacity={0.92}
                     style={[
                       styles.bannerCard,
                       {
                         width: width - 32,
-                        backgroundColor: banner.bgColor || '#FFF1C7',
-                        borderColor: theme.isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.1)',
                       },
                     ]}
                     onPressIn={() => setIsBannerPaused(true)}
                     onPressOut={() => setIsBannerPaused(false)}
                     onPress={() => navigation.navigate('CategoryDetails', { categoryName: banner.targetCategory || 'Products' })}
                   >
-                    {/* Left Side Info (55%) */}
-                    <View style={[styles.bannerLeft, { width: '55%' }]}>
+                    {/* Full-Bleed Background Image (100% width and height) */}
+                    <Image
+                      source={{ uri: resolvedBannerImg }}
+                      style={styles.bannerBgImage}
+                      resizeMode="cover"
+                    />
+
+                    {/* Gradient Overlay for Crisp Text Legibility (Seamless dark on left fading to transparent on right) */}
+                    <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
+                      <Defs>
+                        <SvgLinearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+                          <Stop offset="0%" stopColor="#120E0B" stopOpacity="0.95" />
+                          <Stop offset="45%" stopColor="#120E0B" stopOpacity="0.85" />
+                          <Stop offset="70%" stopColor="#120E0B" stopOpacity="0.45" />
+                          <Stop offset="90%" stopColor="#120E0B" stopOpacity="0.10" />
+                          <Stop offset="100%" stopColor="#120E0B" stopOpacity="0.0" />
+                        </SvgLinearGradient>
+                      </Defs>
+                      <Rect width="100%" height="100%" fill={`url(#${gradId})`} />
+                    </Svg>
+
+                    {/* Content Layer (Left-aligned, clear of right image subject) */}
+                    <View style={styles.bannerContent}>
                       <View style={styles.bannerTopGroup}>
-                        {/* Header Row: Icon + Category Tag */}
-                        <View style={styles.bannerHeaderRow}>
-                          <IconComp color={theme.tagIconColor} size={12} />
-                          <Text style={[styles.bannerCategoryTag, { color: theme.categoryTagColor }]}>
-                            {banner.categoryTag || 'PROMOTION'}
+                        {/* Header Pill: Tag Icon + Offer Label */}
+                        <View style={styles.bannerBadgeContainer}>
+                          <Icons.Tag color="#F59E0B" size={10} />
+                          <Text style={styles.bannerBadgeText}>
+                            {(banner.categoryTag || banner.badgeText || 'SPECIAL OFFER').toUpperCase()}
                           </Text>
                         </View>
 
-                        {/* Verified / Offer Badge */}
-                        <View
-                          style={[
-                            styles.bannerBadgeContainer,
-                            {
-                              backgroundColor: theme.badgeBg,
-                              borderColor: theme.badgeBorder,
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.bannerBadgeText, { color: theme.badgeTextColor }]}>
-                            {banner.badgeText || '★ VERIFIED VENDORS'}
+                        {/* Title & Two-Tone Headline */}
+                        <View style={styles.bannerTitleGroup}>
+                          <Text style={styles.bannerTitleWhite} numberOfLines={1}>
+                            {firstLine}
+                          </Text>
+                          <Text style={styles.bannerTitleAmber} numberOfLines={1}>
+                            {secondLine}
                           </Text>
                         </View>
-                      </View>
 
-                      {/* Title & Subtitle */}
-                      <View style={styles.bannerTitleGroup}>
-                        <Text style={[styles.bannerTitle, { color: theme.titleColor }]} numberOfLines={2}>
-                          {banner.title}
-                        </Text>
-                        <Text style={[styles.bannerSubtitle, { color: theme.subtitleColor }]} numberOfLines={2}>
-                          {banner.subtitle}
+                        {/* Subtitle / Description */}
+                        <Text style={styles.bannerSubtitle} numberOfLines={2}>
+                          {banner.subtitle || 'Get up to 50% OFF on your favourite items'}
                         </Text>
                       </View>
 
                       {/* Action Button CTA */}
                       <TouchableOpacity
-                        style={[styles.bannerBtn, { backgroundColor: theme.btnBg }]}
-                        activeOpacity={0.8}
+                        style={styles.bannerBtn}
+                        activeOpacity={0.85}
                         onPressIn={() => setIsBannerPaused(true)}
                         onPressOut={() => setIsBannerPaused(false)}
                         onPress={() => navigation.navigate('CategoryDetails', { categoryName: banner.targetCategory || 'Products' })}
                       >
-                        <Text style={[styles.bannerBtnText, { color: theme.btnTextColor }]}>
-                          {banner.buttonText || 'EXPLORE NOW'}
+                        <Text style={styles.bannerBtnText}>
+                          {banner.buttonText ? `${banner.buttonText} →` : 'Order Now →'}
                         </Text>
-                        <Icons.ArrowRight color={theme.btnIconColor} size={11} />
                       </TouchableOpacity>
                     </View>
 
-                    {/* Right Side Image (45%) */}
-                    <View style={[styles.bannerRight, { width: '45%' }]}>
-                      {banner.image ? (
-                        <Image source={{ uri: banner.image }} style={styles.bannerImage} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.bannerImage, { backgroundColor: theme.isLight ? '#E2E8F0' : '#1E293B' }]} />
-                      )}
+                    {/* Floating Red Circular Offer Badge in Top-Right Corner */}
+                    <View style={styles.bannerCircleBadge}>
+                      <Text style={styles.bannerCircleSmallText}>UP TO</Text>
+                      <Text style={styles.bannerCircleBigText}>{discountPercent}</Text>
+                      <Text style={styles.bannerCircleSmallText}>OFF</Text>
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -1384,18 +1409,14 @@ export default function HomeDashboard() {
         </View>
 
 
-        {/* 1. Horizontal Discovery Strip */}
-        <View style={[styles.sectionContainer, { marginTop: 14 }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.discoveryScroll}
-          >
+        {/* 1. Category Shortcuts (2x4 Grid matching approved reference) */}
+        <View style={[styles.sectionContainer, { marginTop: 14, paddingHorizontal: 16 }]}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14 }}>
             {DISCOVERY_CATEGORIES.map((cat, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={styles.discoveryItem}
-                activeOpacity={0.85}
+                style={{ width: '23%', alignItems: 'center' }}
+                activeOpacity={0.8}
                 onPress={() => {
                   if (cat.name === 'All') {
                     navigation.navigate('CustomerTabs', { screen: 'Categories' });
@@ -1407,28 +1428,43 @@ export default function HomeDashboard() {
                 }}
               >
                 <View
-                  style={[
-                    styles.discoveryCircle,
-                    {
-                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.05)',
-                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
-                    },
-                  ]}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 18,
+                    backgroundColor: isLightActive ? cat.bg : 'rgba(255, 255, 255, 0.08)',
+                    borderColor: isLightActive ? (cat.border || '#F1EAD8') : colors.cardBorder,
+                    borderWidth: 1.5,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 6,
+                    shadowColor: cat.color,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: isLightActive ? 0.08 : 0.2,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
                 >
-                  <View style={[styles.discoveryIconInner, { backgroundColor: isLightActive ? cat.bg : 'rgba(255, 255, 255, 0.08)' }]}>
-                    {renderCategoryIcon(cat.icon, cat.color)}
-                  </View>
+                  {renderCategoryIcon(cat.icon, cat.color, 25)}
                 </View>
-                <Text style={[styles.discoveryLabel, { color: colors.text }]} numberOfLines={1}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color: colors.text,
+                    textAlign: 'center',
+                  }}
+                  numberOfLines={1}
+                >
                   {cat.name}
                 </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
         </View>
 
-        {/* 2. "RECOMMENDED FOR YOU" Deck (Matches Image 1) */}
-        <View style={[styles.sectionContainer, { marginTop: 20 }]}>
+        {/* 2. "RECOMMENDED FOR YOU" Deck */}
+        <View style={[styles.sectionContainer, { marginTop: 22 }]}>
           <View style={styles.sectionHeaderRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Icons.Star color="#F5B800" size={16} fill="#F5B800" />
@@ -1440,13 +1476,13 @@ export default function HomeDashboard() {
               <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
             </TouchableOpacity>
           </View>
-          {isProductsLoading && dbProducts.length === 0 ? (
+          {(!hasLoadedInitial && dbProducts.length === 0) || (isProductsLoading && dbProducts.length === 0) ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
               <SkeletonCard isLightActive={isLightActive} />
               <SkeletonCard isLightActive={isLightActive} />
               <SkeletonCard isLightActive={isLightActive} />
             </ScrollView>
-          ) : recommendedItems.length === 0 ? (
+          ) : (recommendedItems.length === 0 && dbProducts.length === 0) ? (
             <View style={{ paddingVertical: 18, paddingHorizontal: 16, alignItems: 'center' }}>
               <Text style={{ color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.5)', fontSize: 13 }}>
                 {t('No recommendations available')}
@@ -1454,32 +1490,49 @@ export default function HomeDashboard() {
             </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {recommendedItems.map((prod: any) => {
+              {(recommendedItems.length > 0 ? recommendedItems : dbProducts.slice(0, 10)).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
-                const itemImg = resolveImageUrl(rawImg);
+                const itemImg = resolveImageUrl(rawImg) || getRelevantProductImage(prod.name, prod.category, prod.subcategory) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80';
                 const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
                 const numPrice = typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}` : String(prod.price || '₹499');
                 const isStay = normalizeMainCategoryName(prod.mainCategory || prod.subNavbarCategory) === 'Stay' || (prod.category || '').toLowerCase().includes('hotel') || (prod.category || '').toLowerCase().includes('resort');
                 const displayPrice = isStay && !numPrice.includes('/night') ? `${numPrice}/night` : numPrice;
-                const displayCategory = prod.category || prod.subcategory || 'General';
+
+                // Price & Discount calculation for strikethrough (Reference Image 3)
+                const rawOriginal = prod.originalPrice || prod.mrp;
+                const origPriceNum = typeof rawOriginal === 'number' ? rawOriginal : (rawOriginal ? parseInt(String(rawOriginal).replace(/[^\d]/g, ''), 10) : 0);
+                const curPriceNum = typeof prod.price === 'number' ? prod.price : parseInt(String(prod.price || '0').replace(/[^\d]/g, ''), 10);
+                const hasDiscount = origPriceNum > curPriceNum;
+                const discountText = prod.discount || (hasDiscount ? `${Math.round(((origPriceNum - curPriceNum) / origPriceNum) * 100)}% OFF` : null);
+                const displayOriginalPrice = hasDiscount ? `₹${origPriceNum.toLocaleString('en-IN')}` : null;
+
+                // Clean Subtitle (e.g. "Hot & Fresh | Italian", "Private Pool | 5 BHK")
+                const subCategoryPart = prod.subcategory && prod.subcategory !== prod.name ? prod.subcategory : '';
+                const brandOrCategory = prod.brand || prod.category || '';
+                const specSubtitle = (subCategoryPart && brandOrCategory && subCategoryPart !== brandOrCategory)
+                  ? `${subCategoryPart} | ${brandOrCategory}`
+                  : (subCategoryPart || brandOrCategory || 'Featured');
+
+                const ratingValue = prod.rating ? String(prod.rating) : '4.5';
+                const isTopRated = !discountText && (parseFloat(ratingValue) >= 4.5 || isStay);
 
                 return (
                   <TouchableOpacity
                     key={`rec_${cardId}`}
                     style={{
-                      width: 160,
-                      marginRight: 12,
+                      width: 170,
+                      marginRight: 14,
                       borderRadius: 16,
                       borderWidth: 1,
                       borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
-                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
-                      padding: 10,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.75)',
+                      overflow: 'hidden',
                       shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.05,
-                      shadowRadius: 6,
-                      elevation: 2,
+                      shadowOffset: { width: 0, height: 3 },
+                      shadowOpacity: 0.08,
+                      shadowRadius: 8,
+                      elevation: 3,
                     }}
                     activeOpacity={0.88}
                     onPress={() => {
@@ -1493,66 +1546,173 @@ export default function HomeDashboard() {
                       }
                     }}
                   >
-                    {/* Top Row: Rating Badge & Wishlist Heart */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
-                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
-                          {prod.rating ? String(prod.rating) : '4.5'}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => useWishlistStore.getState().toggleWishlist(formatCardItem(prod))}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 13,
-                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Icons.Heart
-                          size={13}
-                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
-                          fill={isWishlisted ? '#EF4444' : 'transparent'}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Image Area */}
+                    {/* Top Full-Width Image Container with Overlays (Reference Image 3) */}
                     <View
                       style={{
                         width: '100%',
-                        height: 112,
-                        borderRadius: 10,
+                        height: 130,
                         backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        position: 'relative',
                         overflow: 'hidden',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8,
                       }}
                     >
-                      {itemImg ? (
-                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                      ) : (
-                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                          <Icons.Image size={28} color="#94A3B8" />
-                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('No image available')}</Text>
+                      <Image
+                        source={{ uri: itemImg }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                      />
+
+                      {/* Top-Left Rating Pill */}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          left: 8,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 3.5,
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          paddingHorizontal: 7,
+                          paddingVertical: 3,
+                          borderRadius: 10,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 2,
+                          elevation: 2,
+                        }}
+                      >
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#0F172A' }}>
+                          {ratingValue}
+                        </Text>
+                      </View>
+
+                      {/* Top-Right Wishlist Heart Button */}
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(formatCardItem(prod))}
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 2,
+                          elevation: 2,
+                        }}
+                      >
+                        <Icons.Heart
+                          size={14}
+                          color={isWishlisted ? '#EF4444' : '#0F172A'}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                          strokeWidth={2.2}
+                        />
+                      </TouchableOpacity>
+
+                      {/* Bottom-Left Badge (Red Discount or Blue Top Rated) */}
+                      {discountText ? (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            bottom: 8,
+                            left: 8,
+                            backgroundColor: '#FF3B30',
+                            paddingHorizontal: 7,
+                            paddingVertical: 3,
+                            borderRadius: 6,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.2,
+                            shadowRadius: 2,
+                            elevation: 2,
+                          }}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 }}>
+                            {discountText}
+                          </Text>
                         </View>
-                      )}
+                      ) : isTopRated ? (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            bottom: 8,
+                            left: 8,
+                            backgroundColor: '#0284C7',
+                            paddingHorizontal: 7,
+                            paddingVertical: 3,
+                            borderRadius: 6,
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.2,
+                            shadowRadius: 2,
+                            elevation: 2,
+                          }}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 }}>
+                            Top Rated
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
 
-                    {/* Bottom Details */}
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                      {prod.name}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
-                      {displayCategory}
-                    </Text>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
-                      {displayPrice}
-                    </Text>
+                    {/* Bottom Details Section */}
+                    <View style={{ padding: 10, paddingTop: 8 }}>
+                      <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.text }} numberOfLines={1}>
+                        {prod.name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2, marginBottom: 6 }} numberOfLines={1}>
+                        {specSubtitle}
+                      </Text>
+
+                      {/* Price & Solid Orange Add Button */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline', flex: 1, marginRight: 6 }}>
+                          <Text style={{ fontSize: 15.5, fontWeight: '900', color: isLightActive ? '#0F172A' : '#F5B800' }}>
+                            {displayPrice}
+                          </Text>
+                          {displayOriginalPrice && (
+                            <Text style={{ fontSize: 11, color: isLightActive ? '#94A3B8' : 'rgba(255, 255, 255, 0.4)', textDecorationLine: 'line-through', marginLeft: 4 }}>
+                              {displayOriginalPrice}
+                            </Text>
+                          )}
+                        </View>
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            if (isStay) {
+                              navigation.navigate('StayDetails', { stay: prod });
+                            } else {
+                              const cardItem = formatCardItem(prod);
+                              addToCart(cardItem);
+                              showToast(t('Added to cart'), 'success');
+                            }
+                          }}
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 10,
+                            backgroundColor: '#FF6A00',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            shadowColor: '#FF6A00',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.25,
+                            shadowRadius: 3,
+                            elevation: 3,
+                          }}
+                        >
+                          <Icons.Plus color="#FFFFFF" size={17} strokeWidth={2.8} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -1572,7 +1732,7 @@ export default function HomeDashboard() {
             </TouchableOpacity>
           </View>
 
-          {isProductsLoading && dbProducts.length === 0 ? (
+          {(!hasLoadedInitial && dbProducts.length === 0) || (isProductsLoading && dbProducts.length === 0) ? (
             <View style={styles.feedGrid}>
               <SkeletonGridCard isLightActive={isLightActive} cardWidth={(width - 44) / 2} />
               <SkeletonGridCard isLightActive={isLightActive} cardWidth={(width - 44) / 2} />
@@ -1612,7 +1772,7 @@ export default function HomeDashboard() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {productsList.map((prod: any) => {
+              {productsList.slice(0, 10).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
                 const itemImg = resolveImageUrl(rawImg);
@@ -1714,7 +1874,7 @@ export default function HomeDashboard() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {servicesList.map((prod: any) => {
+              {servicesList.slice(0, 10).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
                 const itemImg = resolveImageUrl(rawImg);
@@ -1816,7 +1976,7 @@ export default function HomeDashboard() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {dailyNeedsList.map((prod: any) => {
+              {dailyNeedsList.slice(0, 10).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
                 const itemImg = resolveImageUrl(rawImg);
@@ -1918,7 +2078,7 @@ export default function HomeDashboard() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {foodList.map((prod: any) => {
+              {foodList.slice(0, 10).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
                 const itemImg = resolveImageUrl(rawImg);
@@ -2020,7 +2180,7 @@ export default function HomeDashboard() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {stayList.map((prod: any) => {
+              {stayList.slice(0, 10).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
                 const itemImg = resolveImageUrl(rawImg);
@@ -2111,7 +2271,7 @@ export default function HomeDashboard() {
 
         {/* Category Showcase: Travel */}
         {travelList.length > 0 && (
-          <View style={[styles.sectionContainer, { marginTop: 22, marginBottom: 40 }]}>
+          <View style={[styles.sectionContainer, { marginTop: 22 }]}>
             <View style={styles.sectionHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Icons.Compass color="#F5B800" size={16} />
@@ -2122,7 +2282,7 @@ export default function HomeDashboard() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {travelList.map((prod: any) => {
+              {travelList.slice(0, 10).map((prod: any) => {
                 const cardId = prod._id || prod.id;
                 const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
                 const itemImg = resolveImageUrl(rawImg);
@@ -2202,6 +2362,107 @@ export default function HomeDashboard() {
                     </Text>
                     <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
                       {numPrice}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Category Showcase: Jobs */}
+        {jobsList.length > 0 && (
+          <View style={[styles.sectionContainer, { marginTop: 22, marginBottom: 40 }]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Briefcase color="#F5B800" size={16} />
+                <Text style={[styles.sectionHeader, { color: colors.text, fontWeight: '700' }]}>{t('Jobs')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('CategoryDetails', { categoryName: 'Jobs' })}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('view_all')}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+              {jobsList.slice(0, 10).map((prod: any) => {
+                const cardId = prod._id || prod.id;
+                const rawImg = prod.image || prod.imageUrl || (Array.isArray(prod.images) && prod.images[0]?.url) || '';
+                const itemImg = resolveImageUrl(rawImg);
+                const isWishlisted = useWishlistStore.getState().wishlistItems.some((w) => w.id === cardId);
+                const numSalary = prod.salary || (typeof prod.price === 'number' ? `₹${prod.price.toLocaleString('en-IN')}/mo` : String(prod.price || '₹25,000/mo'));
+                return (
+                  <TouchableOpacity
+                    key={`job_${cardId}`}
+                    style={{
+                      width: 160,
+                      marginRight: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isLightActive ? '#F1EAD8' : colors.cardBorder,
+                      backgroundColor: isLightActive ? '#FFFFFF' : 'rgba(13, 22, 54, 0.65)',
+                      padding: 10,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('JobDetails', { job: prod, openApplySheet: false })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                        <Icons.Star color="#F5B800" size={11} fill="#F5B800" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isLightActive ? '#0F172A' : '#FFFFFF' }}>
+                          {prod.rating ? String(prod.rating) : '4.8'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => useWishlistStore.getState().toggleWishlist(formatCardItem(prod))}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.08)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icons.Heart
+                          size={13}
+                          color={isWishlisted ? '#EF4444' : (isLightActive ? '#94A3B8' : '#CBD5E1')}
+                          fill={isWishlisted ? '#EF4444' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        width: '100%',
+                        height: 112,
+                        borderRadius: 10,
+                        backgroundColor: isLightActive ? '#F8FAFC' : 'rgba(255, 255, 255, 0.05)',
+                        overflow: 'hidden',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 8,
+                      }}
+                    >
+                      {itemImg ? (
+                        <Image source={{ uri: itemImg }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                          <Icons.Briefcase size={28} color="#94A3B8" />
+                          <Text style={{ fontSize: 9.5, color: '#94A3B8', marginTop: 4 }}>{t('Job Opening')}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                      {prod.name || prod.title}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isLightActive ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 2 }} numberOfLines={1}>
+                      {prod.subcategory || prod.category || prod.company || 'Jobs'}
+                    </Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: isLightActive ? '#0F172A' : '#F5B800', marginTop: 4 }}>
+                      {numSalary}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -5166,25 +5427,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   bannerCard: {
-    height: 190,
-    borderRadius: 16,
-    flexDirection: 'row',
+    height: 184,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    backgroundColor: '#161311',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+    position: 'relative',
   },
-  bannerLeft: {
-    width: '50%',
-    padding: 13,
+  bannerBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  bannerContent: {
+    width: '64%',
+    height: '100%',
+    padding: 14,
     justifyContent: 'space-between',
+    zIndex: 2,
   },
   bannerTopGroup: {
-    gap: 5,
+    gap: 4,
   },
   bannerHeaderRow: {
     flexDirection: 'row',
@@ -5199,59 +5472,104 @@ const styles = StyleSheet.create({
   },
   bannerBadgeContainer: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.4)',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
+    borderColor: 'rgba(245, 158, 11, 0.45)',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderRadius: 6,
+    paddingVertical: 2.5,
+    paddingHorizontal: 7,
+    marginBottom: 4,
   },
   bannerBadgeText: {
     color: '#F59E0B',
-    fontSize: 8.5,
-    fontWeight: 'bold',
-    letterSpacing: 0.3,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   bannerTitleGroup: {
-    gap: 2,
-    marginVertical: 2,
+    gap: 1,
+  },
+  bannerTitleWhite: {
+    color: '#FFFFFF',
+    fontSize: 18.5,
+    fontWeight: '900',
+    lineHeight: 22,
+    letterSpacing: -0.3,
+  },
+  bannerTitleAmber: {
+    color: '#F59E0B',
+    fontSize: 17.5,
+    fontWeight: '900',
+    lineHeight: 21,
+    letterSpacing: -0.2,
   },
   bannerTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    lineHeight: 20,
+    fontSize: 17,
+    fontWeight: '900',
+    lineHeight: 21,
   },
   bannerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.65)',
-    fontSize: 10.5,
-    lineHeight: 14,
+    color: '#CBD5E1',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
   },
   bannerBtn: {
-    backgroundColor: '#F4C400',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    backgroundColor: '#F59E0B',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 22,
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
   },
   bannerBtnText: {
-    color: '#0D0F17',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 0.3,
+    color: '#0F172A',
+    fontSize: 11.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
-  bannerRight: {
-    width: '50%',
-    height: '100%',
-    overflow: 'hidden',
+  bannerCircleBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FF1744',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    elevation: 6,
+    zIndex: 3,
   },
-  bannerImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+  bannerCircleSmallText: {
+    color: '#FFFFFF',
+    fontSize: 7.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    lineHeight: 9,
+  },
+  bannerCircleBigText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '900',
+    lineHeight: 15,
   },
   bannerDotsRow: {
     flexDirection: 'row',
@@ -5268,8 +5586,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(156, 163, 175, 0.35)',
   },
   bannerDotActive: {
-    width: 18,
-    backgroundColor: '#3B82F6',
+    width: 22,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FF6A00',
   },
   // Notification Modal Styles
   notifFullModalContainer: {

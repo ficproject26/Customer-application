@@ -22,9 +22,11 @@ import { useWishlistStore } from '../../store/wishlistStore';
 import { useToastStore } from '../../store/toastStore';
 import { useOrderStore, Order } from '../../store/orderStore';
 import { useThemeStore } from '../../store/themeStore';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
+import { useAuthGuardStore } from '../../store/authGuardStore';
 import { apiFetch } from '../../services/api';
 import { useNotificationStore } from '../../store/notificationStore';
+import { dispatchCustomerNotification } from '../../services/notificationService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -173,9 +175,13 @@ export default function JobDetailsScreen() {
     }
 
     const genAppId = `JOB-${Math.random().toString(16).substring(2, 8)}`;
+    const authCustId = currentUser?.customerId || currentUser?.registrationId || currentUser?.id || 'guest_user';
     const applicationOrder: Order = {
       id: `ord_job_${Date.now()}`,
       user_id: currentUser?.id || 'guest_user',
+      customer_id: authCustId,
+      customerId: authCustId,
+      type: 'Jobs',
       order_number: genAppId,
       application_id: genAppId,
       job_id: jobID,
@@ -223,8 +229,8 @@ export default function JobDetailsScreen() {
 
     useOrderStore.getState().addLocalOrder(applicationOrder);
 
-    // Notification Center Dispatch
-    useNotificationStore.getState().addNotification({
+    // Notification Center & System Notification Dispatch
+    dispatchCustomerNotification({
       title: 'Application Submitted! 💼',
       body: `Your job application #${genAppId} for ${rawJob.title} at ${rawJob.company || 'Employer'} has been sent successfully.`,
       icon: 'Briefcase',
@@ -552,6 +558,16 @@ export default function JobDetailsScreen() {
                 })
               );
             } else {
+              const authUser = useAuthStore.getState().currentUser;
+              if (!isUserAuthenticated(authUser)) {
+                useAuthStore.getState().setPendingPurchaseProduct({
+                  ...rawJob,
+                  actionType: 'apply_job',
+                  returnScreen: 'JobDetails',
+                });
+                useAuthGuardStore.getState().showAuthModal('apply for this position and track your application');
+                return;
+              }
               resetApplicantForm();
               setIsApplyModalVisible(true);
             }

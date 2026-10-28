@@ -14,6 +14,7 @@ export interface OrderItemDetail {
   mrp?: number;
   variant?: string;
   image?: string;
+  category?: string;
 }
 
 export interface Order {
@@ -158,6 +159,7 @@ interface OrderState {
       customer_phone?: string;
     }
   ) => Promise<boolean>;
+  clearOrders: () => void;
   clearActive: () => void;
 }
 
@@ -167,24 +169,95 @@ let _isFetchingOrders = false;
 
 export function normalizeStoredOrderCategory<T extends Partial<Order>>(order: T): T {
   if (!order) return order;
-  const currentCat = String(order.category || '').trim();
-  if (['Jobs', 'Services', 'Stay', 'Travel', 'Food', 'Daily Needs'].includes(currentCat)) {
-    return order;
-  }
-  const details = (order.product_details || '').toLowerCase();
-  const hasDailyNeeds =
-    (order.items &&
-      order.items.some((it: any) => {
-        const n = String(it.name || '').toLowerCase();
-        const c = String(it.category || '').toLowerCase();
-        return c.includes('daily') || c.includes('grocery') || /\b(milk|lays|curd|bread|eggs?|butter|chips)\b/i.test(n);
-      })) ||
-    /\b(milk|lays|curd|bread|eggs?|butter|chips)\b/i.test(details);
+  const rawCat = String(order.category || '').trim();
+  const rawType = String((order as any).type || '').trim();
+  const rawOrderType = String(order.order_type || '').trim();
+  const rawNum = String(order.order_number || order.id || '');
+  const details = String(order.product_details || '').toLowerCase();
+  const firstItemCat = String(order.items?.[0]?.category || '').trim();
+  const anyItemCat = (order.items || []).map((it: any) => String(it.category || '').toLowerCase()).join(' ');
+  const anyItemName = (order.items || []).map((it: any) => String(it.name || '').toLowerCase()).join(' ');
 
-  if (hasDailyNeeds) {
-    return { ...order, category: 'Daily Needs' as OrderCategory };
+  // 1. Jobs
+  if (
+    rawCat === 'Jobs' || rawCat.toLowerCase() === 'jobs' ||
+    rawType === 'Job' || rawType === 'Jobs' ||
+    rawNum.startsWith('JOB') || rawNum.includes('job') ||
+    Boolean(order.application_status) || Boolean(order.resume_name) ||
+    Boolean(order.applicant_education) || Boolean((order as any).candidateResume)
+  ) {
+    return { ...order, category: 'Jobs' as OrderCategory };
   }
-  return order;
+
+  // 2. Stay
+  if (
+    rawCat === 'Stay' || rawType === 'Stay' ||
+    firstItemCat.toLowerCase() === 'viila' || firstItemCat.toLowerCase() === 'villa' || firstItemCat.toLowerCase() === 'resort' || firstItemCat.toLowerCase() === 'hotel' ||
+    anyItemCat.includes('villa') || anyItemCat.includes('viila') || anyItemCat.includes('resort') || anyItemCat.includes('hotel') ||
+    Boolean((order as any).hotel_name) || Boolean((order as any).check_in) || Boolean((order as any).checkInDate) ||
+    /\b(villa|viila|resort|hotel|deluxe room|room stay|night stay|nights? stay)\b/i.test(details) ||
+    /\b(villa|viila|resort|hotel|deluxe room)\b/i.test(anyItemName)
+  ) {
+    return { ...order, category: 'Stay' as OrderCategory, order_type: 'booking' };
+  }
+
+  // 3. Travel
+  if (
+    rawCat === 'Travel' || rawType === 'Travel' || rawCat === 'Bus' || rawType === 'Bus' ||
+    anyItemCat.includes('bus') || anyItemCat.includes('flight') || anyItemCat.includes('travel') ||
+    Boolean((order as any).boarding_point) || Boolean((order as any).dropping_point) ||
+    Boolean((order as any).boardingPoint) || Boolean((order as any).droppingPoint) ||
+    Boolean((order as any).travelers?.length) ||
+    /\b(bus|travels?|volvo|sleeper|seater|ksrtc|vrl|intrcity|airavat|flight)\b/i.test(details) ||
+    /\b(bus|travels?|ksrtc|vrl|intrcity|airavat)\b/i.test(String(order.vendor_name || ''))
+  ) {
+    return { ...order, category: 'Travel' as OrderCategory, order_type: 'booking' };
+  }
+
+  // 4. Services
+  if (
+    rawCat === 'Services' || rawCat === 'Service' || rawType === 'Services' || rawType === 'Service' ||
+    /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(rawCat) ||
+    /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(anyItemCat) ||
+    Boolean((order as any).appointment_slot) || Boolean((order as any).appointmentDate) || Boolean((order as any).appointmentTimeSlot) ||
+    rawNum.startsWith('SRV-') || rawNum.startsWith('BK-') ||
+    (rawOrderType === 'booking' && !['Stay', 'Travel', 'Jobs'].includes(rawCat))
+  ) {
+    return { ...order, category: 'Services' as OrderCategory, order_type: 'booking' };
+  }
+
+  // 5. Food & Dining
+  if (
+    rawCat === 'Food' || rawType === 'Food' ||
+    /\b(north indian|south indian|chinese|biryani|restaurant|dining|fast food|bakery|beverages|cafe)\b/i.test(rawCat) ||
+    /\b(north indian|south indian|chinese|biryani|restaurant|dining|fast food|bakery|beverages|cafe)\b/i.test(anyItemCat) ||
+    /\b(biryani|naan|roti|curry|paneer|chicken|dosa|idli|thali|pizza|burger|fried rice|noodles|sandwich|shawarma|tandoor|tikka|meal|meals)\b/i.test(details) ||
+    /\b(biryani|naan|roti|curry|paneer|chicken|dosa|idli|thali|pizza|burger|fried rice|noodles|sandwich|shawarma|tandoor|tikka|meal|meals)\b/i.test(anyItemName)
+  ) {
+    return { ...order, category: 'Food' as OrderCategory, order_type: 'order' };
+  }
+
+  // 6. Daily Needs / Grocery
+  if (
+    rawCat === 'Daily Needs' || rawType === 'Daily Needs' ||
+    /\b(groceries|grocery|dairy|daily|supermarket)\b/i.test(rawCat) ||
+    /\b(groceries|grocery|dairy|daily|supermarket)\b/i.test(anyItemCat) ||
+    /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(details) ||
+    /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(anyItemName)
+  ) {
+    return { ...order, category: 'Daily Needs' as OrderCategory, order_type: 'order' };
+  }
+
+  // 7. Products
+  if (rawCat === 'Products' || rawType === 'Products' || rawCat === 'Electronics' || rawCat === 'Fashion') {
+    return { ...order, category: 'Products' as OrderCategory, order_type: 'order' };
+  }
+
+  if (rawOrderType === 'booking') {
+    return { ...order, category: 'Services' as OrderCategory, order_type: 'booking' };
+  }
+
+  return { ...order, category: 'Products' as OrderCategory, order_type: 'order' };
 }
 
 export const useOrderStore = create<OrderState>()(
@@ -301,9 +374,21 @@ export const useOrderStore = create<OrderState>()(
 
         _isFetchingOrders = true;
         try {
-          const res = await apiFetch('/orders', { skipCache: true });
+          let queryParam = '';
+          let cId = '';
+          let cPhone = '';
+          try {
+            const authStore = require('./authStore').useAuthStore.getState();
+            const curUser = authStore.currentUser;
+            cId = curUser?.customerId || curUser?.registrationId || curUser?.id || '';
+            cPhone = (curUser?.phone || '').replace(/[^\d]/g, '').slice(-10);
+            if (cId && !curUser?.isGuest) {
+              queryParam = `?customerId=${encodeURIComponent(cId)}`;
+            }
+          } catch {}
+          const res = await apiFetch(`/orders${queryParam}`, { skipCache: true });
           _lastOrderFetchTime = Date.now();
-          if (res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+          if (res && res.status === 'success' && Array.isArray(res.data)) {
             const current = get().allOrders || [];
             const backendIdSet = new Set<string>();
             const backendOrderNumSet = new Set<string>();
@@ -314,12 +399,17 @@ export const useOrderStore = create<OrderState>()(
               if (o.order_number) backendOrderNumSet.add(String(o.order_number));
             });
 
+            // Retain only local offline orders that belong to THIS customer
             const localOnly = current.filter((o: any) => {
               const matchesBackend =
                 (o.id && backendIdSet.has(String(o.id))) ||
                 (o._id && backendIdSet.has(String(o._id))) ||
                 (o.order_number && backendOrderNumSet.has(String(o.order_number)));
-              return !matchesBackend;
+              if (matchesBackend) return false;
+              const oCustId = o.customerId || o.customer_id || o.user_id || o.userId;
+              const oPhone = String(o.customer_phone || o.customerPhone || o.candidatePhone || '').replace(/[^\d]/g, '').slice(-10);
+              const belongsToCurUser = (cId && oCustId === cId) || (cPhone && cPhone.length === 10 && oPhone === cPhone);
+              return Boolean(belongsToCurUser);
             });
 
             set({ allOrders: [...res.data, ...localOnly].map(normalizeStoredOrderCategory) });
@@ -452,6 +542,7 @@ export const useOrderStore = create<OrderState>()(
     return true;
   },
 
+  clearOrders: () => set({ allOrders: [], activeOrder: null, activeAssignment: null, incomingAssignment: null }),
   clearActive: () => set({ activeOrder: null, activeAssignment: null, incomingAssignment: null }),
 }),
     {

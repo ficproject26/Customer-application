@@ -16,32 +16,45 @@ export interface LaunchRazorpayOptions {
 export async function prepareRazorpayOrder(options: LaunchRazorpayOptions): Promise<RazorpayOrderDetails | null> {
   const numericAmount = Math.max(1, Math.round(options.amount));
   const amountPaise = numericAmount * 100;
+  const isMembership = options.planType && ['silver', 'gold', 'diamond'].includes(options.planType.toLowerCase());
 
   try {
-    const res = await apiFetch('/razorpay/create-order', {
-      method: 'POST',
-      body: {
-        amount: numericAmount,
-        currency: 'INR',
-        planType: options.planType || 'order',
-        userId: options.userId || '',
-      },
-    });
+    let res: any;
+    if (isMembership) {
+      res = await apiFetch('/membership/create-order', {
+        method: 'POST',
+        body: {
+          planKey: options.planType?.toLowerCase(),
+          userId: options.userId || '',
+        },
+      });
+    } else {
+      res = await apiFetch('/orders/create-razorpay-order', {
+        method: 'POST',
+        body: {
+          amount: numericAmount,
+          currency: 'INR',
+          planType: options.planType || 'order',
+          userId: options.userId || '',
+        },
+      });
+    }
 
-    if (res && res.status === 'success' && res.data?.orderId) {
+    const orderId = res?.order_id || res?.orderId || res?.data?.orderId;
+    if (res && (res.success || res.status === 'success') && orderId) {
       const serverOrder: RazorpayOrderDetails = {
-        orderId: res.data.orderId,
-        amount: res.data.amount || amountPaise,
-        currency: res.data.currency || 'INR',
-        keyId: res.data.keyId || RAZORPAY_TEST_KEY_ID,
-        planType: res.data.planType || options.planType || 'order',
+        orderId: orderId,
+        amount: res.amount || res.data?.amount || amountPaise,
+        currency: res.currency || res.data?.currency || 'INR',
+        keyId: res.key_id || res.keyId || res.data?.keyId || RAZORPAY_TEST_KEY_ID,
+        planType: res.planType || res.data?.planType || options.planType || 'order',
         planName: options.planName,
         priceText: options.priceText || `₹${numericAmount.toLocaleString('en-IN')}`,
       };
       options.onOrderReady(serverOrder);
       return serverOrder;
     } else {
-      throw new Error(res?.message || 'Failed to create payment order');
+      throw new Error(res?.error || res?.message || 'Failed to create payment order');
     }
   } catch (err) {
     console.warn('[razorpayService] Failed to create payment order:', err);
@@ -54,6 +67,7 @@ export interface VerifyPaymentPayload {
   razorpay_order_id: string;
   razorpay_signature: string;
   planType?: string;
+  planKey?: string;
   userId?: string;
   items?: any[];
   totalAmount?: number;
@@ -61,7 +75,18 @@ export interface VerifyPaymentPayload {
 }
 
 export async function verifyRazorpayPayment(payload: VerifyPaymentPayload) {
-  const res = await apiFetch('/razorpay/verify-payment', {
+  const isMembership = payload.planType && ['silver', 'gold', 'diamond'].includes(payload.planType.toLowerCase());
+  if (isMembership) {
+    const res = await apiFetch('/membership/verify-payment', {
+      method: 'POST',
+      body: {
+        ...payload,
+        planKey: payload.planKey || payload.planType?.toLowerCase(),
+      },
+    });
+    return res;
+  }
+  const res = await apiFetch('/orders', {
     method: 'POST',
     body: payload,
   });

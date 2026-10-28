@@ -10,6 +10,11 @@ try {
   console.log('[run-android] Warning loading env:', e.message);
 }
 
+// Cap default JVM memory allocations to prevent Windows paging file exhaustion
+if (!process.env._JAVA_OPTIONS) {
+  process.env._JAVA_OPTIONS = '-Xmx1024m';
+}
+
 const rootDir = __dirname;
 let workDir = rootDir;
 

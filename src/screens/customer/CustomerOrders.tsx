@@ -33,6 +33,7 @@ import { WebView } from 'react-native-webview';
 import { downloadInvoicePDF, shareInvoicePDF, generateInvoiceHTML } from '../../services/invoiceService';
 import { useTranslation } from '../../store/languageStore';
 import { socketService } from '../../services/socket';
+import { dispatchCustomerNotification } from '../../services/notificationService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -750,112 +751,136 @@ export default function CustomerOrders() {
     const s = (status || '').toLowerCase();
     if (isCompletedStatus(status)) {
       return {
-        label: (status || 'COMPLETED').toUpperCase(),
-        color: '#10B981',
-        bg: 'rgba(16, 185, 129, 0.12)',
-        border: 'rgba(16, 185, 129, 0.25)',
+        label: (status || 'DELIVERED').toUpperCase(),
+        color: '#15803D',
+        bg: '#DCFCE7',
+        border: '#BBF7D0',
       };
     }
     if (isCancelledStatus(status)) {
       return {
         label: 'CANCELLED',
-        color: '#EF4444',
-        bg: 'rgba(239, 68, 68, 0.12)',
-        border: 'rgba(239, 68, 68, 0.25)',
+        color: '#B91C1C',
+        bg: '#FEE2E2',
+        border: '#FECACA',
       };
     }
     if (
       s.includes('out for delivery') ||
-      s.includes('in transit')
+      s.includes('in transit') ||
+      s.includes('processing')
     ) {
       return {
-        label: 'OUT FOR DELIVERY',
-        color: '#3B82F6',
-        bg: 'rgba(59, 130, 246, 0.12)',
-        border: 'rgba(59, 130, 246, 0.25)',
+        label: s.includes('in transit') ? 'IN TRANSIT' : s.includes('out') ? 'OUT FOR DELIVERY' : 'PROCESSING',
+        color: '#1D4ED8',
+        bg: '#DBEAFE',
+        border: '#BFDBFE',
       };
     }
     if (s.includes('confirmed')) {
       return {
         label: 'CONFIRMED',
-        color: '#06B6D4',
-        bg: 'rgba(6, 182, 212, 0.12)',
-        border: 'rgba(6, 182, 212, 0.25)',
+        color: '#15803D',
+        bg: '#DCFCE7',
+        border: '#BBF7D0',
       };
     }
     return {
       label: (status || 'ORDER RECEIVED').toUpperCase(),
-      color: '#F59E0B',
-      bg: 'rgba(245, 158, 11, 0.12)',
-      border: 'rgba(245, 158, 11, 0.25)',
+      color: '#B45309',
+      bg: '#FEF3C7',
+      border: '#FDE68A',
     };
   };
 
   // Pure helper to categorize orders accurately across all features
   const normalizeOrderCategory = (order: Order): string => {
     if (!order) return 'Products';
-    const cat = String(order.category || '').trim();
-    const orderType = String(order.order_type || '').trim();
-    const orderNum = String(order.order_number || '');
-    const id = String(order.id || '');
+    const rawCat = String(order.category || '').trim();
+    const rawType = String((order as any).type || '').trim();
+    const rawOrderType = String(order.order_type || '').trim();
+    const rawNum = String(order.order_number || order.id || '');
+    const details = String(order.product_details || '').toLowerCase();
+    const firstItemCat = String(order.items?.[0]?.category || '').trim();
+    const anyItemCat = (order.items || []).map((it: any) => String(it.category || '').toLowerCase()).join(' ');
+    const anyItemName = (order.items || []).map((it: any) => String(it.name || '').toLowerCase()).join(' ');
 
+    // 1. Jobs
     if (
-      cat === 'Jobs' ||
-      cat === 'Job' ||
-      cat.toLowerCase() === 'jobs' ||
-      orderNum.includes('JOB') ||
-      id.includes('job') ||
-      Boolean(order.application_status) ||
-      Boolean(order.resume_name) ||
-      Boolean(order.applicant_education) ||
-      Boolean((order as any).candidateResume)
+      rawCat === 'Jobs' || rawCat.toLowerCase() === 'jobs' ||
+      rawType === 'Job' || rawType === 'Jobs' ||
+      rawNum.startsWith('JOB') || rawNum.includes('job') ||
+      Boolean(order.application_status) || Boolean(order.resume_name) ||
+      Boolean(order.applicant_education) || Boolean((order as any).candidateResume)
     ) {
       return 'Jobs';
     }
+
+    // 2. Stay
     if (
-      cat === 'Travel' ||
-      cat.toLowerCase() === 'travel' ||
-      Boolean((order as any).boarding_point) ||
-      Boolean((order as any).dropping_point) ||
-      ((order.product_details || '').toLowerCase().includes('boarding:') && (order.product_details || '').toLowerCase().includes('dropping:')) ||
-      /\b(bus|travels?|volvo|sleeper|seater)\b/i.test(order.product_details || '') ||
-      /\b(bus|travels?|ksrtc|vrl|intrcity|airavat)\b/i.test(order.vendor_name || '')
+      rawCat === 'Stay' || rawType === 'Stay' ||
+      firstItemCat.toLowerCase() === 'viila' || firstItemCat.toLowerCase() === 'villa' || firstItemCat.toLowerCase() === 'resort' || firstItemCat.toLowerCase() === 'hotel' ||
+      anyItemCat.includes('villa') || anyItemCat.includes('viila') || anyItemCat.includes('resort') || anyItemCat.includes('hotel') ||
+      Boolean((order as any).hotel_name) || Boolean((order as any).check_in) || Boolean((order as any).checkInDate) ||
+      /\b(villa|viila|resort|hotel|deluxe room|room stay|night stay|nights? stay)\b/i.test(details) ||
+      /\b(villa|viila|resort|hotel|deluxe room)\b/i.test(anyItemName)
     ) {
-      const lowerPd = (order.product_details || '').toLowerCase();
-      if (!cat.toLowerCase().includes('food') && !cat.toLowerCase().includes('daily') && !lowerPd.includes('biryani') && !lowerPd.includes('milk')) {
-        return 'Travel';
-      }
+      return 'Stay';
     }
-    if (cat === 'Services' || cat === 'Service') return 'Services';
-    if (cat === 'Stay') return 'Stay';
-    if (cat === 'Travel') return 'Travel';
-    if (cat === 'Daily Needs' || cat === 'Grocery' || cat.toLowerCase().includes('daily')) return 'Daily Needs';
-    if (cat === 'Food') return 'Food';
 
-    // Daily Needs item detection (Milk, lays, dairy, snacks, groceries, etc.)
-    const detailsLower = (order.product_details || '').toLowerCase();
-    const hasDailyNeedsItem =
-      (order.items &&
-        order.items.some((it: any) => {
-          const itCat = String(it.category || '').toLowerCase();
-          const itName = String(it.name || '').toLowerCase();
-          return (
-            itCat.includes('daily') ||
-            itCat.includes('grocery') ||
-            itCat.includes('dairy') ||
-            itCat.includes('snack') ||
-            /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(itName)
-          );
-        })) ||
-      /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(detailsLower);
+    // 3. Travel
+    if (
+      rawCat === 'Travel' || rawType === 'Travel' || rawCat === 'Bus' || rawType === 'Bus' ||
+      anyItemCat.includes('bus') || anyItemCat.includes('flight') || anyItemCat.includes('travel') ||
+      Boolean((order as any).boarding_point) || Boolean((order as any).dropping_point) ||
+      Boolean((order as any).boardingPoint) || Boolean((order as any).droppingPoint) ||
+      Boolean((order as any).travelers?.length) ||
+      /\b(bus|travels?|volvo|sleeper|seater|ksrtc|vrl|intrcity|airavat|flight)\b/i.test(details) ||
+      /\b(bus|travels?|ksrtc|vrl|intrcity|airavat)\b/i.test(String(order.vendor_name || ''))
+    ) {
+      return 'Travel';
+    }
 
-    if (hasDailyNeedsItem) {
+    // 4. Services
+    if (
+      rawCat === 'Services' || rawCat === 'Service' || rawType === 'Services' || rawType === 'Service' ||
+      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(rawCat) ||
+      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(anyItemCat) ||
+      Boolean((order as any).appointment_slot) || Boolean((order as any).appointmentDate) || Boolean((order as any).appointmentTimeSlot) ||
+      rawNum.startsWith('SRV-') || rawNum.startsWith('BK-') ||
+      (rawOrderType === 'booking' && !['Stay', 'Travel', 'Jobs'].includes(rawCat))
+    ) {
+      return 'Services';
+    }
+
+    // 5. Food & Dining
+    if (
+      rawCat === 'Food' || rawType === 'Food' ||
+      /\b(north indian|south indian|chinese|biryani|restaurant|dining|fast food|bakery|beverages|cafe)\b/i.test(rawCat) ||
+      /\b(north indian|south indian|chinese|biryani|restaurant|dining|fast food|bakery|beverages|cafe)\b/i.test(anyItemCat) ||
+      /\b(biryani|naan|roti|curry|paneer|chicken|dosa|idli|thali|pizza|burger|fried rice|noodles|sandwich|shawarma|tandoor|tikka|meal|meals)\b/i.test(details) ||
+      /\b(biryani|naan|roti|curry|paneer|chicken|dosa|idli|thali|pizza|burger|fried rice|noodles|sandwich|shawarma|tandoor|tikka|meal|meals)\b/i.test(anyItemName)
+    ) {
+      return 'Food';
+    }
+
+    // 6. Daily Needs / Grocery
+    if (
+      rawCat === 'Daily Needs' || rawType === 'Daily Needs' ||
+      /\b(groceries|grocery|dairy|daily|supermarket)\b/i.test(rawCat) ||
+      /\b(groceries|grocery|dairy|daily|supermarket)\b/i.test(anyItemCat) ||
+      /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(details) ||
+      /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(anyItemName)
+    ) {
       return 'Daily Needs';
     }
 
-    if (cat === 'Products' || cat === 'Product' || cat === 'Electronics' || cat === 'Fashion') return 'Products';
+    // 7. Products
+    if (rawCat === 'Products' || rawType === 'Products' || rawCat === 'Electronics' || rawCat === 'Fashion') {
+      return 'Products';
+    }
 
-    if (orderType === 'booking') return 'Services';
+    if (rawOrderType === 'booking') return 'Services';
     return 'Products';
   };
 
@@ -2030,51 +2055,40 @@ export default function CustomerOrders() {
 
   // Orders strictly scoped to current user session (with fallback)
   const userOrders = useMemo(() => {
-    if (!currentUser) return allOrders;
-    const cId = currentUser.id || (currentUser as any)._id;
-    const cName = (currentUser.name || (currentUser as any).customer_name || '').toLowerCase().trim();
-    const cPhone = (currentUser.phone || '').replace(/[^\d]/g, '');
+    if (!currentUser || currentUser.isGuest || !isAuthenticated) {
+      // Guest or non-authenticated user only sees local orders placed as guest in this session
+      return allOrders.filter(
+        (o) => o.user_id === 'guest_user' || o.customer_id === 'guest_user' || (o as any).userId === 'guest_user'
+      );
+    }
+    const cId = currentUser.id || (currentUser as any)._id || '';
+    const custIdTarget = (currentUser as any).customerId || (currentUser as any).registrationId || '';
+    const cEmail = (currentUser.email || '').toLowerCase().trim();
+    const cPhone = (currentUser.phone || '').replace(/[^\d]/g, '').slice(-10);
 
     return allOrders.filter((o) => {
-      // 1. All Job Applications should ALWAYS be visible to this customer
-      const isJob =
-        o.category === 'Jobs' ||
-        String(o.category || '').toLowerCase() === 'jobs' ||
-        String(o.order_number || '').includes('JOB') ||
-        String(o.id || '').includes('job') ||
-        Boolean(o.application_status) ||
-        Boolean(o.resume_name) ||
-        Boolean(o.applicant_education) ||
-        Boolean((o as any).candidateResume);
-      if (isJob) return true;
+      // 1. Direct ID match
+      const oCustId = o.customer_id || (o as any).customerId || o.user_id || (o as any).userId || (o as any).memberId;
+      if (cId && oCustId && String(oCustId) === String(cId)) return true;
+      if (custIdTarget && oCustId && String(oCustId) === String(custIdTarget)) return true;
 
-      // 2. Orders without user_id or customer_id or created locally should not be hidden
-      if (!o.user_id && !(o as any).userId && !o.customer_id && !(o as any).customerId) return true;
+      // 2. Phone match (last 10 digits)
+      const rawPhone = o.customer_phone || (o as any).customerPhone || (o as any).candidatePhone || (o as any).phone || '';
+      const cleanOPhone = String(rawPhone).replace(/[^\d]/g, '').slice(-10);
+      if (cPhone && cPhone.length === 10 && cleanOPhone.length === 10 && cleanOPhone === cPhone) {
+        return true;
+      }
 
-      // 3. User session matching (Support MongoDB _id, registrationId, customerId, phone, and email)
-      const custIdTarget = (currentUser as any).customerId || cId;
-      const idMatch = Boolean(
-        (cId && (o.user_id === cId || (o as any).userId === cId || o.customer_id === cId || (o as any).customerId === cId || (o as any).memberId === cId)) ||
-        (custIdTarget && (o.customer_id === custIdTarget || (o as any).customerId === custIdTarget || (o as any).memberId === custIdTarget))
-      );
-      const emailMatch = Boolean(
-        currentUser?.email && (
-          (o as any).customer_email?.toLowerCase() === currentUser.email.toLowerCase() ||
-          (o as any).customerEmail?.toLowerCase() === currentUser.email.toLowerCase() ||
-          (o as any).applicant_email?.toLowerCase() === currentUser.email.toLowerCase()
-        )
-      );
-      const nameMatch = Boolean(cName && (
-        (o.customer_name && o.customer_name.toLowerCase().trim().includes(cName)) ||
-        ((o as any).memberName && (o as any).memberName.toLowerCase().trim().includes(cName))
-      ));
-      const phoneMatch = Boolean(cPhone && cPhone.length >= 6 && (
-        (o.customer_phone && o.customer_phone.includes(cPhone)) ||
-        ((o as any).customerPhone && (o as any).customerPhone.includes(cPhone))
-      ));
-      return idMatch || emailMatch || nameMatch || phoneMatch;
+      // 3. Email match
+      const rawEmail = (o as any).customer_email || (o as any).customerEmail || (o as any).applicant_email || (o as any).candidateEmail || '';
+      const cleanOEmail = String(rawEmail).toLowerCase().trim();
+      if (cEmail && cleanOEmail && cleanOEmail === cEmail) {
+        return true;
+      }
+
+      return false;
     });
-  }, [allOrders, currentUser]);
+  }, [allOrders, currentUser, isAuthenticated]);
 
   // Orders pre-filtered by selected Date Range
   const dateFilteredOrders = useMemo(() => {
@@ -2271,6 +2285,26 @@ export default function CustomerOrders() {
     const success = await cancelCustomerOrder(orderId, isJob ? 'Candidate Withdrawn' : cancelReason);
     setIsProcessingAction(false);
     if (success) {
+      // Notification Center & System Notification Dispatch
+      dispatchCustomerNotification({
+        title: isJob ? 'Job Application Withdrawn 💼' : 'Order Cancelled 🛍️',
+        body: isJob
+          ? `Your application for #${orderId} has been withdrawn.`
+          : `Order #${orderId} has been cancelled. Refund initiated if prepaid.`,
+        icon: isJob ? 'Briefcase' : 'XCircle',
+        category: 'order',
+        actionLabel: isJob ? 'View Applications' : 'View Orders',
+        actionType: isJob ? 'job' : 'order',
+        orderType: isJob ? 'job' : 'order',
+        orderId: orderId,
+        targetScreen: 'Orders',
+        targetParams: {
+          category: targetOrder.category || (isJob ? 'Jobs' : 'Products'),
+          activeTab: isJob ? 'job applied' : (targetOrder.order_type === 'booking' ? 'my bookings' : 'my orders'),
+          orderId,
+        },
+      });
+
       showToast(isJob ? 'Application withdrawn successfully.' : 'Order cancelled successfully. Refund initiated if prepaid.');
       if (selectedOrderForDetails?.id === orderId) {
         setSelectedOrderForDetails({
@@ -2412,14 +2446,14 @@ export default function CustomerOrders() {
         case 'My Bookings':
           return {
             icon: Icons.Wrench,
-            title: 'No Service bookings found',
-            desc: 'Book certified technicians for AC servicing, home deep cleaning, and repairs.',
-            btn: 'Explore Services',
+            title: 'No bookings yet.',
+            desc: 'Book verified doorstep services, luxury villa stays, and travel tickets.',
+            btn: 'Explore Services & Stays',
           };
         case 'Job Applied':
           return {
             icon: Icons.Briefcase,
-            title: 'No Job applications found',
+            title: "You haven't applied for any jobs yet.",
             desc: 'Discover verified job openings, apply in one tap, and track recruiter screenings.',
             btn: 'Explore Jobs & Careers',
           };
@@ -2427,9 +2461,9 @@ export default function CustomerOrders() {
         default:
           return {
             icon: Icons.PackageX,
-            title: 'No orders found',
+            title: 'No orders yet.',
             desc: 'Browse our full marketplace of products, daily essentials, and food.',
-            btn: 'Explore Products',
+            btn: 'Explore Products & Food',
           };
       }
     };
@@ -3280,12 +3314,12 @@ export default function CustomerOrders() {
                   styles.categoryTabBtn,
                   {
                     backgroundColor: isSelected
-                      ? '#F5B800'
+                      ? '#FF6A00'
                       : isLight
                       ? '#FFFFFF'
                       : 'rgba(255, 255, 255, 0.06)',
                     borderColor: isSelected
-                      ? '#F5B800'
+                      ? '#FF6A00'
                       : isLight
                       ? '#F1EAD8'
                       : colors.cardBorder,
@@ -3297,7 +3331,7 @@ export default function CustomerOrders() {
                 <Text
                   style={[
                     styles.categoryTabText,
-                    { color: isSelected ? '#0F172A' : colors.text },
+                    { color: isSelected ? '#FFFFFF' : colors.text },
                     isSelected && { fontWeight: '800' },
                   ]}
                 >
@@ -3308,9 +3342,9 @@ export default function CustomerOrders() {
                     styles.categoryCountBadge,
                     {
                       backgroundColor: isSelected
-                        ? 'rgba(15, 23, 42, 0.15)'
+                        ? 'rgba(255, 255, 255, 0.25)'
                         : isLight
-                        ? '#FEF3C7'
+                        ? '#FFF3E8'
                         : 'rgba(255, 255, 255, 0.12)',
                     },
                   ]}
@@ -3320,9 +3354,9 @@ export default function CustomerOrders() {
                       styles.categoryCountText,
                       {
                         color: isSelected
-                          ? '#0F172A'
+                          ? '#FFFFFF'
                           : isLight
-                          ? '#92400E'
+                          ? '#FF6A00'
                           : '#F5B800',
                       },
                     ]}

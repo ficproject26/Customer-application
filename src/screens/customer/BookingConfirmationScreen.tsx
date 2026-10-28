@@ -19,6 +19,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useOrderStore } from '../../store/orderStore';
 import { useNotificationStore } from '../../store/notificationStore';
+import { dispatchCustomerNotification } from '../../services/notificationService';
 import { downloadInvoicePDF, shareInvoicePDF } from '../../services/invoiceService';
 import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
 import { RAZORPAY_KEY_ID } from '../../services/env';
@@ -508,19 +509,26 @@ export default function BookingConfirmationScreen() {
         // Dispatch Payment Complete Notification with View Booking / View Order action
         const isBooking = type === 'stay' || type === 'service' || type === 'travel';
         const formattedAmount = Number(totalAmount || 499).toLocaleString('en-IN');
-        useNotificationStore.getState().addNotification({
+        dispatchCustomerNotification({
           title: isBooking
             ? (type === 'travel' ? 'Ticket Booked! Payment Complete 🚍' : type === 'stay' ? 'Stay Booked! Payment Complete 🏨' : 'Service Booked! Payment Complete 🛠️')
             : 'Payment Complete & Order Placed! 🛍️',
-          message: isBooking
+          body: isBooking
             ? `Payment of ₹${formattedAmount} received. Your booking #${targetId} is fully confirmed.`
             : `Payment of ₹${formattedAmount} received. Order #${targetId} is now paid & confirmed.`,
-          type: 'order',
-          category: isBooking ? (type === 'travel' ? 'Travel' : type === 'stay' ? 'Stay' : 'Services') : 'Products',
+          icon: isBooking ? (type === 'travel' ? 'Bus' : type === 'stay' ? 'Hotel' : 'Wrench') : 'PackageCheck',
+          category: isBooking ? (type === 'travel' ? 'Travel' : type === 'stay' ? 'Stay' : 'Services') : 'order',
           actionLabel: isBooking ? 'View Booking' : 'View Order',
-          actionType: isBooking ? 'view_booking' : 'view_order',
-          orderType: isBooking ? type : 'product',
+          actionType: isBooking ? 'booking' : 'order',
+          orderType: isBooking ? type : 'order',
           orderId: String(targetId),
+          bookingId: isBooking ? String(targetId) : undefined,
+          targetScreen: 'Orders',
+          targetParams: {
+            activeTab: isBooking ? 'my bookings' : 'my orders',
+            category: isBooking ? (type === 'travel' ? 'Travel' : type === 'stay' ? 'Stay' : 'Services') : 'Products',
+            orderId: String(targetId),
+          },
         });
       }
 

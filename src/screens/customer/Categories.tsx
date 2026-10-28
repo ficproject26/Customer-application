@@ -3106,12 +3106,57 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
         })  : /* Clean 2-Column Native Mobile Grid for other categories / Stay Results (Screenshot 2) */
         (0, _jsxRuntime.jsxs)(_jsxRuntime.Fragment, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+            style: {
+              backgroundColor: '#0F172A',
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderWidth: 1,
+              borderColor: '#1E293B',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 6,
+              elevation: 3,
+            },
+            children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+              style: { flex: 1, paddingRight: 12 },
+              children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+                style: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+                children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(Icons.Sparkles, { color: '#F59E0B', size: 14 }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                  style: { color: '#F59E0B', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+                  children: 'MARKETPLACE'
+                })]
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                style: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginBottom: 4 },
+                children: 'Explore All Categories'
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                style: { color: '#94A3B8', fontSize: 11.5, lineHeight: 16 },
+                children: 'Browse 1,000+ verified products, stays, services & daily essentials'
+              })]
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+              style: {
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: 'rgba(255, 106, 0, 0.15)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: 'rgba(255, 106, 0, 0.3)'
+              },
+              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(Icons.Grid, { color: '#FF6A00', size: 24 })
+            })]
+          }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
             style: styles.rightHeaderRow,
             children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
               style: [styles.sectionHeaderTitle, {
                 color: colors.text
               }],
-              children: selectedMainCategory === 'All' ? 'EXPLORE CATEGORIES' : selectedMainCategory.toUpperCase()
+              children: selectedMainCategory === 'All' ? 'ALL CATEGORIES' : selectedMainCategory.toUpperCase()
             }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
               style: [styles.resultCountText, {
                 color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.45)'
@@ -3150,17 +3195,21 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
                     }],
                     numberOfLines: 1,
                     children: card.count ? card.count.replace(' Options', '') : 'Explore'
-                  }), (card.rating && card.rating > 0) ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
-                    style: styles.ratingBadgeMini,
-                    children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(Icons.Star, {
-                      color: "#D97706",
-                      size: 10,
-                      fill: "#D97706"
-                    }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-                      style: styles.ratingBadgeText,
-                      children: card.rating.toFixed(1)
-                    })]
-                  }) : null]
+                  }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+                    style: {
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      backgroundColor: isLight ? '#FFF3E8' : 'rgba(255, 106, 0, 0.12)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    },
+                    children: /*#__PURE__*/(0, _jsxRuntime.jsx)(Icons.ChevronRight, {
+                      color: '#FF6A00',
+                      size: 13,
+                      strokeWidth: 2.5
+                    })
+                  })]
                 })]
               })]
             }, `${card.categoryKey}_${card.name}_${idx}`))

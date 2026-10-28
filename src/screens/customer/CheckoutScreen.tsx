@@ -21,10 +21,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCartStore, isCartableCategory } from '../../store/cartStore';
 import { useOrderStore, Order } from '../../store/orderStore';
 import { useToastStore } from '../../store/toastStore';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useTranslation } from '../../store/languageStore';
 import { useNotificationStore } from '../../store/notificationStore';
+import { dispatchCustomerNotification } from '../../services/notificationService';
 
 export interface PromoCode {
   code: string;
@@ -577,7 +578,22 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
   };
 
   const handlePlaceOrder = () => {
-    if (!selectedAddressObj || !selectedAddressObj.street) {
+    const authUser = useAuthStore.getState().currentUser;
+    if (!isUserAuthenticated(authUser)) {
+      useAuthGuardStore.getState().showAuthModal('complete checkout and place your order');
+      return;
+    }
+
+    const contactPhone = selectedAddressObj?.phone?.trim() || authUser?.phone?.trim();
+    if (!contactPhone) {
+      Alert.alert(
+        'Phone Number Required',
+        'Please enter a valid 10-digit contact mobile number in your delivery address before placing your order.'
+      );
+      return;
+    }
+
+    if (!selectedAddressObj || !selectedAddressObj.street?.trim()) {
       Alert.alert('Delivery Address Required', 'Please select or add a delivery address to place your order.');
       return;
     }
@@ -611,12 +627,15 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
       const newOrder: Order = {
         id: orderId,
         order_number: orderId,
+        user_id: authUser?.id || '',
+        customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+        customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
         vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
         vendor_name: (cartItems[0] as any)?.vendorName || 'Connect Store',
         category: resolvedOrderCategory as any,
         order_type: 'order',
-        customer_name: currentUser?.name || 'Guest User',
-        customer_phone: currentUser?.phone || '',
+        customer_name: authUser?.name || selectedAddressObj?.name || 'Customer',
+        customer_phone: contactPhone,
         customer_address: formattedAddress,
         customer_latitude: 12.9716,
         customer_longitude: 77.6412,
@@ -645,8 +664,8 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
       // 1. Instantly record order in local store
       useOrderStore.getState().addLocalOrder(newOrder);
 
-      // Notification Center Dispatch
-      useNotificationStore.getState().addNotification({
+      // Notification Center & System Notification Dispatch
+      dispatchCustomerNotification({
         title: 'Order Placed Successfully! 🛍️',
         body: `Your order #${orderId} (${cartItems[0]?.name || 'Items'}${cartItems.length > 1 ? ` +${cartItems.length - 1} more` : ''}) has been placed. Payment via Cash on Delivery.`,
         icon: 'Package',
@@ -680,10 +699,15 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
           id: orderId,
           order_number: orderId,
           vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
-          customer_name: currentUser?.name || 'Guest User',
-          memberName: currentUser?.name || 'Guest User',
-          customer_phone: currentUser?.phone || '',
-          customerPhone: currentUser?.phone || '',
+          userId: authUser?.id || '',
+          user_id: authUser?.id || '',
+          customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+          customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+          customer_name: authUser?.name || selectedAddressObj?.name || 'Customer',
+          memberName: authUser?.name || selectedAddressObj?.name || 'Customer',
+          customer_phone: contactPhone,
+          customerPhone: contactPhone,
+          customer_email: authUser?.email || '',
           customer_address: formattedAddress,
           customerAddress: formattedAddress,
           customer_latitude: 12.9716,
@@ -721,7 +745,7 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
       planType: 'checkout',
       planName: `Checkout Order (${totalQtyCount} item${totalQtyCount > 1 ? 's' : ''})`,
       priceText: `₹${totalAmount.toLocaleString('en-IN')}`,
-      userId: currentUser?.id || 'guest_user',
+      userId: authUser?.id || '',
       onOrderReady: (ord) => {
         setRazorpayOrder(ord);
         setRazorpayModalVisible(true);
@@ -767,15 +791,20 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
       };
     });
 
+    const authUser = useAuthStore.getState().currentUser;
+    const contactPhone = selectedAddressObj?.phone?.trim() || authUser?.phone?.trim() || '';
     const newOrder: Order = {
       id: confirmedOrderId,
       order_number: confirmedOrderId,
+      user_id: authUser?.id || '',
+      customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+      customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
       vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
       vendor_name: (cartItems[0] as any)?.vendorName || 'Connect Store',
       category: resolvedOrderCategory as any,
       order_type: 'order',
-      customer_name: currentUser?.name || 'Guest User',
-      customer_phone: currentUser?.phone || '',
+      customer_name: authUser?.name || selectedAddressObj?.name || 'Customer',
+      customer_phone: contactPhone,
       customer_address: formattedAddress,
       customer_latitude: 12.9716,
       customer_longitude: 77.6412,
@@ -804,8 +833,8 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
     // 1. Instantly record in local store
     useOrderStore.getState().addLocalOrder(newOrder);
 
-    // Notification Center Dispatch
-    useNotificationStore.getState().addNotification({
+    // Notification Center & System Notification Dispatch
+    dispatchCustomerNotification({
       title: 'Payment Complete & Order Placed! 🛍️',
       body: `Payment of ₹${totalAmount.toLocaleString('en-IN')} verified. Order #${confirmedOrderId} (${cartItems[0]?.name || 'Items'}${cartItems.length > 1 ? ` +${cartItems.length - 1} more` : ''}) is confirmed and being prepared!`,
       icon: 'PackageCheck',
@@ -840,10 +869,15 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
           id: confirmedOrderId,
           order_number: confirmedOrderId,
           vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
-          customer_name: currentUser?.name || 'Customer User',
-          memberName: currentUser?.name || 'Customer User',
-          customer_phone: currentUser?.phone || '',
-          customerPhone: currentUser?.phone || '',
+          userId: authUser?.id || '',
+          user_id: authUser?.id || '',
+          customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+          customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+          customer_name: authUser?.name || selectedAddressObj?.name || 'Customer',
+          memberName: authUser?.name || selectedAddressObj?.name || 'Customer',
+          customer_phone: contactPhone,
+          customerPhone: contactPhone,
+          customer_email: authUser?.email || '',
           customer_address: formattedAddress,
           customerAddress: formattedAddress,
           customer_latitude: 12.9716,
@@ -873,19 +907,6 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
           razorpay_order_id: paymentResult.razorpay_order_id,
         },
       });
-
-      // 4. Background server-side verification logging
-      apiFetch('/razorpay/verify-payment', {
-        method: 'POST',
-        body: {
-          ...paymentResult,
-          planType: 'checkout',
-          userId: currentUser?.id || 'guest_user',
-          items: orderItems,
-          totalAmount,
-          address: formattedAddress,
-        },
-      }).catch((err) => console.warn('Background Razorpay checkout verify notice:', err));
     } finally {
       setIsProcessingPayment(false);
       setRazorpayOrder(null);
@@ -1557,8 +1578,8 @@ const styles = StyleSheet.create({
   priceSummary: { flex: 1 },
   bottomTotalLabel: { fontSize: 10 },
   bottomTotalVal: { fontSize: 18, fontWeight: '900' },
-  placeOrderBtn: { backgroundColor: '#F4C400', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
-  placeOrderText: { color: '#0F172A', fontSize: 13, fontWeight: 'bold' },
+  placeOrderBtn: { backgroundColor: '#FF6A00', paddingVertical: 13, paddingHorizontal: 24, borderRadius: 14, shadowColor: '#FF6A00', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 5, elevation: 4 },
+  placeOrderText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
 
   // Bottom Sheet Modal Styles
   modalOverlay: {
