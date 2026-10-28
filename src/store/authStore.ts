@@ -104,7 +104,12 @@ export const useAuthStore = create<AuthState>()(
       setAuthToken(token);
     }
     set({ currentUser: user, token: token || null, isOnboarded: true });
+    try {
+      const socketService = require('../services/socket').default;
+      socketService.connect(user.id, user.role || 'customer', token || undefined);
+    } catch {}
   },
+
   login: (identifier, role, callback) => {
     clearSessionAndUserData();
     const isEmail = identifier.includes('@');
@@ -164,6 +169,10 @@ export const useAuthStore = create<AuthState>()(
     const { setAuthToken } = require('../services/api');
     setAuthToken(null);
     set({ currentUser: null, token: null });
+    try {
+      const socketService = require('../services/socket').default;
+      socketService.disconnect();
+    } catch {}
     apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
   },
   register: (formData, role, callback) => {
