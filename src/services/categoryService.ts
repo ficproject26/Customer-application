@@ -57,239 +57,13 @@ export const SUBCATEGORY_FALLBACK_IMAGES: Record<string, string> = {
 // In-memory cache for fast lookups
 
 export const INITIAL_HIERARCHY: CategoryHierarchyMap = {
-  Products: {
-    id: '6a8d22c21bc647d92ae36339',
-    name: 'Products',
-    subcategories: [
-      {
-        id: 'sub_electronics',
-        name: 'Electronics',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_power_bank', name: 'Power Bank' },
-          { id: 'ch_laptop', name: 'Laptop' },
-          { id: 'ch_tablets', name: 'Tablets' },
-          { id: 'ch_smartphones', name: 'Smartphones' },
-          { id: 'ch_smartwatches', name: 'Smartwatches' },
-          { id: 'ch_headphones', name: 'Bluetooth Headphones' },
-          { id: 'ch_headset', name: 'Headset' },
-        ],
-      },
-      {
-        id: 'sub_dress',
-        name: 'Dress',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_mens', name: 'Mens' },
-          { id: 'ch_womens', name: 'Womens Dress' },
-          { id: 'ch_childrens', name: "Children's Dress" },
-        ],
-      },
-    ],
-  },
-  Services: {
-    id: '6a8d22c21bc647d92ae36338',
-    name: 'Services',
-    subcategories: [
-      {
-        id: 'sub_it_support',
-        name: 'IT & Device Support',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_laptop_rep', name: 'Laptop Repairs' },
-          { id: 'ch_pc_rep', name: 'PC Repairs' },
-          { id: 'ch_wifi_setup', name: 'Wifi & Network setup' },
-          { id: 'ch_watch_rep', name: 'Smart Watches Repair' },
-          { id: 'ch_smart_watch', name: 'Smart Watches' },
-          { id: 'ch_cctv', name: 'CCTV installation' },
-        ],
-      },
-      {
-        id: 'sub_ac_service',
-        name: 'Ac Service',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_full_clean', name: 'Full clean' },
-        ],
-      },
-    ],
-  },
-  'Daily Needs': {
-    id: '6a8d22c21bc647d92ae3633a',
-    name: 'Daily Needs',
-    subcategories: [
-      {
-        id: 'sub_snacks',
-        name: 'Snacks',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_chips', name: 'Chips' },
-        ],
-      },
-      {
-        id: 'sub_personal_care',
-        name: 'Personal care',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_shampoo', name: 'Shampoo' },
-        ],
-      },
-    ],
-  },
-  Food: {
-    id: '6a8d22c31bc647d92ae3633b',
-    name: 'Food',
-    subcategories: [
-      {
-        id: 'sub_biriyani',
-        name: 'Biriyani',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_chicken_biriyani', name: 'Chicken Biriyani' },
-          { id: 'ch_mutton_biriyani', name: 'Mutton Biriyani' },
-          { id: 'ch_veg_biriyani', name: 'Veg Biriyani' },
-          { id: 'ch_paneer_biriyani', name: 'Paneer Biryani' },
-        ],
-      },
-      {
-        id: 'sub_north_indian',
-        name: 'North indian',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_dal_makhani', name: 'Dal Makhani' },
-          { id: 'ch_butter_chicken', name: 'Butter Chicken' },
-          { id: 'ch_paneer_butter', name: 'Paneer Butter Masala' },
-          { id: 'ch_naan', name: 'Naan' },
-        ],
-      },
-      {
-        id: 'sub_fried_items',
-        name: 'Fried Items',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_chicken_rice', name: 'chicken Rice' },
-          { id: 'ch_egg_rice', name: 'Egg rice' },
-        ],
-      },
-      {
-        id: 'sub_south_indian',
-        name: 'South Indian',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1610192244261-3f33de3f55e4?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_meals', name: 'Meals' },
-          { id: 'ch_pongal', name: 'Pongal' },
-          { id: 'ch_idly', name: 'idly' },
-        ],
-      },
-      {
-        id: 'sub_bakery',
-        name: 'Bakery',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_cake', name: 'Cake' },
-          { id: 'ch_cookies', name: 'Cookies' },
-        ],
-      },
-    ],
-  },
-  Stay: {
-    id: '6a8d22c31bc647d92ae3633c',
-    name: 'Stay',
-    subcategories: [
-      {
-        id: 'sub_hotels',
-        name: 'Hotels',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_luxury', name: 'Luxury' },
-          { id: 'ch_budget', name: 'Budget' },
-        ],
-      },
-      {
-        id: 'sub_resorts',
-        name: 'Resorts',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_hill_station', name: 'Hill Station' },
-          { id: 'ch_beach', name: 'Beach' },
-        ],
-      },
-    ],
-  },
-  Travel: {
-    id: '6a8d22c31bc647d92ae3633d',
-    name: 'Travel',
-    subcategories: [
-      {
-        id: 'sub_bus',
-        name: 'Bus',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_non_ac_bus', name: 'Non AC bus' },
-          { id: 'ch_ac_bus', name: 'Ac bus' },
-        ],
-      },
-      {
-        id: 'sub_car',
-        name: 'Car',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_ac_car', name: 'AC Car' },
-          { id: 'ch_non_ac_car', name: 'Non AC Car' },
-        ],
-      },
-      {
-        id: 'sub_bike',
-        name: 'Bike',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_mini_superbikes', name: 'Mini Superbikes' },
-        ],
-      },
-    ],
-  },
-  Jobs: {
-    id: '6a8d22c31bc647d92ae3633e',
-    name: 'Jobs',
-    subcategories: [
-      {
-        id: 'sub_it_domain',
-        name: 'IT Domain',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&auto=format&fit=crop&q=80',
-        children: [
-          { id: 'ch_full_stack', name: 'Full Stack' },
-          { id: 'ch_ui_ux', name: 'UI/UX Designer' },
-          { id: 'ch_frontend', name: 'Frontend Developer' },
-          { id: 'ch_backend', name: 'Backend Developer' },
-          { id: 'ch_software', name: 'Software Developer' },
-        ],
-      },
-      {
-        id: 'sub_non_it',
-        name: 'Non-IT',
-        icon: '',
-        banner: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400&auto=format&fit=crop&q=80',
-        children: [],
-      },
-    ],
-  },
+  Products: { id: 'main_products', name: 'Products', subcategories: [] },
+  Services: { id: 'main_services', name: 'Services', subcategories: [] },
+  'Daily Needs': { id: 'main_daily_needs', name: 'Daily Needs', subcategories: [] },
+  Food: { id: 'main_food', name: 'Food', subcategories: [] },
+  Stay: { id: 'main_stay', name: 'Stay', subcategories: [] },
+  Travel: { id: 'main_travel', name: 'Travel', subcategories: [] },
+  Jobs: { id: 'main_jobs', name: 'Jobs', subcategories: [] },
 };
 
 let cachedHierarchy: CategoryHierarchyMap = INITIAL_HIERARCHY;
@@ -329,132 +103,92 @@ export function normalizeMainCategoryName(name: string): string {
 /**
  * Fetch and construct the authoritative Category Hierarchy from the backend
  */
-export function buildCategoryHierarchy(rawCategories: any[], realProducts: any[]): CategoryHierarchyMap {
+export function buildCategoryHierarchy(rawCategories: any[], _realProducts?: any[]): CategoryHierarchyMap {
   const mainCategoryOrder = ['Products', 'Services', 'Daily Needs', 'Food', 'Stay', 'Travel', 'Jobs'];
   const hierarchy: CategoryHierarchyMap = {};
 
+  const normMain = (n: string) => normalizeMainCategoryName(n);
+
+  const flatCats: any[] = [];
+  const walk = (c: any) => {
+    if (!c || c.isDeleted || c.isActive === false || c.description === 'DELETED_HIERARCHY_MARKER') return;
+    flatCats.push(c);
+    if (Array.isArray(c.children)) {
+      c.children.forEach(walk);
+    }
+  };
+  (Array.isArray(rawCategories) ? rawCategories : []).forEach(walk);
+
   mainCategoryOrder.forEach((mainName) => {
-    // Find the main root record in the API response
-    const root = rawCategories.find(
-      (c) =>
-        normalizeMainCategoryName(c.name) === mainName &&
-        (c.level === 'main' || !c.parentId)
+    const root = (Array.isArray(rawCategories) ? rawCategories : []).find(
+      (c) => normMain(c.name) === mainName && (c.level === 'main' || !c.parentId)
     );
 
-    // Group subcategories by unique subcategory name
     const subMap = new Map<string, { id: string; name: string; icon?: string; banner?: string; children: Map<string, ChildCategoryItem> }>();
 
-    // 1. Process Admin Category Management nested tree from /api/categories
+    const appendItem = (subNameRaw: string, subId?: string, subIcon?: string, subBanner?: string, childItems: any[] = []) => {
+      const subName = String(subNameRaw || '').trim();
+      if (!subName || normMain(subName) === mainName || subName === 'ALL_SUBCATEGORIES_DELETED_MARKER') return;
+
+      const existingKey = Array.from(subMap.keys()).find(k => k.toLowerCase() === subName.toLowerCase()) || subName;
+
+      if (!subMap.has(existingKey)) {
+        subMap.set(existingKey, {
+          id: subId || `sub_${existingKey.toLowerCase().replace(/\s+/g, '_')}`,
+          name: existingKey,
+          icon: subIcon || '',
+          banner: subBanner || SUBCATEGORY_FALLBACK_IMAGES[existingKey] || '',
+          children: new Map(),
+        });
+      }
+
+      const subEntry = subMap.get(existingKey)!;
+      if (subIcon && !subEntry.icon) subEntry.icon = subIcon;
+      if (subBanner && !subEntry.banner) subEntry.banner = subBanner;
+
+      (Array.isArray(childItems) ? childItems : []).forEach((ch) => {
+        if (!ch) return;
+        const chName = (typeof ch === 'string' ? ch : ch.subSubcategory || ch.name || ch.title || '').trim();
+        if (
+          chName &&
+          normMain(chName) !== mainName &&
+          chName.toLowerCase() !== existingKey.toLowerCase()
+        ) {
+          const existingChildKey = Array.from(subEntry.children.keys()).find(k => k.toLowerCase() === chName.toLowerCase());
+          if (!existingChildKey) {
+            subEntry.children.set(chName, {
+              id: (typeof ch === 'object' && ch._id) ? String(ch._id) : `child_${chName.toLowerCase().replace(/\s+/g, '_')}`,
+              name: chName,
+              description: typeof ch === 'object' ? ch.description : undefined,
+              icon: typeof ch === 'object' ? ch.icon : undefined,
+              banner: typeof ch === 'object' ? ch.banner : undefined,
+            });
+          }
+        }
+      });
+    };
+
+    // 1. Process nested tree from root record
     if (root && Array.isArray(root.children)) {
       root.children.forEach((sub: any) => {
+        if (!sub || sub.isDeleted || sub.isActive === false) return;
         const subName = (sub.subcategory || sub.name || '').trim();
-        if (!subName || sub.isDeleted) return;
-
-        if (!subMap.has(subName)) {
-          subMap.set(subName, {
-            id: sub._id || `sub_${subName.toLowerCase().replace(/\s+/g, '_')}`,
-            name: subName,
-            icon: sub.icon || '',
-            banner: sub.banner || '',
-            children: new Map(),
-          });
-        }
-
-        const subEntry = subMap.get(subName)!;
-        if (sub.icon && !subEntry.icon) subEntry.icon = sub.icon;
-        if (sub.banner && !subEntry.banner) subEntry.banner = sub.banner;
-
-        if (Array.isArray(sub.children)) {
-          sub.children.forEach((child: any) => {
-            const childName = (child.subSubcategory || child.name || '').trim();
-            if (!childName || child.isDeleted) return;
-
-            if (!subEntry.children.has(childName)) {
-              subEntry.children.set(childName, {
-                id: child._id || `child_${childName.toLowerCase().replace(/\s+/g, '_')}`,
-                name: childName,
-                description: child.description,
-                icon: child.icon,
-                banner: child.banner,
-              });
-            }
-          });
-        }
+        appendItem(subName, sub._id, sub.icon, sub.banner, sub.children);
       });
     }
 
-    // Also check if any categories in rawCategories have parentId === root._id
+    // 2. Also check flat categories attached by parentId
     if (root && root._id) {
-      rawCategories
-        .filter((c) => c.parentId === root._id && c.level === 'sub')
+      flatCats
+        .filter((c) => String(c.parentId) === String(root._id) && (c.level === 'sub' || c.level === 'subcategory'))
         .forEach((sub: any) => {
           const subName = (sub.subcategory || sub.name || '').trim();
-          if (!subName || sub.isDeleted) return;
-
-          if (!subMap.has(subName)) {
-            subMap.set(subName, {
-              id: sub._id,
-              name: subName,
-              icon: sub.icon || '',
-              banner: sub.banner || '',
-              children: new Map(),
-            });
-          }
-
-          const subEntry = subMap.get(subName)!;
-          if (Array.isArray(sub.children)) {
-            sub.children.forEach((child: any) => {
-              const childName = (child.subSubcategory || child.name || '').trim();
-              if (!childName || child.isDeleted) return;
-              if (!subEntry.children.has(childName)) {
-                subEntry.children.set(childName, {
-                  id: child._id,
-                  name: childName,
-                  description: child.description,
-                  icon: child.icon,
-                  banner: child.banner,
-                });
-              }
-            });
-          }
+          appendItem(subName, sub._id, sub.icon, sub.banner, sub.children);
         });
     }
 
-    // 2. Incorporate any products configured by Admin/Vendors for this main category
-    if (Array.isArray(realProducts)) {
-      realProducts.forEach((p: any) => {
-        if (p.isActive === false || p.isDeleted === true) return;
-
-        const pMain = normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory || '');
-        if (pMain !== mainName) return;
-
-        const pSub = (p.category || '').trim();
-        const pChild = (p.subcategory || p.subCategory || '').trim();
-
-        if (pSub) {
-          if (!subMap.has(pSub)) {
-            subMap.set(pSub, {
-              id: `sub_${pSub.toLowerCase().replace(/\s+/g, '_')}`,
-              name: pSub,
-              icon: p.icon || '',
-              banner: p.banner || p.image || '',
-              children: new Map(),
-            });
-          }
-
-          const subEntry = subMap.get(pSub)!;
-          if (pChild && !subEntry.children.has(pChild)) {
-            subEntry.children.set(pChild, {
-              id: `child_${pChild.toLowerCase().replace(/\s+/g, '_')}`,
-              name: pChild,
-            });
-          }
-        }
-      });
-    }
-
     hierarchy[mainName] = {
-      id: root ? root._id : `main_${mainName.toLowerCase()}`,
+      id: root ? String(root._id) : `main_${mainName.toLowerCase()}`,
       name: mainName,
       subcategories: Array.from(subMap.values()).map((s) => ({
         id: s.id,
@@ -473,15 +207,12 @@ export function buildCategoryHierarchy(rawCategories: any[], realProducts: any[]
  * Fetch and construct the authoritative Category Hierarchy from the backend
  */
 export async function fetchCategoryHierarchy(skipCache = false): Promise<CategoryHierarchyMap> {
-  if (cachedHierarchy && !skipCache) {
+  if (cachedHierarchy && !skipCache && Object.values(cachedHierarchy).some(m => m.subcategories.length > 0)) {
     return cachedHierarchy;
   }
 
   try {
-    const [rawRes, realProducts] = await Promise.all([
-      apiFetch('/categories', { skipCache }).catch(() => null),
-      fetchRealProducts(skipCache).catch(() => []),
-    ]);
+    const rawRes = await apiFetch('/categories', { skipCache }).catch(() => null);
 
     let rawCategories: any[] = [];
     if (rawRes) {
@@ -491,8 +222,15 @@ export async function fetchCategoryHierarchy(skipCache = false): Promise<Categor
       else if (Array.isArray(rawRes)) rawCategories = rawRes;
     }
 
-    const hierarchy = buildCategoryHierarchy(rawCategories, realProducts);
+    const hierarchy = buildCategoryHierarchy(rawCategories);
     cachedHierarchy = hierarchy;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { updateSidebarData } = require('../screens/customer/sidebarData');
+      if (typeof updateSidebarData === 'function') {
+        updateSidebarData(hierarchy);
+      }
+    } catch {}
     return hierarchy;
   } catch (err) {
     console.error('Failed to fetch category hierarchy:', err);

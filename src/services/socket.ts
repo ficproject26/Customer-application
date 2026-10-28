@@ -29,7 +29,31 @@ class SocketServiceClient {
   private isConnecting = false;
   private processedUpdates = new Map<string, number>();
 
-  connect(userId: string = 'cust_default', role: string = 'customer') {
+  connect(userId?: string, role?: string, token?: string) {
+    let effectiveUserId = userId;
+    let effectiveRole = role || 'customer';
+    let effectiveToken = token;
+
+    if (!effectiveUserId || effectiveUserId === 'cust_default') {
+      try {
+        const authStore = require('../store/authStore').useAuthStore.getState();
+        const curUser = authStore.currentUser;
+        if (curUser && curUser.id && !curUser.isGuest) {
+          effectiveUserId = curUser.id;
+          effectiveRole = curUser.role || 'customer';
+        }
+      } catch {}
+    }
+    if (!effectiveUserId) {
+      effectiveUserId = 'guest_customer';
+    }
+    if (!effectiveToken) {
+      try {
+        const { getAuthToken } = require('./api');
+        effectiveToken = getAuthToken() || '';
+      } catch {}
+    }
+
     if (this.socket && this.socket.connected) {
       return;
     }
@@ -50,6 +74,8 @@ class SocketServiceClient {
 
       const sock = io(targetUrl, {
         transports: ['websocket', 'polling'],
+        auth: { token: effectiveToken, userId: effectiveUserId, role: effectiveRole },
+        query: { token: effectiveToken, userId: effectiveUserId, role: effectiveRole },
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 2000,
@@ -60,7 +86,7 @@ class SocketServiceClient {
         console.log(`[Socket Client]: Connected successfully to ${targetUrl}. Socket ID: ${sock.id}`);
         this.socket = sock;
         this.isConnecting = false;
-        sock.emit('register', { userId, role });
+        sock.emit('register', { userId: effectiveUserId, role: effectiveRole, token: effectiveToken });
 
         // Bind existing custom listeners
         this.listeners.forEach((callbacks, event) => {
@@ -69,7 +95,7 @@ class SocketServiceClient {
           });
         });
 
-        // Setup real-time order status listener
+        // Setup real-time order status listener and cross-platform sync
         this.setupOrderStatusListener(sock);
       });
 
@@ -88,6 +114,12 @@ class SocketServiceClient {
     sock.off('order_status_updated');
     sock.off('customer_order_status');
     sock.off('notification');
+    sock.off('new_order_placed');
+    sock.off('order_created');
+    sock.off('addresses_updated');
+    sock.off('customer_profile_updated');
+    sock.off('cart_updated');
+    sock.off('favorites_updated');
 
     const handleStatusUpdate = (data: any) => {
       console.log('[Socket Client]: Real-time Order Status Update received:', data);
@@ -114,6 +146,12 @@ class SocketServiceClient {
           }
         });
       }
+
+      // Invalidate GET /orders cache immediately so fresh authoritative records are retrieved
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/orders');
+      } catch {}
 
       const existingOrder = useOrderStore.getState().allOrders.find(
         (o) => o.id === orderId || o.order_number === orderId
@@ -213,14 +251,113 @@ class SocketServiceClient {
         },
       });
 
-      // 6. Notify any subscribed local callbacks
+      // 3. Notify any subscribed local callbacks
       this.triggerLocalEvent('order_status_updated', data);
       this.triggerLocalEvent('customer_order_status', data);
     };
 
-    // Listen only to the single authoritative status update event
+    // 4. Handle New Order / Booking Placed on another platform (e.g. Website)
+    const handleNewOrder = (data: any) => {
+      if (!data) return;
+      try {
+        const authStore = require('../store/authStore').useAuthStore.getState();
+        const curUser = authStore.currentUser;
+        const curId = String(curUser?.id || curUser?.customerId || '').toLowerCase().trim();
+        const curEmail = String(curUser?.email || '').toLowerCase().trim();
+        const curPhone = String(curUser?.phone || '').replace(/\D/g, '').slice(-10);
+
+        const oCustId = String(data.customer_id || data.customerId || data.memberId || data.user_id || '').toLowerCase().trim();
+        const oEmail = String(data.customer_email || data.candidateEmail || data.email || '').toLowerCase().trim();
+        const oPhone = String(data.customer_phone || data.candidatePhone || data.phone || '').replace(/\D/g, '').slice(-10);
+
+        const isForMe = Boolean(
+          (curId && oCustId && (curId === oCustId || curId.includes(oCustId) || oCustId.includes(curId))) ||
+          (curEmail && oEmail && curEmail === oEmail) ||
+          (curPhone && oPhone && curPhone.length >= 7 && (curPhone.endsWith(oPhone) || oPhone.endsWith(curPhone)))
+        );
+
+        if (isForMe) {
+          const { clearApiCache } = require('./api');
+          clearApiCache('/orders');
+          useOrderStore.getState().loadAllOrders(true).catch(() => {});
+
+          dispatchCustomerNotification({
+            title: `Order Placed! 🛍️`,
+            body: `Your order #${data.order_number || data.id} was confirmed.`,
+            icon: 'Package',
+            category: 'order',
+            actionLabel: 'View Order',
+            actionType: 'order',
+            orderType: 'order',
+            orderId: data.id || data.order_number,
+            targetScreen: 'Orders',
+            targetParams: {
+              activeTab: 'my orders',
+              orderId: data.id || data.order_number,
+            },
+          });
+        }
+      } catch (e) {
+        console.warn('[Socket Client] Error in handleNewOrder:', e);
+      }
+      this.triggerLocalEvent('new_order_placed', data);
+      this.triggerLocalEvent('order_created', data);
+    };
+
+    // 5. Handle Addresses Updated on another platform
+    const handleAddressesUpdated = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/auth/addresses');
+        const authStore = require('../store/authStore').useAuthStore;
+        authStore.getState().fetchProfile().catch(() => {});
+      } catch {}
+      this.triggerLocalEvent('addresses_updated', data);
+    };
+
+    // 6. Handle Profile Updated on another platform
+    const handleProfileUpdated = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/auth/customer-profile');
+        const authStore = require('../store/authStore').useAuthStore;
+        authStore.getState().fetchProfile().catch(() => {});
+      } catch {}
+      this.triggerLocalEvent('customer_profile_updated', data);
+    };
+
+    // 7. Handle Cart Updated on another platform
+    const handleCartUpdated = (data: any) => {
+      try {
+        if (data && Array.isArray(data.cart)) {
+          const cartStore = require('../store/cartStore').useCartStore;
+          cartStore.getState().syncFromServer(data.cart);
+        }
+      } catch {}
+      this.triggerLocalEvent('cart_updated', data);
+    };
+
+    // 8. Handle Favorites / Wishlist Updated on another platform
+    const handleFavoritesUpdated = (data: any) => {
+      try {
+        if (data && Array.isArray(data.favorites)) {
+          const wishlistStore = require('../store/wishlistStore').useWishlistStore;
+          wishlistStore.getState().syncFromServer(data.favorites);
+        }
+      } catch {}
+      this.triggerLocalEvent('favorites_updated', data);
+    };
+
     sock.on('order_status_updated', handleStatusUpdate);
+    sock.on('customer_order_status', handleStatusUpdate);
+    sock.on('new_order_placed', handleNewOrder);
+    sock.on('order_created', handleNewOrder);
+    sock.on('addresses_updated', handleAddressesUpdated);
+    sock.on('customer_profile_updated', handleProfileUpdated);
+    sock.on('cart_updated', handleCartUpdated);
+    sock.on('favorites_updated', handleFavoritesUpdated);
   }
+
 
   disconnect() {
     if (this.socket) {

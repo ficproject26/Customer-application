@@ -782,7 +782,7 @@ export default function HomeDashboard() {
   const handlePlaceOrder = (name: string, price: string, category: string) => {
     const numPrice = typeof price === 'number'
       ? price
-      : (parseInt(String(price || '0').replace(/[^\d]/g, ''), 10) || 500);
+      : (parseFloat(String(price || '0').replace(/[^\d.]/g, '')) || 0);
     const isBooking = ['Services', 'Service', 'Stay', 'Travel', 'Food', 'Jobs'].includes(category);
     const curUser = useAuthStore.getState().currentUser;
     const userPhone = curUser?.phone || '+91 98888 88888';
@@ -895,7 +895,7 @@ export default function HomeDashboard() {
     const rawPrice = product.price;
     const numPrice = typeof rawPrice === 'number'
       ? rawPrice
-      : (parseInt(String(rawPrice || '0').replace(/[^\d]/g, ''), 10) || 150);
+      : (parseFloat(String(rawPrice || '0').replace(/[^\d.]/g, '')) || 0);
     const curUser = useAuthStore.getState().currentUser;
     const userPhone = curUser?.phone || '+91 98888 88888';
     const userAddrObj = curUser?.address;
@@ -1537,7 +1537,12 @@ export default function HomeDashboard() {
                     activeOpacity={0.88}
                     onPress={() => {
                       if (isStay) {
-                        navigation.navigate('StayDetails', { stay: prod });
+                        navigation.navigate('StayDetails', {
+                          stay: {
+                            ...prod,
+                            priceNum: typeof prod.price === 'number' ? prod.price : (parseFloat(String(prod.price || '0').replace(/[^\d.]/g, '')) || 0),
+                          },
+                        });
                       } else if (normalizeMainCategoryName(prod.mainCategory || prod.subNavbarCategory) === 'Travel') {
                         navigation.navigate('CategoryDetails', { categoryName: 'Travel' });
                       } else {
@@ -1688,7 +1693,12 @@ export default function HomeDashboard() {
                           onPress={(e) => {
                             e.stopPropagation?.();
                             if (isStay) {
-                              navigation.navigate('StayDetails', { stay: prod });
+                              navigation.navigate('StayDetails', {
+                                stay: {
+                                  ...prod,
+                                  priceNum: typeof prod.price === 'number' ? prod.price : (parseFloat(String(prod.price || '0').replace(/[^\d.]/g, '')) || 0),
+                                },
+                              });
                             } else {
                               const cardItem = formatCardItem(prod);
                               addToCart(cardItem);
@@ -2205,7 +2215,12 @@ export default function HomeDashboard() {
                       elevation: 2,
                     }}
                     activeOpacity={0.88}
-                    onPress={() => navigation.navigate('StayDetails', { stay: prod })}
+                    onPress={() => navigation.navigate('StayDetails', {
+                      stay: {
+                        ...prod,
+                        priceNum: typeof prod.price === 'number' ? prod.price : (parseFloat(String(prod.price || '0').replace(/[^\d.]/g, '')) || 0),
+                      },
+                    })}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isLightActive ? '#FFFBEB' : 'rgba(255, 255, 255, 0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>

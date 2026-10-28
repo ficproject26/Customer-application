@@ -508,7 +508,7 @@ export default function BookingConfirmationScreen() {
 
         // Dispatch Payment Complete Notification with View Booking / View Order action
         const isBooking = type === 'stay' || type === 'service' || type === 'travel';
-        const formattedAmount = Number(totalAmount || 499).toLocaleString('en-IN');
+        const formattedAmount = Number(totalAmount || 0).toLocaleString('en-IN');
         dispatchCustomerNotification({
           title: isBooking
             ? (type === 'travel' ? 'Ticket Booked! Payment Complete 🚍' : type === 'stay' ? 'Stay Booked! Payment Complete 🏨' : 'Service Booked! Payment Complete 🛠️')
@@ -534,7 +534,7 @@ export default function BookingConfirmationScreen() {
 
       Alert.alert(
         'Payment Successful! 🎉',
-        `₹${(totalAmount || 499).toLocaleString('en-IN')} paid successfully via UPI/Online.\nYour COD order has been converted to fully paid!`,
+        `₹${(totalAmount || 0).toLocaleString('en-IN')} paid successfully via UPI/Online.\nYour COD order has been converted to fully paid!`,
         [{ text: 'OK' }]
       );
     } catch (err: any) {
@@ -913,7 +913,7 @@ export default function BookingConfirmationScreen() {
                 Total Amount
               </Text>
               <Text style={[styles.totalPrice, { color: isLight ? '#0F172A' : '#F5B800' }]}>
-                ₹{(totalAmount || 499).toLocaleString('en-IN')}
+                ₹{(totalAmount || 0).toLocaleString('en-IN')}
               </Text>
             </View>
 
@@ -950,7 +950,7 @@ export default function BookingConfirmationScreen() {
                 >
                   <Icons.CreditCard color="#0F172A" size={16} />
                   <Text style={styles.payNowBtnText}>
-                    {isPayingOnline ? 'Processing...' : `Pay Online Now • ₹${(totalAmount || 499).toLocaleString('en-IN')}`}
+                    {isPayingOnline ? 'Processing...' : `Pay Online Now • ₹${(totalAmount || 0).toLocaleString('en-IN')}`}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1214,7 +1214,7 @@ export default function BookingConfirmationScreen() {
         visible={razorpayModalVisible}
         orderData={{
           orderId: bookingId || `BK-${Date.now().toString().slice(-6)}`,
-          amount: (totalAmount || 499) * 100, // in paise
+          amount: (totalAmount || 0) * 100, // in paise
           currency: 'INR',
           keyId: RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP',
           planType: 'gold',

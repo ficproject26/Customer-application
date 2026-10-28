@@ -17,12 +17,14 @@ import {
   StatusBar,
   BackHandler,
   PanResponder,
+  ActivityIndicator,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SIDEBAR_DATA } from './sidebarData';
+import { normalizeMainCategoryName, fetchCategoryHierarchy } from '../../services/categoryService';
 import { apiFetch, resolveImageUrl } from '../../services/api';
 import { useCartStore } from '../../store/cartStore';
 import CartModal from '../../components/CartModal';
@@ -237,7 +239,7 @@ const TravelPriceSlider = ({
           }}
         >
           <Text style={{ fontSize: 13, fontWeight: '900', color: '#B45309' }}>
-            â‚¹300 â€“ â‚¹{value.toLocaleString('en-IN')}
+            ₹300 – ₹{value.toLocaleString('en-IN')}
           </Text>
         </View>
       </View>
@@ -298,18 +300,18 @@ const TravelPriceSlider = ({
 
       {/* Min & Max Labels */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2, marginBottom: 8 }}>
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>â‚¹300</Text>
-        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>â‚¹10,000</Text>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>₹300</Text>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8' }}>₹10,000</Text>
       </View>
 
       {/* Quick Select Presets */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
         {[
-          { label: 'â‚¹750', val: 750 },
-          { label: 'â‚¹1,200', val: 1200 },
-          { label: 'â‚¹2,500', val: 2500 },
-          { label: 'â‚¹5,000', val: 5000 },
-          { label: 'â‚¹10,000 (Max)', val: 10000 },
+          { label: '₹750', val: 750 },
+          { label: '₹1,200', val: 1200 },
+          { label: '₹2,500', val: 2500 },
+          { label: '₹5,000', val: 5000 },
+          { label: '₹10,000 (Max)', val: 10000 },
         ].map((pr) => {
           const isAct = value === pr.val;
           return (
@@ -336,6 +338,9 @@ const TravelPriceSlider = ({
     </View>
   );
 };
+
+// Helper to strip emojis and clean strings for matching
+const cleanStr = (str: string) => (str || '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}]/gu, '').toLowerCase().trim();
 
 export default function CategoryDetails() {
   const { width, height } = useWindowDimensions();
@@ -609,7 +614,7 @@ export default function CategoryDetails() {
             const def = parsed.find((a: any) => a.isDefault) || parsed[0];
             const parts = [def.house, def.street, def.city, def.pincode].filter(Boolean);
             if (parts.length > 0) {
-              setSelectedAddress(`${def.label || 'Home'} â€” ${parts.join(', ')}`);
+              setSelectedAddress(`${def.label || 'Home'} — ${parts.join(', ')}`);
               return;
             }
           }
@@ -698,7 +703,7 @@ export default function CategoryDetails() {
 
   // Filter, Sort & Map State
   const [isStayFilterOpen, setIsStayFilterOpen] = useState(false);
-  const [selectedStaySort, setSelectedStaySort] = useState<'Recommended' | 'Price Low â†’ High' | 'Price High â†’ Low' | 'Rating'>('Recommended');
+  const [selectedStaySort, setSelectedStaySort] = useState<'Recommended' | 'Price Low → High' | 'Price High → Low' | 'Rating'>('Recommended');
   const [isStaySortOpen, setIsStaySortOpen] = useState(false);
   const [isStayMapOpen, setIsStayMapOpen] = useState(false);
 
@@ -1079,6 +1084,8 @@ export default function CategoryDetails() {
       return [];
     }
   });
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [productsFetchError, setProductsFetchError] = useState<string | null>(null);
 
   // Travel / Bus Booking Specific Filter States (Applied & Draft)
   const isTravelCategory = (categoryName || '').toLowerCase().includes('travel') || (categoryName || '').toLowerCase().includes('bus');
@@ -1138,7 +1145,7 @@ export default function CategoryDetails() {
     setTravelType('all');
     setTravelPassengers(1);
     setSelectedSubcat('All');
-    setSelectedBusSort('Price Low â†’ High');
+    setSelectedBusSort('Price Low → High');
     setSelectedBusAcType('All');
     setSelectedBusOperator('All');
     setSelectedBusDepartureTime('All');
@@ -1162,7 +1169,7 @@ export default function CategoryDetails() {
   const [selectedBusMaxPrice, setSelectedBusMaxPrice] = useState<number>(10000);
   const [selectedBusBoarding, setSelectedBusBoarding] = useState<string>('All');
   const [selectedBusDropping, setSelectedBusDropping] = useState<string>('All');
-  const [selectedBusSort, setSelectedBusSort] = useState<string>('Price Low â†’ High');
+  const [selectedBusSort, setSelectedBusSort] = useState<string>('Price Low → High');
 
   // Draft States for Bus Filter Modal
   const [draftBusDepartureTime, setDraftBusDepartureTime] = useState<string>('All');
@@ -1172,7 +1179,7 @@ export default function CategoryDetails() {
   const [draftBusMaxPrice, setDraftBusMaxPrice] = useState<number>(10000);
   const [draftBusBoarding, setDraftBusBoarding] = useState<string>('All');
   const [draftBusDropping, setDraftBusDropping] = useState<string>('All');
-  const [draftBusSort, setDraftBusSort] = useState<string>('Price Low â†’ High');
+  const [draftBusSort, setDraftBusSort] = useState<string>('Price Low → High');
 
   const [isBusFilterOpen, setIsBusFilterOpen] = useState(false);
 
@@ -1323,7 +1330,7 @@ export default function CategoryDetails() {
     setDraftBusMaxPrice(10000);
     setDraftBusBoarding('All');
     setDraftBusDropping('All');
-    setDraftBusSort('Price Low â†’ High');
+    setDraftBusSort('Price Low → High');
   };
 
   const applyBusFilters = () => {
@@ -1347,7 +1354,7 @@ export default function CategoryDetails() {
     if (selectedBusMaxPrice < 10000) count++;
     if (selectedBusBoarding !== 'All') count++;
     if (selectedBusDropping !== 'All') count++;
-    if (selectedBusSort !== 'Price Low â†’ High') count++;
+    if (selectedBusSort !== 'Price Low → High') count++;
     return count;
   }, [
     selectedBusDepartureTime,
@@ -1466,8 +1473,8 @@ export default function CategoryDetails() {
       checkIn: '12 Sep',
       checkOut: '15 Sep',
       nights: 3,
-      guests: '2 Adults â€¢ 1 Room',
-      totalPaid: 'â‚¹23,925',
+      guests: '2 Adults • 1 Room',
+      totalPaid: '₹23,925',
       status: 'Confirmed',
       image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
     },
@@ -1596,56 +1603,66 @@ export default function CategoryDetails() {
 
   const isFocused = useIsFocused();
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchDynamicProducts = async () => {
-      try {
-        // skipCache:true so vendor-added products appear immediately without waiting
-        let res: any = await apiFetch('/products', { skipCache: true });
-        let listFound = false;
-        let productList: any[] = [];
-        if (res && Array.isArray(res.data)) {
-          productList = res.data;
-          listFound = true;
-        } else if (res && Array.isArray(res.products)) {
-          productList = res.products;
-          listFound = true;
-        } else if (res && Array.isArray(res.items)) {
-          productList = res.items;
-          listFound = true;
-        } else if (Array.isArray(res)) {
-          productList = res;
-          listFound = true;
-        }
-
-        if (!listFound) {
-          const vRes: any = await apiFetch('/vendor/products', { skipCache: true });
-          if (vRes && Array.isArray(vRes.data)) {
-            productList = vRes.data;
-            listFound = true;
-          } else if (vRes && Array.isArray(vRes.products)) {
-            productList = vRes.products;
-            listFound = true;
-          } else if (Array.isArray(vRes)) {
-            productList = vRes;
-            listFound = true;
-          }
-        }
-
-        if (isMounted && listFound) {
-          setApiProducts(productList);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch dynamic products in CategoryDetails:', err);
+  const fetchDynamicProducts = useCallback(async () => {
+    if (apiProducts.length === 0) {
+      setIsLoadingProducts(true);
+    }
+    setProductsFetchError(null);
+    try {
+      // Ensure category hierarchy is loaded and SIDEBAR_DATA is synchronized
+      fetchCategoryHierarchy().catch(() => {});
+      // skipCache:true so vendor-added products appear immediately without waiting
+      let res: any = await apiFetch('/products', { skipCache: true });
+      let listFound = false;
+      let productList: any[] = [];
+      if (res && Array.isArray(res.data)) {
+        productList = res.data;
+        listFound = true;
+      } else if (res && Array.isArray(res.products)) {
+        productList = res.products;
+        listFound = true;
+      } else if (res && Array.isArray(res.items)) {
+        productList = res.items;
+        listFound = true;
+      } else if (Array.isArray(res)) {
+        productList = res;
+        listFound = true;
       }
-    };
 
+      if (!listFound) {
+        const vRes: any = await apiFetch('/vendor/products', { skipCache: true });
+        if (vRes && Array.isArray(vRes.data)) {
+          productList = vRes.data;
+          listFound = true;
+        } else if (vRes && Array.isArray(vRes.products)) {
+          productList = vRes.products;
+          listFound = true;
+        } else if (Array.isArray(vRes)) {
+          productList = vRes;
+          listFound = true;
+        }
+      }
+
+      if (listFound) {
+        setApiProducts(productList);
+        setProductsFetchError(null);
+      } else {
+        setProductsFetchError('Unable to load items from server');
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch dynamic products in CategoryDetails:', err);
+      setProductsFetchError(err?.message || 'Failed to load items. Please check your network connection.');
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [apiProducts.length]);
+
+  useEffect(() => {
     // Re-fetch on screen focus so vendor-added items appear immediately
     if (isFocused) {
       fetchDynamicProducts();
     }
-    return () => { isMounted = false; };
-  }, [isFocused, categoryName]);
+  }, [isFocused, categoryName, fetchDynamicProducts]);
 
   // Subcategories / Roles list matching active category & subCategory
   const availableSubcats = useMemo(() => {
@@ -1698,34 +1715,38 @@ export default function CategoryDetails() {
     
     // Check if categoryName is Electronics or matches Products
     if (categoryName.toLowerCase().includes('electronic') || categoryName.toLowerCase().includes('tech')) {
-      const rawSubcats = Object.keys(SIDEBAR_DATA['Product']?.subcategories || {});
+      const rawSubcats = Object.keys(SIDEBAR_DATA['Products']?.subcategories || SIDEBAR_DATA['Product']?.subcategories || {});
       return ['All', ...rawSubcats];
     }
 
     // Check if categoryName exists in SIDEBAR_DATA
+    const normTarget = normalizeMainCategoryName(categoryName).toLowerCase();
     const catSidebarKey = Object.keys(SIDEBAR_DATA).find(
-      (k) => k.toLowerCase() === categoryName.toLowerCase() || categoryName.toLowerCase().includes(k.toLowerCase())
+      (k) => k.toLowerCase() === categoryName.toLowerCase() || k.toLowerCase() === normTarget || normTarget.includes(k.toLowerCase())
     );
-    if (catSidebarKey && SIDEBAR_DATA[catSidebarKey]?.subcategories) {
-      const rawSubcats = Object.keys(SIDEBAR_DATA[catSidebarKey].subcategories);
-      return ['All', ...rawSubcats];
-    }
+    const sidebarSubcats = (catSidebarKey && SIDEBAR_DATA[catSidebarKey]?.subcategories)
+      ? Object.keys(SIDEBAR_DATA[catSidebarKey].subcategories)
+      : [];
 
-    // Fallback to dynamic api products subcategories
+    // Also collect subcategories from live apiProducts matching this main category
     const apiSubcats = new Set<string>();
     (apiProducts || []).forEach((p: any) => {
-      const pCat = (p.category || p.vendorType || '').toLowerCase();
-      if (pCat === categoryName.toLowerCase() || pCat.includes(categoryName.toLowerCase())) {
-        const sub = p.subcategory || p.subCategory;
-        if (sub) apiSubcats.add(sub);
+      const pMainNorm = cleanStr(normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory || ''));
+      if (pMainNorm === normTarget || pMainNorm === categoryName.toLowerCase()) {
+        const sub = p.category || p.subcategory || p.subCategory;
+        if (sub && typeof sub === 'string' && sub.trim()) {
+          apiSubcats.add(sub.trim());
+        }
       }
     });
-    if (apiSubcats.size > 0) {
-      return ['All', ...Array.from(apiSubcats)];
+
+    const merged = Array.from(new Set([...sidebarSubcats, ...Array.from(apiSubcats)]));
+    if (merged.length > 0) {
+      return ['All', ...merged];
     }
 
-    const rawSubcats = Object.keys(SIDEBAR_DATA['Services']?.subcategories || {});
-    return ['All', ...rawSubcats];
+    const fallbackSubcats = Object.keys(SIDEBAR_DATA['Services']?.subcategories || {});
+    return ['All', ...fallbackSubcats];
   }, [categoryName, routeParams.subCategoryName, apiProducts]);
 
   // Sync initial subcategory / child category params
@@ -1859,7 +1880,7 @@ export default function CategoryDetails() {
       if (isGranted) {
         setIsVoiceListening(true);
         setSearchQuery('');
-        showToast('Listening... Speak now ðŸŽ™ï¸');
+        showToast('Listening... Speak now 🎙️');
 
         if (voiceTimeoutRef.current) {
           clearTimeout(voiceTimeoutRef.current);
@@ -1904,33 +1925,78 @@ export default function CategoryDetails() {
     }
   };
 
-  // Helper to strip emojis and clean strings for matching
-  const cleanStr = (str: string) => (str || '').replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}]/gu, '').toLowerCase().trim();
-
   // Map dynamic API products matching target category
   const mappedApiProds = useMemo(() => {
-    const targetCategory = (categoryName || 'Services').toLowerCase().trim();
+    const rawTarget = categoryName || 'Services';
+    const targetCategory = rawTarget.toLowerCase().trim();
+    const normalizedTarget = normalizeMainCategoryName(rawTarget).toLowerCase();
+
+    // Taxonomy lookup from SIDEBAR_DATA for current category
+    const catSidebarKey = Object.keys(SIDEBAR_DATA).find(
+      (k) => k.toLowerCase() === targetCategory || k.toLowerCase() === normalizedTarget || normalizedTarget.includes(k.toLowerCase())
+    );
+    const sidebarSubcatMap = catSidebarKey ? (SIDEBAR_DATA[catSidebarKey]?.subcategories || {}) : {};
+    const sidebarSubcatNames = Object.keys(sidebarSubcatMap).map(cleanStr);
+    const sidebarChildNames: string[] = [];
+    Object.values(sidebarSubcatMap).forEach((subDef) => {
+      if (Array.isArray(subDef.items)) {
+        subDef.items.forEach((itemStr) => sidebarChildNames.push(cleanStr(itemStr)));
+      }
+    });
+
     return (apiProducts || [])
       .filter((p: any) => {
         if (targetCategory === 'all') return true;
+        const pMain = cleanStr(p.mainCategory);
+        const pSubNav = cleanStr(p.subNavbarCategory);
         const pCat = cleanStr(p.category || p.vendorType);
         const pSub = cleanStr(p.subcategory || p.subCategory);
         const pName = cleanStr(p.name);
 
+        const normalizedPMain = cleanStr(normalizeMainCategoryName(p.mainCategory || p.subNavbarCategory || ''));
+
+        // Prevent cross-category leakage: if item has an explicit canonical main category different from target
+        const CANONICAL_MAINS = ['products', 'services', 'daily needs', 'food', 'stay', 'travel', 'jobs'];
+        if (normalizedPMain && CANONICAL_MAINS.includes(normalizedPMain) && normalizedPMain !== normalizedTarget) {
+          return false;
+        }
+
+        // 1. Authoritative mainCategory / subNavbarCategory match
+        if (normalizedPMain && (normalizedPMain === targetCategory || normalizedPMain === normalizedTarget)) {
+          return true;
+        }
+        if (pMain && (pMain === targetCategory || pMain === normalizedTarget || targetCategory.includes(pMain) || pMain.includes(targetCategory))) {
+          return true;
+        }
+        if (pSubNav && (pSubNav === targetCategory || pSubNav === normalizedTarget || targetCategory.includes(pSubNav) || pSubNav.includes(targetCategory))) {
+          return true;
+        }
+
+        // 2. Taxonomy tree match: check if p.category or p.subcategory belongs to this category in SIDEBAR_DATA
+        if (sidebarSubcatNames.some((subName) => subName && (pCat === subName || pCat.includes(subName) || subName.includes(pCat)))) {
+          return true;
+        }
+        if (sidebarChildNames.some((childName) => childName && (pSub === childName || pSub.includes(childName) || childName.includes(pSub) || pName.includes(childName)))) {
+          return true;
+        }
+
+        // 3. Category-specific fallback matching
         if (targetCategory === 'products' || targetCategory === 'product') {
-          return !['stay', 'travel', 'jobs', 'job'].includes(pCat) && (pCat === 'products' || pCat === 'product' || pCat === 'electronics' || pCat === 'fashion' || pCat === 'beauty' || pCat === '' || pSub.includes('electronic') || pSub.includes('fashion') || pSub.includes('product'));
+          return !['stay', 'travel', 'jobs', 'job', 'services', 'service'].includes(pMain) &&
+                 !['stay', 'travel', 'jobs', 'job'].includes(pCat) &&
+                 (pCat === 'products' || pCat === 'product' || pCat === 'electronics' || pCat === 'fashion' || pCat === 'beauty' || pCat === 'furniture' || pCat === '' || pSub.includes('electronic') || pSub.includes('fashion') || pSub.includes('product') || pSub.includes('furniture'));
         }
 
         if (targetCategory === 'daily needs') {
-          return pCat === 'daily needs' || pCat.includes('daily') || pSub.includes('daily') || pSub.includes('grocery') || pSub.includes('vegetable') || pSub.includes('fruit') || pSub.includes('milk') || pSub.includes('dairy') || pSub.includes('personal care') || (pSub.includes('snack') && !pCat.includes('food'));
+          return pCat === 'daily needs' || pCat.includes('daily') || pSub.includes('daily') || pSub.includes('grocery') || pCat.includes('grocer') || pCat.includes('diar') || pSub.includes('vegetable') || pSub.includes('fruit') || pSub.includes('milk') || pSub.includes('dairy') || pSub.includes('personal care') || (pSub.includes('snack') && !pCat.includes('food'));
         }
 
         if (targetCategory === 'food') {
-          return pCat === 'food' || pCat.includes('food') || pSub.includes('restaurant') || pSub.includes('biryani') || pSub.includes('bakery') || pSub.includes('fast food') || pSub.includes('snack') || pName.includes('chip') || pName.includes('lay');
+          return pCat === 'food' || pCat.includes('food') || pCat.includes('indian') || pSub.includes('restaurant') || pSub.includes('biryani') || pSub.includes('bakery') || pSub.includes('fast food') || pSub.includes('snack') || pSub.includes('naan') || pSub.includes('dosa') || pSub.includes('idly') || pSub.includes('meal');
         }
 
         if (targetCategory === 'stay') {
-          return pCat === 'stay' || pCat.includes('stay') || pCat.includes('hotel') || pCat.includes('resort') || pSub.includes('hotel') || pSub.includes('resort') || pSub.includes('homestay') || pSub.includes('room');
+          return pCat === 'stay' || pCat.includes('stay') || pCat.includes('hotel') || pCat.includes('resort') || pCat.includes('viil') || pSub.includes('hotel') || pSub.includes('resort') || pSub.includes('homestay') || pSub.includes('room') || pSub.includes('villa');
         }
 
         if (targetCategory === 'travel') {
@@ -1938,11 +2004,11 @@ export default function CategoryDetails() {
         }
 
         if (targetCategory === 'jobs' || targetCategory === 'job') {
-          return pCat === 'jobs' || pCat === 'job' || pCat.includes('job') || pSub.includes('job') || pSub.includes('hiring') || pSub.includes('developer');
+          return pCat === 'jobs' || pCat === 'job' || pCat.includes('job') || pCat === 'it' || pCat === 'non-it' || pSub.includes('job') || pSub.includes('hiring') || pSub.includes('developer') || pSub.includes('analyst') || pSub.includes('administrator');
         }
 
         if (targetCategory === 'services' || targetCategory === 'service') {
-          return pCat === 'services' || pCat === 'service' || pCat.includes('service') || pSub.includes('repair') || pSub.includes('plumb') || pSub.includes('electric') || pSub.includes('cleaning') || pSub.includes('ac');
+          return pCat === 'services' || pCat === 'service' || pCat.includes('service') || pCat.includes('plumb') || pCat.includes('electric') || pSub.includes('repair') || pSub.includes('plumb') || pSub.includes('electric') || pSub.includes('cleaning') || pSub.includes('ac');
         }
 
         if (targetCategory === 'electronics' || targetCategory === 'electronic') {
@@ -1980,16 +2046,17 @@ export default function CategoryDetails() {
         const resolvedFrom = p.from || p.origin || (p.boardingPoint ? p.boardingPoint.split('(')[0]?.trim() : (typeof p.boardingPoints?.[0] === 'string' ? p.boardingPoints[0].split('(')[0]?.trim() : 'Bangalore'));
         const resolvedTo = p.to || p.destination || (p.dropPoint ? p.dropPoint.split('(')[0]?.trim() : (typeof p.droppingPoints?.[0] === 'string' ? p.droppingPoints[0].split('(')[0]?.trim() : 'Chennai'));
         const resolvedBusType = p.itemType || p.busType || p.subType || (cleanSub.includes('bus') ? 'AC Sleeper' : displaySub);
-        const numPrice = typeof p.price === 'number' ? p.price : (parseInt(String(p.price || '0').replace(/[^\d]/g, ''), 10) || 799);
-        const origPriceNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : parseInt(String(p.originalPrice).replace(/[^\d]/g, ''), 10)) : 0;
+        const numPrice = typeof p.price === 'number' ? p.price : (parseFloat(String(p.price || '0').replace(/[^\d.]/g, '')) || 0);
+        const origPriceNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : (parseFloat(String(p.originalPrice).replace(/[^\d.]/g, '')) || 0)) : 0;
         const discountNum = origPriceNum > numPrice ? Math.round(((origPriceNum - numPrice) / origPriceNum) * 100) : (p.discount ? parseInt(String(p.discount).replace(/[^\d]/g, ''), 10) || 0 : 0);
 
         return {
           id: p._id || p.id,
           name: p.name || 'Unnamed Product',
           subcategory: isTravelItem ? resolvedBusType : displaySub,
+          category: p.category || p.subNavbarCategory || '',
           itemType: p.itemType || resolvedBusType,
-          mainCategory: p.category || p.vendorType || (isTravelItem ? 'Travel' : 'Products'),
+          mainCategory: p.mainCategory || p.subNavbarCategory || (isTravelItem ? 'Travel' : categoryName || 'Products'),
           desc: p.description || p.desc || 'Quality product verified by Connect',
           rating: String(p.rating || '4.8'),
           reviews: String(p.ratingCount || '1.2k'),
@@ -2110,43 +2177,27 @@ export default function CategoryDetails() {
       });
     }
 
-    // If no direct catalog matches, generate from SIDEBAR_DATA for categoryName
-    const targetCategory = (categoryName || '').toLowerCase();
-    if (allServices.length === 0 && targetCategory !== 'all') {
-      const catSidebarKey = Object.keys(SIDEBAR_DATA).find(
-        (k) => k.toLowerCase() === targetCategory || targetCategory.includes(k.toLowerCase())
-      ) || 'Services';
-
-      const sidebarSubcats = SIDEBAR_DATA[catSidebarKey]?.subcategories || {};
-      Object.keys(sidebarSubcats).forEach((subName) => {
-        const subItems = sidebarSubcats[subName]?.items || [];
-        subItems.forEach((leafName: string, lIdx: number) => {
-          allServices.push({
-            id: `srv_gen_${subName}_${lIdx}`,
-            name: leafName,
-            subcategory: subName,
-            mainCategory: categoryName || subName,
-            desc: `Verified ${leafName.toLowerCase()} with quality warranty & fast doorstep delivery.`,
-            rating: (4.7 + (lIdx % 3) * 0.1).toFixed(1),
-            reviews: `${(lIdx + 2) * 110}+`,
-            price: `â‚¹${299 + (lIdx % 5) * 200}`,
-            originalPrice: `â‚¹${599 + (lIdx % 5) * 250}`,
-            image: getRelevantProductImage(leafName, subName, categoryName),
-            assured: true,
-          });
-        });
-      });
-    }
-
-    // Filter by Subcategory with smart group matching
+    // Filter by Subcategory with taxonomy tree & smart group matching
     if (selectedSubcat !== 'All') {
       const targetSub = cleanStr(selectedSubcat);
+      // Look up targetSub in SIDEBAR_DATA hierarchy to get its known child items
+      const targetSubDef = Object.values(SIDEBAR_DATA).reduce<string[]>((acc, mainDef) => {
+        const found = Object.entries(mainDef?.subcategories || {}).find(
+          ([subKey]) => cleanStr(subKey) === targetSub
+        );
+        if (found && Array.isArray(found[1]?.items)) {
+          found[1].items.forEach((it) => acc.push(cleanStr(it)));
+        }
+        return acc;
+      }, []);
+
       allServices = allServices.filter(
         (s: any) => {
-          const mCat = cleanStr(s.mainCategory);
-          const sSub = cleanStr(s.subcategory);
-          const iType = cleanStr(s.itemType);
+          const sCat = cleanStr(s.category || s.rawProduct?.category);
+          const sSub = cleanStr(s.subcategory || s.rawProduct?.subcategory || s.rawProduct?.subCategory);
+          const iType = cleanStr(s.itemType || s.rawProduct?.itemType);
           const pName = cleanStr(s.name);
+          const mCat = cleanStr(s.mainCategory || s.rawProduct?.mainCategory);
           const bType = cleanStr(s.busType || s.subType);
 
           if (isTravelCategory) {
@@ -2161,28 +2212,48 @@ export default function CategoryDetails() {
             );
           }
 
+          // 1. Direct match on category (e.g. s.category === 'Electrician' when selectedSubcat === 'Electrician')
+          if (sCat && (sCat === targetSub || sCat.includes(targetSub) || targetSub.includes(sCat))) {
+            return true;
+          }
+
+          // 2. Direct match on subcategory (e.g. s.subcategory === 'Solar Technicians')
+          if (sSub && (sSub === targetSub || sSub.includes(targetSub) || targetSub.includes(sSub))) {
+            return true;
+          }
+
+          // 3. Child-category match in taxonomy tree: if selectedSubcat is a parent subcategory, does item's subcategory or name belong to its child items?
+          if (targetSubDef.length > 0) {
+            const matchesTreeChild = targetSubDef.some(
+              (childItem) => childItem && (sSub === childItem || sSub.includes(childItem) || childItem.includes(sSub) || pName.includes(childItem))
+            );
+            if (matchesTreeChild) return true;
+          }
+
+          // 4. Reverse check: if targetSub is a child category, check if sSub matches it
+          if (sSub === targetSub || sSub.includes(targetSub) || targetSub.includes(sSub)) {
+            return true;
+          }
+
           // Smart Electronics subcategory group matching
           if (targetSub === 'electronics' || targetSub === 'electronic') {
-            const isElec = ['electronic', 'laptop', 'charger', 'mobile', 'phone', 'headphone', 'watch', 'camera', 'it', 'appliance', 'computer', 'accessory', 'gadget'].some(
-              (term) => sSub.includes(term) || iType.includes(term) || pName.includes(term) || mCat.includes(term)
+            const isElec = ['electronic', 'laptop', 'charger', 'mobile', 'phone', 'headphone', 'watch', 'camera', 'it', 'appliance', 'computer', 'accessory', 'gadget', 'fan', 'cooler', 'tv'].some(
+              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term) || mCat.includes(term)
             );
             if (isElec) return true;
           }
 
           // Smart IT & Office subcategory group matching
           if (targetSub === 'it & office' || targetSub === 'it') {
-            const isIT = ['it', 'office', 'laptop', 'computer', 'desk', 'charger', 'accessory', 'software', 'hardware'].some(
-              (term) => sSub.includes(term) || iType.includes(term) || pName.includes(term) || mCat.includes(term)
+            const isIT = ['it', 'office', 'laptop', 'computer', 'desk', 'charger', 'accessory', 'software', 'hardware', 'developer', 'analyst', 'administrator'].some(
+              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term) || mCat.includes(term)
             );
             if (isIT) return true;
           }
 
           return (
             mCat === targetSub ||
-            sSub === targetSub ||
             iType === targetSub ||
-            sSub.includes(targetSub) ||
-            targetSub.includes(sSub) ||
             pName.includes(targetSub) ||
             (targetSub.includes('snack') && (sSub.includes('snack') || pName.includes('lay') || iType.includes('chip')))
           );
@@ -2211,7 +2282,7 @@ export default function CategoryDetails() {
 
         // Smart route query match e.g. "bangalore to vellore" or "bangalore vellore"
         if (isTravelCategory) {
-          const parts = query.replace(/\bto\b|\bâž”\b|->|-/gi, ' ').split(/\s+/).filter(Boolean);
+          const parts = query.replace(/\bto\b|\b➔\b|->|-/gi, ' ').split(/\s+/).filter(Boolean);
           if (parts.length >= 2) {
             const partFrom = parts[0];
             const partTo = parts[parts.length - 1];
@@ -2240,16 +2311,16 @@ export default function CategoryDetails() {
           (s) => s.brand && s.brand.toLowerCase() === selectedProdBrand.toLowerCase()
         );
       }
-      if (selectedProdPrice === 'Under â‚¹1,500') {
+      if (selectedProdPrice === 'Under ₹1,500') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 1500
         );
-      } else if (selectedProdPrice === 'â‚¹1,500 - â‚¹5,000') {
+      } else if (selectedProdPrice === '₹1,500 - ₹5,000') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 1500 && p <= 5000;
         });
-      } else if (selectedProdPrice === 'â‚¹5,000+') {
+      } else if (selectedProdPrice === '₹5,000+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 5000
         );
@@ -2281,16 +2352,16 @@ export default function CategoryDetails() {
           (s) => s.brand && s.brand.toLowerCase() === selectedDnBrand.toLowerCase()
         );
       }
-      if (selectedDnPrice === 'Under â‚¹50') {
+      if (selectedDnPrice === 'Under ₹50') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 50
         );
-      } else if (selectedDnPrice === 'â‚¹50 - â‚¹200') {
+      } else if (selectedDnPrice === '₹50 - ₹200') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 50 && p <= 200;
         });
-      } else if (selectedDnPrice === 'â‚¹200+') {
+      } else if (selectedDnPrice === '₹200+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 200
         );
@@ -2314,7 +2385,7 @@ export default function CategoryDetails() {
       }
       if (selectedDnDeliveryTime !== 'All') {
         allServices = allServices.filter(
-          (s) => s.deliveryTime && s.deliveryTime.includes(selectedDnDeliveryTime.replace('âš¡ ', ''))
+          (s) => s.deliveryTime && s.deliveryTime.includes(selectedDnDeliveryTime.replace('⚡ ', ''))
         );
       }
     }
@@ -2334,16 +2405,16 @@ export default function CategoryDetails() {
       } else if (selectedFoodVegMode === 'Non-Veg') {
         allServices = allServices.filter((s) => s.isVeg === false);
       }
-      if (selectedFoodPrice === 'Under â‚¹200') {
+      if (selectedFoodPrice === 'Under ₹200') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 200
         );
-      } else if (selectedFoodPrice === 'â‚¹200 - â‚¹500') {
+      } else if (selectedFoodPrice === '₹200 - ₹500') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 200 && p <= 500;
         });
-      } else if (selectedFoodPrice === 'â‚¹500+') {
+      } else if (selectedFoodPrice === '₹500+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 500
         );
@@ -2377,16 +2448,16 @@ export default function CategoryDetails() {
             s.name.toLowerCase().includes(selectedSrvType.toLowerCase())
         );
       }
-      if (selectedSrvPrice === 'Under â‚¹500') {
+      if (selectedSrvPrice === 'Under ₹500') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 500
         );
-      } else if (selectedSrvPrice === 'â‚¹500 - â‚¹1,500') {
+      } else if (selectedSrvPrice === '₹500 - ₹1,500') {
         allServices = allServices.filter((s) => {
           const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
           return p >= 500 && p <= 1500;
         });
-      } else if (selectedSrvPrice === 'â‚¹1,500+') {
+      } else if (selectedSrvPrice === '₹1,500+') {
         allServices = allServices.filter(
           (s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 1500
         );
@@ -2493,19 +2564,19 @@ export default function CategoryDetails() {
       ? selectedBusSort
       : 'Recommended';
 
-    if (activeSort === 'Price Low â†’ High') {
+    if (activeSort === 'Price Low → High') {
       allServices.sort((a, b) => {
         const pA = a.priceNum || parseInt((a.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         const pB = b.priceNum || parseInt((b.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         return pA - pB;
       });
-    } else if (activeSort === 'Price High â†’ Low') {
+    } else if (activeSort === 'Price High → Low') {
       allServices.sort((a, b) => {
         const pA = a.priceNum || parseInt((a.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         const pB = b.priceNum || parseInt((b.price || '0').replace(/[^\d]/g, ''), 10) || 0;
         return pB - pA;
       });
-    } else if (activeSort === 'Rating High â†’ Low' || activeSort === 'Rating') {
+    } else if (activeSort === 'Rating High → Low' || activeSort === 'Rating') {
       allServices.sort((a, b) => {
         const rA = parseFloat(a.rating || '0') || 0;
         const rB = parseFloat(b.rating || '0') || 0;
@@ -2523,7 +2594,7 @@ export default function CategoryDetails() {
         const tB = parseTimeToMinutes(b.departureTime);
         return tB - tA;
       });
-    } else if (activeSort === 'Discount High â†’ Low') {
+    } else if (activeSort === 'Discount High → Low') {
       allServices.sort((a, b) => {
         const dA = a.discountNum || 0;
         const dB = b.discountNum || 0;
@@ -2621,14 +2692,14 @@ export default function CategoryDetails() {
     if (draftProdBrand !== 'All') {
       items = items.filter((s) => s.brand && s.brand.toLowerCase() === draftProdBrand.toLowerCase());
     }
-    if (draftProdPrice === 'Under â‚¹1,500') {
+    if (draftProdPrice === 'Under ₹1,500') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 1500);
-    } else if (draftProdPrice === 'â‚¹1,500 - â‚¹5,000') {
+    } else if (draftProdPrice === '₹1,500 - ₹5,000') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 1500 && p <= 5000;
       });
-    } else if (draftProdPrice === 'â‚¹5,000+') {
+    } else if (draftProdPrice === '₹5,000+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 5000);
     }
     if (draftProdRating !== null) {
@@ -2683,14 +2754,14 @@ export default function CategoryDetails() {
     if (draftDnBrand !== 'All') {
       items = items.filter((s) => s.brand && s.brand.toLowerCase() === draftDnBrand.toLowerCase());
     }
-    if (draftDnPrice === 'Under â‚¹50') {
+    if (draftDnPrice === 'Under ₹50') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 50);
-    } else if (draftDnPrice === 'â‚¹50 - â‚¹200') {
+    } else if (draftDnPrice === '₹50 - ₹200') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 50 && p <= 200;
       });
-    } else if (draftDnPrice === 'â‚¹200+') {
+    } else if (draftDnPrice === '₹200+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 200);
     }
     if (draftDnRating !== null) {
@@ -2707,7 +2778,7 @@ export default function CategoryDetails() {
       items = items.filter((s) => s.inStock !== false);
     }
     if (draftDnDeliveryTime !== 'All') {
-      items = items.filter((s) => s.deliveryTime && s.deliveryTime.includes(draftDnDeliveryTime.replace('âš¡ ', '')));
+      items = items.filter((s) => s.deliveryTime && s.deliveryTime.includes(draftDnDeliveryTime.replace('⚡ ', '')));
     }
 
     return items;
@@ -2756,14 +2827,14 @@ export default function CategoryDetails() {
     } else if (draftFoodVegMode === 'Non-Veg') {
       items = items.filter((s) => s.isVeg === false);
     }
-    if (draftFoodPrice === 'Under â‚¹200') {
+    if (draftFoodPrice === 'Under ₹200') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 200);
-    } else if (draftFoodPrice === 'â‚¹200 - â‚¹500') {
+    } else if (draftFoodPrice === '₹200 - ₹500') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 200 && p <= 500;
       });
-    } else if (draftFoodPrice === 'â‚¹500+') {
+    } else if (draftFoodPrice === '₹500+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 500);
     }
     if (draftFoodRating !== null) {
@@ -2824,14 +2895,14 @@ export default function CategoryDetails() {
           s.name.toLowerCase().includes(draftSrvType.toLowerCase())
       );
     }
-    if (draftSrvPrice === 'Under â‚¹500') {
+    if (draftSrvPrice === 'Under ₹500') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) < 500);
-    } else if (draftSrvPrice === 'â‚¹500 - â‚¹1,500') {
+    } else if (draftSrvPrice === '₹500 - ₹1,500') {
       items = items.filter((s) => {
         const p = s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10);
         return p >= 500 && p <= 1500;
       });
-    } else if (draftSrvPrice === 'â‚¹1,500+') {
+    } else if (draftSrvPrice === '₹1,500+') {
       items = items.filter((s) => (s.priceNum || parseInt((s.price || '0').replace(/[^\d]/g, ''), 10)) > 1500);
     }
     if (draftSrvRating !== null) {
@@ -3064,11 +3135,11 @@ export default function CategoryDetails() {
     }
 
     // 4. Filter by Price Range
-    if (priceRange === 'Under â‚¹3,500') {
+    if (priceRange === 'Under ₹3,500') {
       items = items.filter((s) => (s.priceNum || 0) < 3500);
-    } else if (priceRange === 'â‚¹3,500 - â‚¹6,000') {
+    } else if (priceRange === '₹3,500 - ₹6,000') {
       items = items.filter((s) => (s.priceNum || 0) >= 3500 && (s.priceNum || 0) <= 6000);
-    } else if (priceRange === 'â‚¹6,000+') {
+    } else if (priceRange === '₹6,000+') {
       items = items.filter((s) => (s.priceNum || 0) > 6000);
     }
 
@@ -3127,9 +3198,9 @@ export default function CategoryDetails() {
     }
 
     // 10. Sort
-    if (sortOpt === 'Price Low â†’ High') {
+    if (sortOpt === 'Price Low → High') {
       items.sort((a, b) => (a.priceNum || 0) - (b.priceNum || 0));
-    } else if (sortOpt === 'Price High â†’ Low') {
+    } else if (sortOpt === 'Price High → Low') {
       items.sort((a, b) => (b.priceNum || 0) - (a.priceNum || 0));
     } else if (sortOpt === 'Rating') {
       items.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
@@ -3142,15 +3213,16 @@ export default function CategoryDetails() {
   const dynamicVendorStayItems = useMemo(() => {
     return (apiProducts || [])
       .filter((p: any) => {
+        const mainCat = String(p.mainCategory || p.subNavbarCategory || '').toLowerCase();
         const cat = String(p.category || p.vendorType || '').toLowerCase();
         const sub = String(p.subcategory || p.subCategory || '').toLowerCase();
         const isNotDeleted = p.isDeleted !== true && p.status !== 'deleted' && p.isActive !== false && p.status !== 'Inactive';
-        return (cat.includes('stay') || cat.includes('hotel') || sub.includes('hotel') || sub.includes('resort') || sub.includes('room')) && isNotDeleted;
+        return (mainCat === 'stay' || mainCat.includes('stay') || cat.includes('stay') || cat.includes('hotel') || cat.includes('viil') || cat.includes('resort') || sub.includes('hotel') || sub.includes('resort') || sub.includes('room') || sub.includes('villa')) && isNotDeleted;
       })
       .map((p: any) => {
-        const numPrice = typeof p.price === 'number' ? p.price : (parseInt(String(p.price || '0').replace(/[^\d]/g, ''), 10) || 2499);
-        const origNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : (parseInt(String(p.originalPrice || '0').replace(/[^\d]/g, ''), 10) || Math.round(numPrice * 1.35))) : Math.round(numPrice * 1.35);
-        const discountPct = Math.round(((origNum - numPrice) / origNum) * 100);
+        const numPrice = typeof p.price === 'number' ? p.price : (parseFloat(String(p.price || '0').replace(/[^\d.]/g, '')) || 0);
+        const origNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : (parseFloat(String(p.originalPrice).replace(/[^\d.]/g, '')) || 0)) : (numPrice > 0 ? Math.round(numPrice * 1.35) : 0);
+        const discountPct = origNum > numPrice ? Math.round(((origNum - numPrice) / origNum) * 100) : 0;
         const resolvedCity = p.stayCity || p.locationCity || p.city || (p.location ? p.location.split(',')[0]?.trim() : 'Bangalore');
         const resolvedAddress = p.stayAddress || p.location || `${resolvedCity}, India`;
         const resolvedName = p.hotelName || p.businessName || p.name || 'Boutique Stay';
@@ -3192,9 +3264,9 @@ export default function CategoryDetails() {
           desc: p.detail || p.description || p.desc || 'Premium comfortable stay with world class hospitality and top tier amenities.',
           rating: String(p.rating || '4.8'),
           reviews: String(p.reviewsCount || p.ratingCount || '320'),
-          price: `â‚¹${numPrice.toLocaleString('en-IN')} / night`,
+          price: `₹${numPrice.toLocaleString('en-IN')} / night`,
           priceNum: numPrice,
-          originalPrice: `â‚¹${origNum.toLocaleString('en-IN')}`,
+          originalPrice: `₹${origNum.toLocaleString('en-IN')}`,
           discount: `${discountPct > 0 ? discountPct : 20}% OFF`,
           image: resolveImageUrl(p.image || p.imageUrl) || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
           assured: true,
@@ -3356,15 +3428,16 @@ export default function CategoryDetails() {
   const dynamicVendorJobs = useMemo((): JobItem[] => {
     return apiProducts
       .filter((p: any) => {
+        const mainCat = String(p.mainCategory || p.subNavbarCategory || '').toLowerCase();
         const cat = String(p.category || p.vendorType || '').toLowerCase();
         const isNotDeleted = p.isDeleted !== true && p.status !== 'deleted' && p.isActive !== false && p.status !== 'Inactive';
-        return cat.includes('job') && isNotDeleted;
+        return (mainCat === 'jobs' || mainCat.includes('job') || cat.includes('job') || cat === 'it' || cat === 'non-it' || cat === 'delivery & field') && isNotDeleted;
       })
       .map((p: any) => {
-        const sub = p.subCategory || p.subcategory || 'General';
-        const roleName = p.itemType || p.childCategory || p.role || p.name || 'Job Role';
+        const sub = p.category || p.subCategory || p.subcategory || 'General';
+        const roleName = p.subcategory || p.subCategory || p.itemType || p.childCategory || p.role || p.name || 'Job Role';
         const rawSalary = p.salaryPackage || p.price || '';
-        const salaryStr = rawSalary ? (String(rawSalary).startsWith('â‚¹') ? String(rawSalary) : `â‚¹${rawSalary}`) : 'Competitive';
+        const salaryStr = rawSalary ? (String(rawSalary).startsWith('₹') ? String(rawSalary) : `₹${rawSalary}`) : 'Competitive';
 
         let skills: string[] = [];
         if (Array.isArray(p.skillsRequirement)) {
@@ -3394,7 +3467,7 @@ export default function CategoryDetails() {
           isVerified: true,
           location: workLoc,
           workMode,
-          experience: p.experienceRequired || '1â€“3 yrs',
+          experience: p.experienceRequired || '1–3 yrs',
           salary: salaryStr,
           employmentType: p.jobType || 'Full-time',
           department: sub,
@@ -3491,36 +3564,38 @@ export default function CategoryDetails() {
   }, [categoryName]);
 
   const getCalculatedServicePrice = useCallback((item: any) => {
-    if (!item) return { numPrice: 499, priceStr: 'â‚¹499', packageLabel: '' };
+    if (!item) return { numPrice: 499, priceStr: '₹499', packageLabel: '' };
 
     const cat = getEffectiveCategory(item);
 
     if (cat === 'Education') {
       if (selectedDuration.includes('899') || selectedDuration.includes('2 Hours')) {
-        return { numPrice: 899, priceStr: 'â‚¹899', packageLabel: '2 Hours Intensive (â‚¹899)' };
+        return { numPrice: 899, priceStr: '₹899', packageLabel: '2 Hours Intensive (₹899)' };
       }
-      return { numPrice: 499, priceStr: 'â‚¹499', packageLabel: '1 Hour Session (â‚¹499)' };
+      return { numPrice: 499, priceStr: '₹499', packageLabel: '1 Hour Session (₹499)' };
     }
 
     if (cat === 'Healthcare') {
       if (consultationMode === 'clinic') {
-        return { numPrice: 699, priceStr: 'â‚¹699', packageLabel: 'In-Clinic Visit (â‚¹699)' };
+        return { numPrice: 699, priceStr: '₹699', packageLabel: 'In-Clinic Visit (₹699)' };
       }
-      return { numPrice: 399, priceStr: 'â‚¹399', packageLabel: 'Video Call (â‚¹399)' };
+      return { numPrice: 399, priceStr: '₹399', packageLabel: 'Video Call (₹399)' };
     }
 
-    const basePriceNum = parseInt((item.price || '499').replace(/[^\d]/g, ''), 10) || 499;
+    const basePriceNum = typeof item.price === 'number'
+      ? item.price
+      : (parseFloat(String(item.price || '0').replace(/[^\d.]/g, '')) || 0);
 
     if (cat === 'Home Services' || cat === 'Automobile') {
       if (selectedProblemPackage.includes('350') || selectedProblemPackage.includes('Jet Wash')) {
         const total = basePriceNum + 350;
-        return { numPrice: total, priceStr: `â‚¹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
+        return { numPrice: total, priceStr: `₹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
       }
       if (selectedProblemPackage.includes('500') || selectedProblemPackage.includes('Gas Leak')) {
         const total = basePriceNum + 500;
-        return { numPrice: total, priceStr: `â‚¹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
+        return { numPrice: total, priceStr: `₹${total.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
       }
-      return { numPrice: basePriceNum, priceStr: `â‚¹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
+      return { numPrice: basePriceNum, priceStr: `₹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: selectedProblemPackage };
     }
 
     if (cat === 'Travel' || cat === 'Stay') {
@@ -3528,12 +3603,12 @@ export default function CategoryDetails() {
       const total = basePriceNum * guestMultiplier;
       return {
         numPrice: total,
-        priceStr: `â‚¹${total.toLocaleString('en-IN')}`,
+        priceStr: `₹${total.toLocaleString('en-IN')}`,
         packageLabel: `${travelGuests} (${guestMultiplier}x)`,
       };
     }
 
-    return { numPrice: basePriceNum, priceStr: `â‚¹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: '' };
+    return { numPrice: basePriceNum, priceStr: `₹${basePriceNum.toLocaleString('en-IN')}`, packageLabel: '' };
   }, [getEffectiveCategory, selectedDuration, consultationMode, selectedProblemPackage, travelGuests, getTargetGuestCount, travelerList.length]);
 
   const getConfirmCtaLabel = useCallback((item: any) => {
@@ -3544,20 +3619,20 @@ export default function CategoryDetails() {
       case 'Healthcare':
       case 'Legal':
       case 'Financial':
-        return `Book Consultation â€¢ ${priceStr}`;
+        return `Book Consultation • ${priceStr}`;
       case 'Education':
-        return `Book Session â€¢ ${priceStr}`;
+        return `Book Session • ${priceStr}`;
       case 'Automobile':
       case 'Home Services':
-        return `Book Service â€¢ ${priceStr}`;
+        return `Book Service • ${priceStr}`;
       case 'IT/Digital':
-        return `Request Service â€¢ ${priceStr}`;
+        return `Request Service • ${priceStr}`;
       case 'Travel':
-        return `Book Trip â€¢ ${priceStr}`;
+        return `Book Trip • ${priceStr}`;
       case 'Stay':
-        return `Reserve Stay â€¢ ${priceStr}`;
+        return `Reserve Stay • ${priceStr}`;
       default:
-        return `Book Service â€¢ ${priceStr}`;
+        return `Book Service • ${priceStr}`;
     }
   }, [getEffectiveCategory, getCalculatedServicePrice]);
 
@@ -3685,11 +3760,11 @@ export default function CategoryDetails() {
     const bookingId = `BK-${Date.now().toString().slice(-6)}`;
 
     const travelerSummaryStr = bookingInfo.travelers && bookingInfo.travelers.length > 0
-      ? ` â€¢ ${bookingInfo.travelers.length} Person(s): ` + bookingInfo.travelers.map((t: any, i: number) => `P${i+1}: ${t.name} (Aadhaar: ${t.aadhar}, Mob: ${t.phone})`).join('; ')
+      ? ` • ${bookingInfo.travelers.length} Person(s): ` + bookingInfo.travelers.map((t: any, i: number) => `P${i+1}: ${t.name} (Aadhaar: ${t.aadhar}, Mob: ${t.phone})`).join('; ')
       : '';
 
     const boardingDroppingSummary = bookingInfo.boardingPoint && bookingInfo.droppingPoint
-      ? ` â€¢ Boarding: ${bookingInfo.boardingPoint} âž” Dropping: ${bookingInfo.droppingPoint}`
+      ? ` • Boarding: ${bookingInfo.boardingPoint} ➔ Dropping: ${bookingInfo.droppingPoint}`
       : '';
 
     const resolvedVendorName = (bookingInfo.effectiveCat === 'Travel')
@@ -3718,7 +3793,7 @@ export default function CategoryDetails() {
       customer_address: bookingInfo.address || 'Indiranagar, Bangalore',
       customer_latitude: 12.9498,
       customer_longitude: 77.6289,
-      product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} â€¢ ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
+      product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} • ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
       provider_name: bookingInfo.operator || bookingInfo.name,
       operator_name: bookingInfo.operator || '',
       bus_name: bookingInfo.name || '',
@@ -3749,8 +3824,8 @@ export default function CategoryDetails() {
     // Notification Center Dispatch based on category
     if (bookingInfo.effectiveCat === 'Travel') {
       dispatchCustomerNotification({
-        title: 'Ticket Booked! Payment Complete ðŸš',
-        body: `Your bus ticket #${bookingId} (${bookingInfo.name}${bookingInfo.vehicleNumber ? ` â€¢ Reg: ${bookingInfo.vehicleNumber}` : ''}) is booked! Seat allocation pending from operator.`,
+        title: 'Ticket Booked! Payment Complete 🚍',
+        body: `Your bus ticket #${bookingId} (${bookingInfo.name}${bookingInfo.vehicleNumber ? ` • Reg: ${bookingInfo.vehicleNumber}` : ''}) is booked! Seat allocation pending from operator.`,
         icon: 'Bus',
         category: 'order',
         actionLabel: 'View Booking',
@@ -3763,7 +3838,7 @@ export default function CategoryDetails() {
       });
     } else if (bookingInfo.effectiveCat === 'Stay') {
       dispatchCustomerNotification({
-        title: 'Stay Booked! Payment Complete ðŸ¨',
+        title: 'Stay Booked! Payment Complete 🏨',
         body: `Your hotel stay #${bookingId} for ${bookingInfo.name} on ${bookingInfo.date} is booked and confirmed!`,
         icon: 'Hotel',
         category: 'order',
@@ -3777,7 +3852,7 @@ export default function CategoryDetails() {
       });
     } else {
       dispatchCustomerNotification({
-        title: 'Service Booked! Payment Complete ðŸ› ï¸',
+        title: 'Service Booked! Payment Complete 🛠️',
         body: `Your appointment #${bookingId} for ${bookingInfo.name} is booked for ${bookingInfo.date} at ${bookingInfo.slot}.`,
         icon: 'Wrench',
         category: 'order',
@@ -3817,7 +3892,7 @@ export default function CategoryDetails() {
         customer_address: bookingInfo.address,
         customer_latitude: 12.9498,
         customer_longitude: 77.6289,
-        product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} â€¢ ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
+        product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} • ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
         provider_name: bookingInfo.operator || bookingInfo.name,
         operator_name: bookingInfo.operator || '',
         bus_name: bookingInfo.name || '',
@@ -3991,7 +4066,7 @@ export default function CategoryDetails() {
               <TextInput
                 ref={searchInputRef}
                 style={[styles.searchInput, { color: colors.text, flex: 1 }]}
-                placeholder={isVoiceListening ? "Listening... Speak now ðŸŽ™ï¸" : catMeta.searchPlaceholder}
+                placeholder={isVoiceListening ? "Listening... Speak now 🎙️" : catMeta.searchPlaceholder}
                 placeholderTextColor={isVoiceListening ? "#D97706" : isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)'}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -4313,7 +4388,7 @@ export default function CategoryDetails() {
                         </Text>
 
                         <Text style={styles.compactCategorySub} numberOfLines={1}>
-                          {hotel.location || `${hotel.subcategory} â€¢ ${hotel.locationCity || 'India'}`}
+                          {hotel.location || `${hotel.subcategory} • ${hotel.locationCity || 'India'}`}
                         </Text>
 
                         <View style={styles.compactRatingRow}>
@@ -4323,7 +4398,7 @@ export default function CategoryDetails() {
                         </View>
 
                         <Text style={styles.stayAmenitiesSummaryText} numberOfLines={1}>
-                          {(hotel.amenities || ['Pool', 'Free Wi-Fi', 'Breakfast']).join(' â€¢ ')}
+                          {(hotel.amenities || ['Pool', 'Free Wi-Fi', 'Breakfast']).join(' • ')}
                         </Text>
 
                         <View style={styles.compactPriceRow}>
@@ -4691,11 +4766,11 @@ export default function CategoryDetails() {
                       <Text style={styles.travelRouteBannerText}>
                         Showing verified travel options for{' '}
                         <Text style={{ fontWeight: '800', color: '#B45309' }}>
-                          {travelFrom || 'All Cities'} âž” {travelTo || 'All Destinations'}
+                          {travelFrom || 'All Cities'} ➔ {travelTo || 'All Destinations'}
                         </Text>
                         {travelJourneyDate ? (
                           <>
-                            {' '}â€¢{' '}
+                            {' '}•{' '}
                             <Text style={{ fontWeight: '700', color: '#B45309' }}>
                               {travelJourneyDate}
                             </Text>
@@ -4703,7 +4778,7 @@ export default function CategoryDetails() {
                         ) : null}
                         {travelPassengers > 1 ? (
                           <>
-                            {' '}â€¢{' '}
+                            {' '}•{' '}
                             <Text style={{ fontWeight: '700', color: '#B45309' }}>
                               {travelPassengers} Passengers
                             </Text>
@@ -4711,7 +4786,7 @@ export default function CategoryDetails() {
                         ) : null}
                       </Text>
                       <Text style={{ fontSize: 11, color: '#B45309', marginTop: 2, fontWeight: '600' }}>
-                        {displayedServices.length} {displayedServices.length === 1 ? 'option' : 'options'} found â€¢ Tap to edit search
+                        {displayedServices.length} {displayedServices.length === 1 ? 'option' : 'options'} found • Tap to edit search
                       </Text>
                     </View>
                     <View
@@ -4749,7 +4824,7 @@ export default function CategoryDetails() {
                             <View style={styles.travelVehicleBadge}>
                               <Icons.Bus size={12} color="#D97706" style={{ marginRight: 4 }} />
                               <Text style={styles.travelVehicleBadgeText}>
-                                {(service.type || 'BUS').toUpperCase()} â€¢ {service.subType || service.busType || service.subcategory || 'AC Sleeper'}
+                                {(service.type || 'BUS').toUpperCase()} • {service.subType || service.busType || service.subcategory || 'AC Sleeper'}
                               </Text>
                             </View>
                             {service.badge ? (
@@ -5049,7 +5124,7 @@ export default function CategoryDetails() {
 
                         <Text style={styles.compactCategorySub} numberOfLines={1}>
                           {service.brand
-                            ? `${service.brand} â€¢ ${service.subcategory}`
+                            ? `${service.brand} • ${service.subcategory}`
                             : `${service.subcategory || service.mainCategory || categoryName}`}
                         </Text>
 
@@ -5071,7 +5146,7 @@ export default function CategoryDetails() {
                             )}
                           </View>
                           <Text style={[styles.compactFreeDeliveryText, { marginLeft: 0, marginTop: 2 }]} numberOfLines={1}>
-                            {service.deliveryTime || (isCartCategory ? 'Free Delivery' : 'âš¡ 15-30 mins')}
+                            {service.deliveryTime || (isCartCategory ? 'Free Delivery' : '⚡ 15-30 mins')}
                           </Text>
                         </View>
 
@@ -5239,6 +5314,27 @@ export default function CategoryDetails() {
                     </TouchableOpacity>
                   </View>
                 </View>
+              ) : isLoadingProducts ? (
+                <View style={[styles.emptyContainer, { paddingVertical: 48 }]}>
+                  <ActivityIndicator size="large" color="#F5B800" />
+                  <Text style={[styles.emptySubtitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.6)', marginTop: 12, fontWeight: '600' }]}>
+                    Loading {categoryName || 'items'}...
+                  </Text>
+                </View>
+              ) : productsFetchError ? (
+                <View style={styles.emptyContainer}>
+                  <Icons.AlertTriangle color="#EF4444" size={40} />
+                  <Text style={[styles.emptyTitle, { color: colors.text, marginTop: 8 }]}>Unable to load items</Text>
+                  <Text style={[styles.emptySubtitle, { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.5)', marginTop: 4 }]}>
+                    {productsFetchError}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.emptyResetBtn, { backgroundColor: '#F5B800', marginTop: 16 }]}
+                    onPress={fetchDynamicProducts}
+                  >
+                    <Text style={[styles.emptyResetBtnText, { color: '#0F172A', fontWeight: '800' }]}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
                 <View style={styles.emptyContainer}>
                   <Icons.SearchX color={isLight ? '#94A3B8' : 'rgba(255, 255, 255, 0.35)'} size={40} />
@@ -5337,13 +5433,13 @@ export default function CategoryDetails() {
                     <Text style={styles.modalCategoryBadge}>
                       {getEffectiveCategory(schedulingItem).toUpperCase()}
                     </Text>
-                    <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '800' }}>â— LIVE SLOTS</Text>
+                    <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '800' }}>● LIVE SLOTS</Text>
                   </View>
                   <Text style={[styles.schedulerModalTitle, { color: colors.text }]} numberOfLines={1}>
                     {schedulingItem?.name}
                   </Text>
                   <Text style={[styles.schedulerItemName, { color: '#D97706' }]} numberOfLines={1}>
-                    Starting at {schedulingItem?.price || 'â‚¹499'} â€¢ Certified Provider
+                    Starting at {schedulingItem?.price || '₹499'} • Certified Provider
                   </Text>
                   {schedulingItem?.vehicleNumber ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
@@ -5386,7 +5482,7 @@ export default function CategoryDetails() {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ fontSize: 14, fontWeight: '800', color: isLight ? '#0F172A' : '#F8FAFC' }}>
-                        {schedulingItem?.from || routeParams.from || 'Bangalore'} âž” {schedulingItem?.to || routeParams.to || 'Chennai'}
+                        {schedulingItem?.from || routeParams.from || 'Bangalore'} ➔ {schedulingItem?.to || routeParams.to || 'Chennai'}
                       </Text>
                       <View style={{ backgroundColor: '#F5B800', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
                         <Text style={{ fontSize: 11, fontWeight: '800', color: '#0F172A' }}>
@@ -5396,10 +5492,10 @@ export default function CategoryDetails() {
                     </View>
                     <Text style={{ fontSize: 12, color: isLight ? '#475569' : '#CBD5E1', marginBottom: 4 }}>
                       Bus: <Text style={{ fontWeight: '700' }}>{schedulingItem?.name}</Text>
-                      {schedulingItem?.vehicleNumber ? ` (Reg: ${schedulingItem.vehicleNumber})` : ''} â€¢ Departure: <Text style={{ fontWeight: '700' }}>{schedulingItem?.departureTime || 'Direct Express'}</Text>
+                      {schedulingItem?.vehicleNumber ? ` (Reg: ${schedulingItem.vehicleNumber})` : ''} • Departure: <Text style={{ fontWeight: '700' }}>{schedulingItem?.departureTime || 'Direct Express'}</Text>
                     </Text>
                     <Text style={{ fontSize: 11.5, color: '#D97706', fontWeight: '700' }}>
-                      ðŸ‘¥ {travelerList.map((t, idx) => `P${idx+1}: ${t.name || 'Guest'}`).join(', ')} ({travelerList.length} {travelerList.length === 1 ? 'Person' : 'Persons'})
+                      👥 {travelerList.map((t, idx) => `P${idx+1}: ${t.name || 'Guest'}`).join(', ')} ({travelerList.length} {travelerList.length === 1 ? 'Person' : 'Persons'})
                     </Text>
                   </View>
 
@@ -5571,7 +5667,7 @@ export default function CategoryDetails() {
                         ? 'Select Boarding Point'
                         : !selectedDroppingPoint
                         ? 'Select Dropping Point'
-                        : `Proceed to Payment â€¢ ${getCalculatedServicePrice(schedulingItem).priceStr}`}
+                        : `Proceed to Payment • ${getCalculatedServicePrice(schedulingItem).priceStr}`}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -5588,8 +5684,8 @@ export default function CategoryDetails() {
                       <View style={[styles.providerInfoCard, { backgroundColor: isLight ? '#FEF3C7' : 'rgba(245, 184, 0, 0.1)', borderColor: isLight ? '#FDE68A' : 'rgba(245, 184, 0, 0.25)' }]}>
                         <Icons.UserCheck color="#D97706" size={16} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.providerTitle, { color: colors.text }]}>Dr. Ananya Sharma â€¢ MBBS, MD</Text>
-                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Senior Cardiologist â€¢ 15+ yrs Exp â€¢ 4.9 â˜… (120+ Reviews)</Text>
+                          <Text style={[styles.providerTitle, { color: colors.text }]}>Dr. Ananya Sharma • MBBS, MD</Text>
+                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Senior Cardiologist • 15+ yrs Exp • 4.9 ★ (120+ Reviews)</Text>
                         </View>
                       </View>
 
@@ -5600,14 +5696,14 @@ export default function CategoryDetails() {
                           onPress={() => setConsultationMode('video')}
                         >
                           <Icons.Video color={consultationMode === 'video' ? '#0F172A' : colors.text} size={14} />
-                          <Text style={[styles.chipBtnText, consultationMode === 'video' && styles.chipBtnTextActive, { color: consultationMode === 'video' ? '#0F172A' : colors.text }]}>Video Call (â‚¹399)</Text>
+                          <Text style={[styles.chipBtnText, consultationMode === 'video' && styles.chipBtnTextActive, { color: consultationMode === 'video' ? '#0F172A' : colors.text }]}>Video Call (₹399)</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.chipBtn, consultationMode === 'clinic' && styles.chipBtnActive]}
                           onPress={() => setConsultationMode('clinic')}
                         >
                           <Icons.Building color={consultationMode === 'clinic' ? '#0F172A' : colors.text} size={14} />
-                          <Text style={[styles.chipBtnText, consultationMode === 'clinic' && styles.chipBtnTextActive, { color: consultationMode === 'clinic' ? '#0F172A' : colors.text }]}>In-Clinic Visit (â‚¹699)</Text>
+                          <Text style={[styles.chipBtnText, consultationMode === 'clinic' && styles.chipBtnTextActive, { color: consultationMode === 'clinic' ? '#0F172A' : colors.text }]}>In-Clinic Visit (₹699)</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -5634,7 +5730,7 @@ export default function CategoryDetails() {
                     <View style={styles.customFieldsSection}>
                       <Text style={[styles.fieldLabel, { color: colors.text }]}>SERVICE PACKAGE</Text>
                       <View style={styles.chipOptionsRow}>
-                        {['Standard Cleaning (â‚¹499)', 'Deep Jet Wash (+â‚¹350)', 'Gas Leak Fix (+â‚¹500)'].map((pkg) => (
+                        {['Standard Cleaning (₹499)', 'Deep Jet Wash (+₹350)', 'Gas Leak Fix (+₹500)'].map((pkg) => (
                           <TouchableOpacity
                             key={pkg}
                             style={[styles.chipBtn, selectedProblemPackage === pkg && styles.chipBtnActive]}
@@ -5662,8 +5758,8 @@ export default function CategoryDetails() {
                       <View style={[styles.providerInfoCard, { backgroundColor: isLight ? '#FEF3C7' : 'rgba(245, 184, 0, 0.1)', borderColor: isLight ? '#FDE68A' : 'rgba(245, 184, 0, 0.25)' }]}>
                         <Icons.Scale color="#D97706" size={16} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.providerTitle, { color: colors.text }]}>Adv. Rajesh Varma â€¢ High Court Advocate</Text>
-                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Corporate & Property Law â€¢ 18+ yrs Exp â€¢ 4.9 â˜…</Text>
+                          <Text style={[styles.providerTitle, { color: colors.text }]}>Adv. Rajesh Varma • High Court Advocate</Text>
+                          <Text style={[styles.providerSubtitle, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>Corporate & Property Law • 18+ yrs Exp • 4.9 ★</Text>
                         </View>
                       </View>
                       <Text style={[styles.fieldLabel, { color: colors.text, marginTop: 10 }]}>CASE BRIEF & REQUIREMENTS</Text>
@@ -5682,7 +5778,7 @@ export default function CategoryDetails() {
                     <View style={styles.customFieldsSection}>
                       <Text style={[styles.fieldLabel, { color: colors.text }]}>SESSION DURATION</Text>
                       <View style={styles.chipOptionsRow}>
-                        {['1 Hour Session (â‚¹499)', '2 Hours Intensive (â‚¹899)'].map((dur) => (
+                        {['1 Hour Session (₹499)', '2 Hours Intensive (₹899)'].map((dur) => (
                           <TouchableOpacity
                             key={dur}
                             style={[styles.chipBtn, selectedDuration === dur && styles.chipBtnActive]}
@@ -6017,7 +6113,7 @@ export default function CategoryDetails() {
                       >
                         <Icons.Sparkles color="#D97706" size={16} />
                         <Text style={{ flex: 1, fontSize: 11.5, color: isLight ? '#92400E' : '#FCD34D', fontWeight: '700' }}>
-                          Doorstep expert arrives in this selected slot â€¢ Free cancellation up to 2 hrs prior
+                          Doorstep expert arrives in this selected slot • Free cancellation up to 2 hrs prior
                         </Text>
                       </View>
                     </>
@@ -6033,16 +6129,16 @@ export default function CategoryDetails() {
                       )}
                       <Text style={[styles.summaryLabel, { color: isLight ? '#0F172A' : '#FFF' }]}>
                         {getEffectiveCategory(schedulingItem) === 'Travel'
-                          ? `${schedulingItem?.from || routeParams.from || 'Bangalore'} âž” ${schedulingItem?.to || routeParams.to || 'Chennai'} â€¢ ${routeParams.journeyDate || 'Today'} â€¢ ${getCalculatedServicePrice(schedulingItem).priceStr}`
-                          : `${selectedDateObj ? selectedDateObj.fullDateStr : 'Select Date'} â€¢ ${selectedSlotObj ? selectedSlotObj.time : 'Select Slot'} â€¢ ${getCalculatedServicePrice(schedulingItem).priceStr}`}
+                          ? `${schedulingItem?.from || routeParams.from || 'Bangalore'} ➔ ${schedulingItem?.to || routeParams.to || 'Chennai'} • ${routeParams.journeyDate || 'Today'} • ${getCalculatedServicePrice(schedulingItem).priceStr}`
+                          : `${selectedDateObj ? selectedDateObj.fullDateStr : 'Select Date'} • ${selectedSlotObj ? selectedSlotObj.time : 'Select Slot'} • ${getCalculatedServicePrice(schedulingItem).priceStr}`}
                       </Text>
                     </View>
                     <View style={styles.summaryRow}>
                       <Icons.ShieldCheck color="#10B981" size={14} />
                       <Text style={[styles.summarySubText, { color: isLight ? '#475569' : 'rgba(255,255,255,0.7)' }]}>
                         {getEffectiveCategory(schedulingItem) === 'Travel'
-                          ? `Departure: ${schedulingItem?.departureTime || 'Direct Express'} â€¢ ${travelerList.length} ${travelerList.length === 1 ? 'Guest' : 'Guests'} â€¢ Free cancellation up to 2 hrs before`
-                          : `${getCalculatedServicePrice(schedulingItem).packageLabel ? `${getCalculatedServicePrice(schedulingItem).packageLabel} â€¢ ` : ''}Free cancellation up to 2 hrs before`}
+                          ? `Departure: ${schedulingItem?.departureTime || 'Direct Express'} • ${travelerList.length} ${travelerList.length === 1 ? 'Guest' : 'Guests'} • Free cancellation up to 2 hrs before`
+                          : `${getCalculatedServicePrice(schedulingItem).packageLabel ? `${getCalculatedServicePrice(schedulingItem).packageLabel} • ` : ''}Free cancellation up to 2 hrs before`}
                       </Text>
                     </View>
                   </View>
@@ -6082,7 +6178,7 @@ export default function CategoryDetails() {
                       }}
                     >
                       <Text style={styles.confirmBookingBtnText}>
-                        Select Boarding & Dropping Points âž”
+                        Select Boarding & Dropping Points ➔
                       </Text>
                     </TouchableOpacity>
                   ) : (
@@ -6802,12 +6898,12 @@ export default function CategoryDetails() {
                     >
                       {isOct2 && !isSelectedRange && (
                         <View style={styles.holidayAvatarSmall}>
-                          <Text style={{ fontSize: 9 }}>ðŸ•Šï¸</Text>
+                          <Text style={{ fontSize: 9 }}>🕊️</Text>
                         </View>
                       )}
                       {isOct20 && !isSelectedRange && (
                         <View style={styles.holidayAvatarSmall}>
-                          <Text style={{ fontSize: 9 }}>ðŸ¹</Text>
+                          <Text style={{ fontSize: 9 }}>🏹</Text>
                         </View>
                       )}
 
@@ -7024,7 +7120,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Stays</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {stayActiveFiltersCount > 0 ? `âš¡ ${stayActiveFiltersCount} filter(s) active` : 'Select preferences to refine results'}
+                  {stayActiveFiltersCount > 0 ? `⚡ ${stayActiveFiltersCount} filter(s) active` : 'Select preferences to refine results'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -7049,10 +7145,10 @@ export default function CategoryDetails() {
                 {/* Price Step Cards */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { label: 'All', icon: 'ðŸ·ï¸' },
-                    { label: 'Under â‚¹3,500', icon: 'ðŸ’°' },
-                    { label: 'â‚¹3,500 - â‚¹6,000', icon: 'âœ¨' },
-                    { label: 'â‚¹6,000+', icon: 'ðŸ‘‘' },
+                    { label: 'All', icon: '🏷️' },
+                    { label: 'Under ₹3,500', icon: '💰' },
+                    { label: '₹3,500 - ₹6,000', icon: '✨' },
+                    { label: '₹6,000+', icon: '👑' },
                   ].map((prOpt) => {
                     const isSel = draftStayPriceRange === prOpt.label;
                     return (
@@ -7087,11 +7183,11 @@ export default function CategoryDetails() {
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PROPERTY TYPE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { type: 'Hotels', icon: 'ðŸ¨' },
-                    { type: 'Resorts', icon: 'ðŸŒ´' },
-                    { type: 'Villas', icon: 'ðŸ¡' },
-                    { type: 'Homestays', icon: 'ðŸŒ„' },
-                    { type: 'Apartments', icon: 'ðŸ¢' },
+                    { type: 'Hotels', icon: '🏨' },
+                    { type: 'Resorts', icon: '🌴' },
+                    { type: 'Villas', icon: '🏡' },
+                    { type: 'Homestays', icon: '🌅' },
+                    { type: 'Apartments', icon: '🏢' },
                   ].map((item) => {
                     const isSel = draftStayPropTypes.includes(item.type);
                     return (
@@ -7144,9 +7240,9 @@ export default function CategoryDetails() {
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>STAR RATING</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { star: 5, label: '5 Star â˜…â˜…â˜…â˜…â˜…' },
-                    { star: 4, label: '4 Star â˜…â˜…â˜…â˜…' },
-                    { star: 3, label: '3 Star â˜…â˜…â˜…' },
+                    { star: 5, label: '5 Star ★★★★★' },
+                    { star: 4, label: '4 Star ★★★★' },
+                    { star: 3, label: '3 Star ★★★' },
                   ].map((stObj) => {
                     const isSel = draftStayStarRatings.includes(stObj.star);
                     return (
@@ -7210,7 +7306,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftStayGuestRating(isSel ? null : grObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{grObj.label}
+                          {isSel ? '✓ ' : ''}{grObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7223,15 +7319,15 @@ export default function CategoryDetails() {
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>AMENITIES</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
-                    { amen: 'Pool', icon: 'ðŸŠ' },
-                    { amen: 'Free Wi-Fi', icon: 'ðŸ“¶' },
-                    { amen: 'Breakfast', icon: 'ðŸ³' },
-                    { amen: 'Parking', icon: 'ðŸ…¿ï¸' },
-                    { amen: 'AC', icon: 'â„ï¸' },
-                    { amen: 'Spa', icon: 'ðŸ’†' },
-                    { amen: 'Gym', icon: 'ðŸ’ª' },
-                    { amen: 'Kitchen', icon: 'ðŸ³' },
-                    { amen: 'Restaurant', icon: 'ðŸ½ï¸' },
+                    { amen: 'Pool', icon: '🏊' },
+                    { amen: 'Free Wi-Fi', icon: '📶' },
+                    { amen: 'Breakfast', icon: '🍳' },
+                    { amen: 'Parking', icon: '🅿️' },
+                    { amen: 'AC', icon: '❄️' },
+                    { amen: 'Spa', icon: '💆' },
+                    { amen: 'Gym', icon: '💪' },
+                    { amen: 'Kitchen', icon: '🍳' },
+                    { amen: 'Restaurant', icon: '🍽️' },
                   ].map((item) => {
                     const isSel = draftStayAmenities.includes(item.amen);
                     return (
@@ -7349,7 +7445,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Products</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {prodActiveFiltersCount > 0 ? `âš¡ ${prodActiveFiltersCount} filter(s) active` : 'Select filters to refine product list'}
+                  {prodActiveFiltersCount > 0 ? `⚡ ${prodActiveFiltersCount} filter(s) active` : 'Select filters to refine product list'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -7366,7 +7462,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Discount High â†’ Low'].map((sOpt) => {
+                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Discount High → Low'].map((sOpt) => {
                     const isSel = draftProdSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -7383,7 +7479,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{sOpt}
+                          {isSel ? '✓ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7412,7 +7508,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdCategory(catOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{catOpt}
+                          {isSel ? '✓ ' : ''}{catOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7441,7 +7537,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdBrand(bOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{bOpt}
+                          {isSel ? '✓ ' : ''}{bOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7453,7 +7549,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under â‚¹1,500', 'â‚¹1,500 - â‚¹5,000', 'â‚¹5,000+'].map((pOpt) => {
+                  {['All', 'Under ₹1,500', '₹1,500 - ₹5,000', '₹5,000+'].map((pOpt) => {
                     const isSel = draftProdPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -7470,7 +7566,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{pOpt}
+                          {isSel ? '✓ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7503,7 +7599,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{rObj.label}
+                          {isSel ? '✓ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7532,7 +7628,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftProdDiscount(dOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{dOpt}
+                          {isSel ? '✓ ' : ''}{dOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7622,7 +7718,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Daily Needs</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {dnActiveFiltersCount > 0 ? `âš¡ ${dnActiveFiltersCount} filter(s) active` : 'Select filters to refine grocery list'}
+                  {dnActiveFiltersCount > 0 ? `⚡ ${dnActiveFiltersCount} filter(s) active` : 'Select filters to refine grocery list'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -7639,7 +7735,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Discount High â†’ Low'].map((sOpt) => {
+                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Discount High → Low'].map((sOpt) => {
                     const isSel = draftDnSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -7656,7 +7752,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{sOpt}
+                          {isSel ? '✓ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7685,7 +7781,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnCategory(catOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{catOpt}
+                          {isSel ? '✓ ' : ''}{catOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7714,7 +7810,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnBrand(bOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{bOpt}
+                          {isSel ? '✓ ' : ''}{bOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7726,7 +7822,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under â‚¹50', 'â‚¹50 - â‚¹200', 'â‚¹200+'].map((pOpt) => {
+                  {['All', 'Under ₹50', '₹50 - ₹200', '₹200+'].map((pOpt) => {
                     const isSel = draftDnPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -7743,7 +7839,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{pOpt}
+                          {isSel ? '✓ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7776,7 +7872,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{rObj.label}
+                          {isSel ? '✓ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7805,7 +7901,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnPackSize(psOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{psOpt}
+                          {isSel ? '✓ ' : ''}{psOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7817,7 +7913,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>DELIVERY TIME</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'âš¡ 15 mins', 'âš¡ 15-30 mins'].map((dtOpt) => {
+                  {['All', '⚡ 15 mins', '⚡ 15-30 mins'].map((dtOpt) => {
                     const isSel = draftDnDeliveryTime === dtOpt;
                     return (
                       <TouchableOpacity
@@ -7834,7 +7930,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftDnDeliveryTime(dtOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{dtOpt}
+                          {isSel ? '✓ ' : ''}{dtOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7924,7 +8020,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Food & Restaurants</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {foodActiveFiltersCount > 0 ? `âš¡ ${foodActiveFiltersCount} filter(s) active` : 'Select filters to refine food list'}
+                  {foodActiveFiltersCount > 0 ? `⚡ ${foodActiveFiltersCount} filter(s) active` : 'Select filters to refine food list'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -7941,7 +8037,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Delivery Time'].map((sOpt) => {
+                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Delivery Time'].map((sOpt) => {
                     const isSel = draftFoodSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -7958,7 +8054,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{sOpt}
+                          {isSel ? '✓ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -7987,7 +8083,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodCuisine(cOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{cOpt}
+                          {isSel ? '✓ ' : ''}{cOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8001,8 +8097,8 @@ export default function CategoryDetails() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
                     { key: 'All', label: 'All Dishes' },
-                    { key: 'Pure Veg', label: 'Pure Veg ðŸŒ±' },
-                    { key: 'Non-Veg', label: 'Non-Veg ðŸ—' },
+                    { key: 'Pure Veg', label: 'Pure Veg 🌱' },
+                    { key: 'Non-Veg', label: 'Non-Veg 🍗' },
                   ].map((vObj) => {
                     const isSel = draftFoodVegMode === vObj.key;
                     return (
@@ -8020,7 +8116,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodVegMode(vObj.key)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{vObj.label}
+                          {isSel ? '✓ ' : ''}{vObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8032,7 +8128,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE FOR TWO</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under â‚¹200', 'â‚¹200 - â‚¹500', 'â‚¹500+'].map((pOpt) => {
+                  {['All', 'Under ₹200', '₹200 - ₹500', '₹500+'].map((pOpt) => {
                     const isSel = draftFoodPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -8049,7 +8145,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{pOpt}
+                          {isSel ? '✓ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8082,7 +8178,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{rObj.label}
+                          {isSel ? '✓ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8111,7 +8207,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftFoodDeliveryTime(dtOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{dtOpt}
+                          {isSel ? '✓ ' : ''}{dtOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8201,7 +8297,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter Home Services</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {srvActiveFiltersCount > 0 ? `âš¡ ${srvActiveFiltersCount} filter(s) active` : 'Select filters to refine services'}
+                  {srvActiveFiltersCount > 0 ? `⚡ ${srvActiveFiltersCount} filter(s) active` : 'Select filters to refine services'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -8218,7 +8314,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low'].map((sOpt) => {
+                  {['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low'].map((sOpt) => {
                     const isSel = draftSrvSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -8235,7 +8331,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{sOpt}
+                          {isSel ? '✓ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8264,7 +8360,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvType(sType)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{sType}
+                          {isSel ? '✓ ' : ''}{sType}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8276,7 +8372,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 16 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['All', 'Under â‚¹500', 'â‚¹500 - â‚¹1,500', 'â‚¹1,500+'].map((pOpt) => {
+                  {['All', 'Under ₹500', '₹500 - ₹1,500', '₹1,500+'].map((pOpt) => {
                     const isSel = draftSrvPrice === pOpt;
                     return (
                       <TouchableOpacity
@@ -8293,7 +8389,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvPrice(pOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{pOpt}
+                          {isSel ? '✓ ' : ''}{pOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8326,7 +8422,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvRating(isSel ? null : rObj.val)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{rObj.label}
+                          {isSel ? '✓ ' : ''}{rObj.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8366,7 +8462,7 @@ export default function CategoryDetails() {
                       {draftSrvAvailability && <Icons.Check color="#FFFFFF" size={13} strokeWidth={3} />}
                     </View>
                     <Text style={{ fontSize: 13, fontWeight: draftSrvAvailability ? '800' : '600', color: colors.text }}>
-                      Available Today Only âš¡
+                      Available Today Only ⚡
                     </Text>
                   </View>
                   <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#059669', backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
@@ -8396,7 +8492,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvTime(stOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{stOpt}
+                          {isSel ? '✓ ' : ''}{stOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8410,8 +8506,8 @@ export default function CategoryDetails() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {[
                     { key: 'All', label: 'All Modes' },
-                    { key: 'Instant', label: 'Instant Booking âš¡' },
-                    { key: 'Scheduled', label: 'Scheduled Booking ðŸ“…' },
+                    { key: 'Instant', label: 'Instant Booking ⚡' },
+                    { key: 'Scheduled', label: 'Scheduled Booking 📅' },
                   ].map((bMode) => {
                     const isSel = draftSrvBookingMode === bMode.key;
                     return (
@@ -8429,7 +8525,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftSrvBookingMode(bMode.key)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{bMode.label}
+                          {isSel ? '✓ ' : ''}{bMode.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8478,7 +8574,7 @@ export default function CategoryDetails() {
               <View>
                 <Text style={[styles.modalSheetTitle, { color: colors.text, fontSize: 18, fontWeight: '900' }]}>Filter & Sort Buses</Text>
                 <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600', marginTop: 2 }}>
-                  {busActiveFiltersCount > 0 ? `âš¡ ${busActiveFiltersCount} filter(s) active` : 'Refine bus options for your route'}
+                  {busActiveFiltersCount > 0 ? `⚡ ${busActiveFiltersCount} filter(s) active` : 'Refine bus options for your route'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -8495,7 +8591,7 @@ export default function CategoryDetails() {
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.schedulerSectionTitle, { color: colors.text, marginBottom: 8 }]}>SORT BY</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Early Departure', 'Late Departure'].map((sOpt) => {
+                  {['Price Low → High', 'Price High → Low', 'Rating High → Low', 'Early Departure', 'Late Departure'].map((sOpt) => {
                     const isSel = draftBusSort === sOpt;
                     return (
                       <TouchableOpacity
@@ -8512,7 +8608,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusSort(sOpt)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{sOpt}
+                          {isSel ? '✓ ' : ''}{sOpt}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8547,7 +8643,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusDepartureTime(dSlot)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{dSlot}
+                          {isSel ? '✓ ' : ''}{dSlot}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8591,7 +8687,7 @@ export default function CategoryDetails() {
                         }}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{bType}
+                          {isSel ? '✓ ' : ''}{bType}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8621,7 +8717,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusAcType(acOpt.key)}
                       >
                         <Text style={{ fontSize: 11.5, fontWeight: isSel ? '900' : '700', color: isSel ? '#FFFFFF' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{acOpt.label}
+                          {isSel ? '✓ ' : ''}{acOpt.label}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8650,7 +8746,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusOperator(op)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{op}
+                          {isSel ? '✓ ' : ''}{op}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8690,7 +8786,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusBoarding(bp)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{bp}
+                          {isSel ? '✓ ' : ''}{bp}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8719,7 +8815,7 @@ export default function CategoryDetails() {
                         onPress={() => setDraftBusDropping(dp)}
                       >
                         <Text style={{ fontSize: 12, fontWeight: isSel ? '900' : '600', color: isSel ? '#0F172A' : colors.text }}>
-                          {isSel ? 'âœ“ ' : ''}{dp}
+                          {isSel ? '✓ ' : ''}{dp}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -8770,7 +8866,7 @@ export default function CategoryDetails() {
             </View>
 
             <View style={{ gap: 8, marginVertical: 12 }}>
-              {(['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating'] as const).map((sortOpt) => {
+              {(['Recommended', 'Price Low → High', 'Price High → Low', 'Rating'] as const).map((sortOpt) => {
                 const isSel = selectedStaySort === sortOpt;
                 return (
                   <TouchableOpacity
@@ -8819,12 +8915,12 @@ export default function CategoryDetails() {
             <View style={{ gap: 8, marginVertical: 12 }}>
               {(() => {
                 const sortOptions = isTravelCategory
-                  ? ['Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Early Departure', 'Late Departure']
+                  ? ['Price Low → High', 'Price High → Low', 'Rating High → Low', 'Early Departure', 'Late Departure']
                   : isFoodCategory
-                  ? ['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Delivery Time']
+                  ? ['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Delivery Time']
                   : isProductsCategory || isDailyNeedsCategory
-                  ? ['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low', 'Discount High â†’ Low']
-                  : ['Recommended', 'Price Low â†’ High', 'Price High â†’ Low', 'Rating High â†’ Low'];
+                  ? ['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low', 'Discount High → Low']
+                  : ['Recommended', 'Price Low → High', 'Price High → Low', 'Rating High → Low'];
 
                 const activeSort = isProductsCategory
                   ? selectedProdSort
@@ -8965,8 +9061,8 @@ export default function CategoryDetails() {
                       <Image source={{ uri: bk.image }} style={styles.bookingCardImg} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.roomTitle, { color: colors.text }]}>{bk.hotelName}</Text>
-                        <Text style={styles.roomSub}>{bk.roomName} â€¢ {bk.location}</Text>
-                        <Text style={styles.bookingSummaryDates}>{bk.checkIn} â†’ {bk.checkOut} ({bk.nights} nights)</Text>
+                        <Text style={styles.roomSub}>{bk.roomName} • {bk.location}</Text>
+                        <Text style={styles.bookingSummaryDates}>{bk.checkIn} → {bk.checkOut} ({bk.nights} nights)</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
                           <Text style={styles.priceRowTotalVal}>{bk.totalPaid}</Text>
                           <View style={styles.confirmedStatusTag}>
@@ -9002,7 +9098,7 @@ export default function CategoryDetails() {
               <Text style={styles.floatingCartCountText}>{totalCartCount}</Text>
             </View>
             <Text style={styles.floatingCartPriceText}>
-              â‚¹{cartItems.reduce((sum, item) => {
+              ₹{cartItems.reduce((sum, item) => {
                 const p = parseInt(String(item.price || '0').replace(/[^\d]/g, ''), 10) || 0;
                 return sum + p * item.quantity;
               }, 0)}
@@ -9029,7 +9125,7 @@ export default function CategoryDetails() {
           email: useAuthStore.getState().currentUser?.email || 'guest@example.com',
           phone: useAuthStore.getState().currentUser?.phone || '',
         }}
-        merchantName="Forge India Connect â€¢ Services"
+        merchantName="Forge India Connect • Services"
         onSuccess={handleRazorpaySuccess}
         onCancel={handleRazorpayCancel}
       />

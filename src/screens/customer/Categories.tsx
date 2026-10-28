@@ -182,36 +182,7 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
   };
   var DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&auto=format&fit=crop&q=70';
 
-  // 1:1 Mirror of Vendor App BusinessScreen.tsx Hierarchy
-  var VENDOR_HIERARCHY = {
-    Job: {
-      'IT': ['Software Developer', 'Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'Mobile App Developer', 'UI/UX Designer', 'DevOps Engineer', 'Cloud Engineer', 'Data Analyst', 'AI Engineer', 'Cyber Security Analyst'],
-      'Non-IT': ['Admin Executive', 'Office Assistant', 'Data Entry Operator', 'Operations Executive', 'Customer Service Executive', 'Receptionist', 'Sales Executive', 'HR Executive', 'Accountant'],
-      'Delivery & Field': ['Delivery Executive', 'Warehouse Associate', 'Field Agent', 'Driver']
-    },
-    Product: {
-      'Electronics': ['Smartphones', 'Tablets', 'Laptops', 'Smart Watches', 'Headphones', 'Earbuds', 'Speakers', 'Cameras', 'Printers', 'Accessories'],
-      'Fashion': ['Men Shirts', 'Men T-Shirts', 'Men Jeans', 'Men Footwear', 'Women Sarees', 'Women Kurtis', 'Women Dresses', 'Kids Clothing', 'Footwear'],
-      'Beauty & Grooming': ['Skincare', 'Haircare', 'Cosmetics', 'Perfumes', 'Grooming Products', 'Wellness Products'],
-      'Home & Kitchen': ['Kitchen Appliances', 'Cookware', 'Storage Containers', 'Dining Sets', 'Home Decor', 'Lighting'],
-      'Sports & Fitness': ['Gym Equipment', 'Yoga Accessories', 'Sports Wear', 'Sports Equipment', 'Fitness Trackers'],
-      'Books & Stationery': ['Academic Books', 'Story Books', 'Notebooks', 'Office Stationery', 'Art Supplies']
-    },
-    Services: {
-      'A/C': ['AC Power Jet Service', 'Gas Refill & Leak Fix', 'AC Installation & Uninstallation', 'Compressor Repair', 'AC Filter Cleaning'],
-      'IT & Device Support': ['Laptop Repairs', 'PC Repairs', 'Wifi & Network Setup', 'CCTV Installation', 'Software Troubleshooting'],
-      'Electrical & Plumbing': ['Switch & Socket Repair', 'Fan Repair & Fitting', 'Tap & Mixer Fitting', 'Pipe Leakage Repair', 'Drainage Unblocking'],
-      'Cleaning & Pest Control': ['Full Home Deep Cleaning', 'Bathroom Deep Cleaning', 'Cockroach & Ant Control', 'Termite Treatment']
-    },
-    'Daily Needs': {
-      'Snacks & Beverages': ['Potato Chips', 'Biscuits & Cookies', 'Fruit Juices', 'Instant Coffee', 'Tea Powder', 'Namkeen & Bhujia'],
-      'Personal Care': ['Shampoo & Conditioner', 'Bathing Soap', 'Toothpaste & Brush', 'Face Wash', 'Body Lotion', 'Deodorant'],
-      'Fruits & Vegetables': ['Fresh Fruits', 'Fresh Vegetables', 'Leafy Greens', 'Organic Produce'],
-      'Grocery & Staples': ['Wheat Flour / Atta', 'Basmati Rice', 'Toor Dal & Pulses', 'Sugar & Salt', 'Cooking Oil & Ghee', 'Spices & Masala'],
-      'Dairy, Bread & Eggs': ['Fresh Milk', 'Curd & Yogurt', 'Paneer & Tofu', 'Bread & Buns', 'Farm Eggs', 'Butter & Cheese'],
-      'Household & Cleaning': ['Detergent Powder', 'Dishwash Gel', 'Floor Cleaner', 'Garbage Bags', 'Air Freshener']
-    }
-  };
+
 
   // Generic Multi-Select Toggle Helper
   var toggleMultiFilter = (currentList = ['All'], itemKey, allKey = 'All') => {
@@ -611,8 +582,8 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
             departureTime: p.departureTime || p.boardingTime || p.busSchedule?.departureTime || '21:30',
             arrivalTime: p.arrivalTime || p.busSchedule?.arrivalTime || '05:30',
             duration: p.duration || p.busSchedule?.duration || (typeof p.busSchedule === 'string' ? p.busSchedule : '8h 00m'),
-            price: Number(p.price || 799),
-            originalPrice: Number(p.originalPrice || Math.round((Number(p.price) || 799) * 1.25)),
+            price: typeof p.price === 'number' ? p.price : (parseFloat(String(p.price || '0').replace(/[^\d.]/g, '')) || 0),
+            originalPrice: p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : (parseFloat(String(p.originalPrice).replace(/[^\d.]/g, '')) || 0)) : undefined,
             rating: Number(p.rating || 4.8),
             reviewsCount: Number(p.reviewsCount || 42),
             seatsLeft: Number(p.stock || p.availableSeats || p.seatsLeft || 12),
@@ -1010,81 +981,44 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       return key;
     };
 
-    // Helper to retrieve all available subcategories for any selected category based on Vendor App hierarchy
+    // Helper to retrieve all available subcategories for any selected category based on authoritative hierarchy
     var getAvailableSubcategoriesForCategory = catKey => {
       var set = new Set();
-      var targetMain = catKey === 'Products' ? 'Product' : catKey === 'Jobs' ? 'Job' : catKey;
-      if (targetMain === 'Job') {
-        // 1:1 with Vendor App Jobs hierarchy
-        Object.keys(VENDOR_HIERARCHY.Job).forEach(s => set.add(s));
-      } else if (targetMain === 'Product') {
-        Object.keys(VENDOR_HIERARCHY.Product).forEach(s => set.add(s));
-      } else if (targetMain === 'Services') {
-        Object.keys(VENDOR_HIERARCHY.Services).forEach(s => set.add(s));
-      } else if (targetMain === 'Daily Needs') {
-        Object.keys(VENDOR_HIERARCHY['Daily Needs']).forEach(s => set.add(s));
-      } else if (targetMain === 'All') {
-        Object.values(VENDOR_HIERARCHY).forEach(group => {
-          Object.keys(group).forEach(s => set.add(s));
-        });
-      }
-
-      // Also collect dynamic subcategories from apiProducts
-      apiProducts.forEach(p => {
-        var rawCat = p.category || p.vendorType || '';
-        var mappedCat = rawCat === 'Products' ? 'Product' : rawCat === 'Jobs' ? 'Job' : rawCat;
-        var normalize = s => String(s || '').trim().toLowerCase().replace(/s$/, '');
-        if (targetMain === 'All' || normalize(mappedCat) === normalize(targetMain)) {
-          var sub = p.subCategory || p.subcategory;
-          if (sub && typeof sub === 'string' && sub.trim()) {
-            set.add(sub.trim());
+      var targetMain = getMappedCategoryRoute(catKey);
+      if (targetMain === 'All') {
+        Object.values(SidebarDataModule.SIDEBAR_DATA).forEach((group: any) => {
+          if (group && group.subcategories) {
+            Object.keys(group.subcategories).forEach(s => set.add(s));
           }
+        });
+      } else {
+        var group: any = SidebarDataModule.SIDEBAR_DATA[targetMain];
+        if (group && group.subcategories) {
+          Object.keys(group.subcategories).forEach(s => set.add(s));
         }
-      });
+      }
       return ['All', ...Array.from(set)];
     };
 
-    // Helper to retrieve all available child categories / roles based on Vendor App hierarchy
+    // Helper to retrieve all available child categories / roles based on authoritative hierarchy
     var getAvailableChildCategories = (catKey, subCatInput) => {
       var set = new Set();
-      var targetMain = catKey === 'Products' ? 'Product' : catKey === 'Jobs' ? 'Job' : catKey;
+      var targetMain = getMappedCategoryRoute(catKey);
       var selectedSubs = Array.isArray(subCatInput) ? subCatInput : [subCatInput || 'All'];
       var isAllSubs = selectedSubs.includes('All') || selectedSubs.length === 0;
-      var vData = VENDOR_HIERARCHY[targetMain];
-      if (vData) {
-        if (!isAllSubs) {
-          selectedSubs.forEach(subKey => {
-            var matchKey = Object.keys(vData).find(k => k.toLowerCase() === subKey.toLowerCase() || k.toLowerCase().includes(subKey.toLowerCase()) || subKey.toLowerCase().includes(k.toLowerCase()));
-            if (matchKey && vData[matchKey]) {
-              vData[matchKey].forEach(role => set.add(role));
-            }
-          });
-        } else {
-          Object.values(vData).forEach(roles => {
-            roles.forEach(role => set.add(role));
-          });
-        }
-      }
 
-      // Also collect dynamic childCategory / itemType from apiProducts
-      apiProducts.forEach(p => {
-        var rawCat = p.category || p.vendorType || '';
-        var mappedCat = rawCat === 'Products' ? 'Product' : rawCat === 'Jobs' ? 'Job' : rawCat;
-        var normalize = s => String(s || '').trim().toLowerCase().replace(/s$/, '');
-        if (targetMain === 'All' || normalize(mappedCat) === normalize(targetMain)) {
-          var pSub = p.subCategory || p.subcategory || '';
-          var matchSub = isAllSubs || selectedSubs.some(s => {
-            var cleanS = normalize(s);
-            var cleanP = normalize(pSub);
-            return cleanP === cleanS || cleanP.includes(cleanS) || cleanS.includes(cleanP);
-          });
-          if (matchSub) {
-            var cCat = p.itemType || p.childCategory || p.role;
-            if (cCat && typeof cCat === 'string' && cCat.trim()) {
-              set.add(cCat.trim());
-            }
+      var targetGroups: any[] = targetMain === 'All'
+        ? Object.values(SidebarDataModule.SIDEBAR_DATA)
+        : [SidebarDataModule.SIDEBAR_DATA[targetMain]].filter(Boolean);
+
+      targetGroups.forEach((group: any) => {
+        if (!group || !group.subcategories) return;
+        Object.entries(group.subcategories).forEach(([subName, subDef]: [string, any]) => {
+          var matchesSub = isAllSubs || selectedSubs.some(s => s.toLowerCase() === subName.toLowerCase());
+          if (matchesSub && Array.isArray(subDef.items)) {
+            subDef.items.forEach(child => set.add(child));
           }
-        }
+        });
       });
       return ['All', ...Array.from(set)];
     };
@@ -1396,9 +1330,7 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       }
       var seenSubKeys = new Set();
       Object.keys(SidebarDataModule.SIDEBAR_DATA).forEach(catKey => {
-        if (targetMainCat !== 'All' && catKey !== targetMainCat && getMappedCategoryRoute(catKey) !== getMappedCategoryRoute(targetMainCat)) return;
-        if (targetMainCat === 'All' && (catKey === 'Product' || catKey === 'Job' || catKey === 'Service')) return;
-        if (targetMainCat !== 'All' && (catKey === 'Product' || catKey === 'Job' || catKey === 'Service') && targetMainCat !== catKey && SidebarDataModule.SIDEBAR_DATA[targetMainCat]) return;
+        if (targetMainCat !== 'All' && getMappedCategoryRoute(catKey) !== getMappedCategoryRoute(targetMainCat)) return;
         var catData = SidebarDataModule.SIDEBAR_DATA[catKey];
         var categoryName = getMappedCategoryRoute(catKey);
         if (catData.subcategories) {
@@ -1822,8 +1754,8 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
           });
         } else if (card.categoryName === 'Stay' || card.categoryKey === 'Stay' || card.rawProduct.category === 'Stay') {
           var p = card.rawProduct;
-          var numPrice = typeof p.price === 'number' ? p.price : parseInt(String(p.price || '0').replace(/[^\d]/g, ''), 10) || 2499;
-          var origNum = p.originalPrice ? typeof p.originalPrice === 'number' ? p.originalPrice : parseInt(String(p.originalPrice || '0').replace(/[^\d]/g, ''), 10) || Math.round(numPrice * 1.35) : Math.round(numPrice * 1.35);
+          var numPrice = typeof p.price === 'number' ? p.price : (parseFloat(String(p.price || '0').replace(/[^\d.]/g, '')) || 0);
+          var origNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : (parseFloat(String(p.originalPrice).replace(/[^\d.]/g, '')) || 0)) : (numPrice > 0 ? Math.round(numPrice * 1.35) : 0);
           var resolvedCity = p.stayCity || p.locationCity || p.city || 'Bangalore';
           var resolvedAddress = p.stayAddress || p.location || `${resolvedCity}, India`;
           var resolvedName = p.hotelName || p.businessName || p.name || 'Boutique Stay';

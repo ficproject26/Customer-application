@@ -310,8 +310,18 @@ export const apiFetch = async (endpoint: string, options: any = {}) => {
   return executeFetch();
 };
 
-export function clearApiCache(): void {
-  apiMemoryCache.clear();
+export function clearApiCache(endpointPrefix?: string): void {
+  if (!endpointPrefix) {
+    apiMemoryCache.clear();
+    return;
+  }
+  const cleanPrefix = endpointPrefix.startsWith('/') ? endpointPrefix : `/${endpointPrefix}`;
+  for (const key of Array.from(apiMemoryCache.keys())) {
+    if (key.includes(cleanPrefix)) {
+      apiMemoryCache.delete(key);
+    }
+  }
 }
+
 
 

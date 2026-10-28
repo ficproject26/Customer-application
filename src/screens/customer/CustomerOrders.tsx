@@ -1063,7 +1063,7 @@ export default function CustomerOrders() {
     const customerPhone = o.customer_phone || o.phone || currentUser?.phone || '6379789641';
 
     // Price
-    const totalAmount = Number(o.amount || o.total || o.items?.[0]?.price || 1649);
+    const totalAmount = Number(o.amount || o.total || o.items?.[0]?.price || 0);
     const baseServicePrice = totalAmount > 400 ? totalAmount - 350 : totalAmount;
     const addonPrice = totalAmount > baseServicePrice ? totalAmount - baseServicePrice : 0;
 
