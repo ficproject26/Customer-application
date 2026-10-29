@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../services/api';
+import socketService from '../../services/socket';
 
 const ADDRESSES_STORAGE_KEY = 'connect_app_customer_addresses';
 
@@ -56,6 +57,9 @@ export default function MyAddresses() {
   const [addresses, setAddresses] = useState<CustomerAddress[]>(() => {
     if (isGuest) return [];
     if (currentUser?.address) {
+      const addrObj: any = typeof currentUser.address === 'object' ? currentUser.address : {};
+      const addrStr = typeof currentUser.address === 'string' ? currentUser.address : (addrObj.address || '');
+      const curAny = currentUser as any;
       return [
         {
           id: `addr_reg_${currentUser.id}`,
@@ -63,11 +67,11 @@ export default function MyAddresses() {
           label: 'Home',
           name: currentUser.name,
           phone: currentUser.phone || '',
-          house: currentUser.address.address || '',
-          street: currentUser.address.city || 'Bengaluru',
-          city: currentUser.address.city || 'Bengaluru',
-          state: currentUser.address.state || 'Karnataka',
-          pincode: currentUser.address.pincode || '560034',
+          house: addrObj.house || (addrStr.includes(',') ? addrStr.split(',')[0].trim() : addrStr) || '',
+          street: addrObj.street || (addrStr.includes(',') ? addrStr.split(',').slice(1).join(',').trim() : '') || addrObj.city || curAny.city || 'Bengaluru',
+          city: addrObj.city || curAny.city || 'Bengaluru',
+          state: addrObj.state || curAny.state || 'Karnataka',
+          pincode: addrObj.pincode || curAny.pincode || '560034',
           isDefault: true,
         },
       ];
@@ -116,24 +120,42 @@ export default function MyAddresses() {
       return;
     }
 
-    const uId = currentUser?.id || 'guest_user';
+    const uId = currentUser?.customerId || currentUser?.registrationId || currentUser?.id || 'guest_user';
 
     AsyncStorage.getItem(storageKey)
       .then((cached) => {
-        let hasLocal = false;
         if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            hasLocal = true;
-            setAddresses(parsed);
-          }
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setAddresses(parsed);
+            }
+          } catch {}
         }
         apiFetch(`/customer/addresses?userId=${encodeURIComponent(uId)}`)
           .then((res) => {
-            if (res && res.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
-              if (!hasLocal) {
-                setAddresses(res.data);
-                saveToStorage(res.data);
+            const rawList = res?.addresses || res?.data;
+            if (res && res.status === 'success' && Array.isArray(rawList)) {
+              const normalized: CustomerAddress[] = rawList.map((a: any) => {
+                const fullAddr = a.address || a.street || '';
+                return {
+                  id: a.id || a._id || `addr_${Date.now()}_${Math.random()}`,
+                  userId: a.userId || uId,
+                  label: (a.label === 'Work' || a.label === 'Other' || a.type === 'Work' || a.type === 'Other') ? (a.label || a.type) : 'Home',
+                  name: a.name || currentUser?.name || '',
+                  phone: a.phone || currentUser?.phone || '',
+                  house: a.house || (fullAddr.includes(',') ? fullAddr.split(',')[0].trim() : fullAddr) || '',
+                  street: a.street || (fullAddr.includes(',') ? fullAddr.split(',').slice(1).join(',').trim() : '') || fullAddr,
+                  landmark: a.landmark || '',
+                  city: a.city || 'Bengaluru',
+                  state: a.state || 'Karnataka',
+                  pincode: a.pincode || '',
+                  isDefault: Boolean(a.isDefault || a.isRegistrationAddress),
+                };
+              });
+              if (normalized.length > 0) {
+                setAddresses(normalized);
+                saveToStorage(normalized);
               }
             }
           })
@@ -148,12 +170,19 @@ export default function MyAddresses() {
   useFocusEffect(
     useCallback(() => {
       loadAddresses();
+      const onAddressesUpdated = () => {
+        loadAddresses();
+      };
+      socketService.on('addresses_updated', onAddressesUpdated);
+      return () => {
+        socketService.off('addresses_updated', onAddressesUpdated);
+      };
     }, [loadAddresses])
   );
 
   // Set Address as Default (Instant optimistic UI response)
   const handleSetDefault = (addrId: string) => {
-    const uId = currentUser?.id || 'guest_user';
+    const uId = currentUser?.customerId || currentUser?.registrationId || currentUser?.id || 'guest_user';
     const updated = addresses.map((a) => ({
       ...a,
       isDefault: a.id === addrId,
@@ -258,7 +287,7 @@ export default function MyAddresses() {
     }
 
     setSubmitting(true);
-    const uId = currentUser?.id || 'guest_user';
+    const uId = currentUser?.customerId || currentUser?.registrationId || currentUser?.id || 'guest_user';
     const payload = {
       userId: uId,
       label: formLabel,
@@ -317,15 +346,20 @@ export default function MyAddresses() {
       }).catch(() => {});
     }
 
+    const serverPayload = {
+      ...payload,
+      address: `${payload.house ? payload.house + ', ' : ''}${payload.street}`,
+    };
+
     if (editingAddressId) {
       apiFetch(`/customer/addresses/${editingAddressId}?userId=${encodeURIComponent(uId)}`, {
         method: 'PATCH',
-        body: payload,
+        body: serverPayload,
       }).catch(() => {});
     } else {
       apiFetch(`/customer/addresses?userId=${encodeURIComponent(uId)}`, {
         method: 'POST',
-        body: payload,
+        body: serverPayload,
       }).catch(() => {});
     }
   };
@@ -527,8 +561,8 @@ export default function MyAddresses() {
 
               {/* Formatted Address */}
               <Text style={[styles.addressBody, { color: isLight ? '#334155' : '#CBD5E1' }]}>
-                {addr.house ? `${addr.house}, ` : ''}
-                {addr.street}
+                {addr.house ? `${addr.house}` : ''}
+                {addr.street && addr.street.trim() !== (addr.house || '').trim() ? `${addr.house ? ', ' : ''}${addr.street}` : ''}
                 {addr.landmark ? `, Near ${addr.landmark}` : ''}
                 {'\n'}
                 {addr.city}, {addr.state} - {addr.pincode}

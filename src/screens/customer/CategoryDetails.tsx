@@ -3781,15 +3781,24 @@ export default function CategoryDetails() {
       seat: isTravelBooking ? '' : (t.seat || 'U4'),
     }));
 
+    const curAuthUser = useAuthStore.getState().currentUser;
+    const resolvedCustId = curAuthUser?.customerId || curAuthUser?.registrationId || curAuthUser?.id || '';
+    const resolvedCustEmail = curAuthUser?.email || '';
+    const effectiveCategory = bookingInfo.effectiveCat === 'Stay' ? 'Stay' : isTravelBooking ? 'Travel' : (bookingInfo.effectiveCat || 'Services');
+
     const newServiceOrder: any = {
       id: bookingId,
       order_number: bookingId,
       vendor_id: 'v1',
       vendor_name: resolvedVendorName,
-      category: bookingInfo.effectiveCat || 'Services',
+      category: effectiveCategory,
       order_type: 'booking',
-      customer_name: bookingInfo.customerName || useAuthStore.getState().currentUser?.name || 'Connect Customer',
-      customer_phone: bookingInfo.customerPhone || useAuthStore.getState().currentUser?.phone || '',
+      type: effectiveCategory,
+      customerId: resolvedCustId,
+      customer_id: resolvedCustId,
+      customer_email: resolvedCustEmail,
+      customer_name: bookingInfo.customerName || curAuthUser?.name || 'Connect Customer',
+      customer_phone: bookingInfo.customerPhone || curAuthUser?.phone || '',
       customer_address: bookingInfo.address || 'Indiranagar, Bangalore',
       customer_latitude: 12.9498,
       customer_longitude: 77.6289,
@@ -3873,46 +3882,21 @@ export default function CategoryDetails() {
         ...paymentResult,
         planType: 'service_booking',
         amount: bookingInfo.numPrice,
-        userId: useAuthStore.getState().currentUser?.id || 'guest_user',
+        userId: resolvedCustId || 'guest_user',
       },
     }).catch((err) => console.warn('Background service payment verify notice:', err));
 
-    // 3. Create the service booking record in the database
+    // 3. Create the service/travel booking record in the database
     apiFetch('/orders', {
       method: 'POST',
       body: {
+        ...newServiceOrder,
         id: bookingId,
         order_number: bookingId,
-        vendor_id: 'v1',
-        vendor_name: resolvedVendorName,
-        category: bookingInfo.effectiveCat,
-        order_type: 'booking',
-        customer_name: bookingInfo.customerName,
-        customer_phone: bookingInfo.customerPhone,
-        customer_address: bookingInfo.address,
-        customer_latitude: 12.9498,
-        customer_longitude: 77.6289,
-        product_details: `${bookingInfo.name} (${bookingInfo.problemPackage} • ${bookingInfo.date} at ${bookingInfo.slot}${boardingDroppingSummary}${travelerSummaryStr})`,
-        provider_name: bookingInfo.operator || bookingInfo.name,
-        operator_name: bookingInfo.operator || '',
-        bus_name: bookingInfo.name || '',
-        bus_type: bookingInfo.subType || bookingInfo.problemPackage || '',
-        vehicle_number: bookingInfo.vehicleNumber || '',
-        vehicleNumber: bookingInfo.vehicleNumber || '',
-        busNumber: bookingInfo.vehicleNumber || '',
-        appointment_slot: `${bookingInfo.date} at ${bookingInfo.slot}`,
-        boarding_point: bookingInfo.boardingPoint,
-        dropping_point: bookingInfo.droppingPoint,
-        travelers: initialTravelers,
-        seat: isTravelBooking ? '' : 'U4',
-        seat_status: initialSeatStatus,
-        status: initialStatus,
-        items: [{ name: `${bookingInfo.name} (${bookingInfo.problemPackage})`, quantity: 1, price: bookingInfo.numPrice }],
-        item_count: 1,
-        amount: bookingInfo.numPrice,
-        payment_id: paymentResult.razorpay_payment_id,
-        payment_status: 'Paid',
-        payment_method: 'Razorpay Test Mode (Online)',
+        customerId: resolvedCustId,
+        customer_id: resolvedCustId,
+        customer_email: resolvedCustEmail,
+        type: effectiveCategory,
       },
     }).catch((err) => {
       console.warn('Background service booking sync notice:', err);

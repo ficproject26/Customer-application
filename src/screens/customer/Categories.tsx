@@ -524,6 +524,10 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       _useState64 = (0, _slicedToArray2.default)(_useState63, 2),
       apiProducts = _useState64[0],
       setApiProducts = _useState64[1];
+    var _useStateHier = (0, _react.useState)(0),
+      _useStateHierArr = (0, _slicedToArray2.default)(_useStateHier, 2),
+      categoryHierarchyVersion = _useStateHierArr[0],
+      setCategoryHierarchyVersion = _useStateHierArr[1];
 
     // Filtered Results for Dynamic Stay Destination Search Modal
     var filteredStayDestResults = (0, _react.useMemo)(() => {
@@ -648,30 +652,23 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       var loadDynamicProducts = /*#__PURE__*/function () {
         var _ref = (0, _asyncToGenerator2.default)(function* () {
           try {
-            // skipCache:true ensures vendor-added products appear immediately
-            var res = yield (0, ApiModule.apiFetch)('/products', {
-              skipCache: true
-            }).catch(() => null);
-            var list = [];
-            if (res) {
-              if (Array.isArray(res.data) && res.data.length > 0) list = res.data;else if (Array.isArray(res.products) && res.products.length > 0) list = res.products;else if (Array.isArray(res.items) && res.items.length > 0) list = res.items;else if (Array.isArray(res) && res.length > 0) list = res;
-            }
-            if (list.length === 0) {
-              var vRes = yield (0, ApiModule.apiFetch)('/vendor/products', {
-                skipCache: true
-              }).catch(() => null);
-              if (vRes) {
-                if (Array.isArray(vRes.data) && vRes.data.length > 0) list = vRes.data;else if (Array.isArray(vRes.products) && vRes.products.length > 0) list = vRes.products;else if (Array.isArray(vRes) && vRes.length > 0) list = vRes;
+            var ps = require('../../store/productStore');
+            var cachedProds = ps.useProductStore.getState().products;
+            var lastFetched = ps.useProductStore.getState().lastProductsFetched || 0;
+            var isStale = (Date.now() - lastFetched > 60000);
+            if (cachedProds && cachedProds.length > 0 && !isStale) {
+              if (isMounted) setApiProducts(cachedProds);
+            } else {
+              var list = yield ps.useProductStore.getState().loadProducts(false);
+              if (isMounted && list && list.length > 0) {
+                setApiProducts(list);
               }
             }
-            if (isMounted && list && list.length > 0) {
-              setApiProducts(list);
-            }
             try {
-              var ps = require('../../store/productStore');
               var hier = yield ps.useProductStore.getState().loadCategoryHierarchy(false);
               if (hier && SidebarDataModule.updateSidebarData) {
                 SidebarDataModule.updateSidebarData(hier);
+                if (isMounted) setCategoryHierarchyVersion(function(v) { return v + 1; });
               }
             } catch (_he) {}
           } catch (err) {

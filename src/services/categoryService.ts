@@ -187,6 +187,21 @@ export function buildCategoryHierarchy(rawCategories: any[], _realProducts?: any
         });
     }
 
+    // 3. Ingest active products catalog to ensure any vendor-added subcategories appear dynamically
+    if (Array.isArray(_realProducts) && _realProducts.length > 0) {
+      _realProducts.forEach((p) => {
+        if (!p || p.isActive === false || p.isDeleted === true) return;
+        const pMain = normMain(p.mainCategory || p.main_category || p.category || '');
+        if (pMain === mainName) {
+          const pSub = String(p.category || p.subcategory || '').trim();
+          const pChild = String(p.subcategory && p.subcategory !== pSub ? p.subcategory : (p.childCategory || '')).trim();
+          if (pSub && normMain(pSub) !== mainName) {
+            appendItem(pSub, undefined, undefined, undefined, pChild ? [{ name: pChild }] : []);
+          }
+        }
+      });
+    }
+
     hierarchy[mainName] = {
       id: root ? String(root._id) : `main_${mainName.toLowerCase()}`,
       name: mainName,

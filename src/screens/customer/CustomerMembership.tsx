@@ -19,6 +19,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../services/api';
+import socketService from '../../services/socket';
 import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
 import { prepareRazorpayOrder, verifyRazorpayPayment } from '../../services/razorpayService';
 import { useTranslation } from '../../store/languageStore';
@@ -627,20 +628,27 @@ export default function CustomerMembership() {
     apiFetch('/membership/status')
       .then((res) => {
         if (!isMounted) return;
-        if (res && res.tier) {
-          const liveTier = res.tier.toLowerCase();
-          if (['silver', 'gold', 'diamond'].includes(liveTier)) {
-            useAuthStore.getState().updateProfile({
-              membershipTier: liveTier,
-              membership: liveTier as 'silver' | 'gold' | 'diamond',
-            });
-          }
+        const liveTier = (res?.membershipTier || res?.tier || '').toLowerCase();
+        if (['silver', 'gold', 'diamond'].includes(liveTier)) {
+          useAuthStore.getState().updateProfile({
+            membershipTier: liveTier,
+            membership: liveTier as 'silver' | 'gold' | 'diamond',
+            membershipHistory: Array.isArray(res?.membershipHistory) ? res.membershipHistory : undefined,
+          });
         }
       })
       .catch(() => {});
 
+    const onMembershipUpdated = () => {
+      useAuthStore.getState().fetchProfile().catch(() => {});
+    };
+    socketService.on('membership_updated', onMembershipUpdated);
+    socketService.on('membership:updated', onMembershipUpdated);
+
     return () => {
       isMounted = false;
+      socketService.off('membership_updated', onMembershipUpdated);
+      socketService.off('membership:updated', onMembershipUpdated);
     };
   }, []);
 
@@ -825,6 +833,74 @@ export default function CustomerMembership() {
                 }}
               />
             ))}
+          </View>
+
+          {/* MEMBERSHIP CARD HISTORY SECTION */}
+          <View style={styles.historySection}>
+            <View style={styles.historyHeaderRow}>
+              <View style={styles.historyTitleRow}>
+                <Icons.Award color="#F4C400" size={18} />
+                <Text style={[styles.historySectionTitle, { color: colors.text }]}>Membership Card History</Text>
+              </View>
+              <Text style={[styles.historyCountBadge, { color: colors.subtext }]}>
+                {Array.isArray(currentUser?.membershipHistory) ? currentUser.membershipHistory.length : 0} Events
+              </Text>
+            </View>
+
+            {Array.isArray(currentUser?.membershipHistory) && currentUser.membershipHistory.length > 0 ? (
+              [...currentUser.membershipHistory].reverse().map((item: any, idx: number) => {
+                const dateStr = item.date ? new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+                return (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.historyCard,
+                      {
+                        backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                        borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View style={styles.historyCardTop}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.historyPlanTitle, { color: colors.text }]}>
+                          {item.plan || item.tier || 'Privilege Membership'}
+                        </Text>
+                        <Text style={[styles.historyDateText, { color: colors.subtext }]}>
+                          {dateStr} • {item.membershipId || item.orderId || 'Active'}
+                        </Text>
+                      </View>
+                      <View style={styles.historyStatusPill}>
+                        <Text style={styles.historyStatusPillText}>{item.status || 'COMPLETED'}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.historyDivider} />
+                    <View style={styles.historyCardBottom}>
+                      <Text style={[styles.historyFeeLabel, { color: colors.subtext }]}>Amount Paid</Text>
+                      <Text style={[styles.historyFeeValue, { color: colors.text }]}>
+                        {item.amount ? `₹${item.amount}` : 'Free'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <View
+                style={[
+                  styles.historyEmptyCard,
+                  {
+                    backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.02)',
+                    borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
+                  },
+                ]}
+              >
+                <Icons.Clock color={colors.subtext} size={22} style={{ marginBottom: 6 }} />
+                <Text style={[styles.historyEmptyTitle, { color: colors.text }]}>No Membership History Yet</Text>
+                <Text style={[styles.historyEmptyDesc, { color: colors.subtext }]}>
+                  When you purchase or upgrade a membership plan, the verified event records will appear here chronologically.
+                </Text>
+              </View>
+            )}
           </View>
         </ScrollView>
       ) : (
@@ -1900,5 +1976,102 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  historySection: {
+    marginTop: 24,
+    marginBottom: 40,
+    paddingHorizontal: 16,
+  },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  historyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historySectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  historyCountBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historyCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  historyCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  historyPlanTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  historyDateText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  historyStatusPill: {
+    backgroundColor: 'rgba(22, 163, 74, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  historyStatusPillText: {
+    color: '#16A34A',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  historyDivider: {
+    height: 1,
+    backgroundColor: 'rgba(150, 150, 150, 0.1)',
+    marginVertical: 10,
+  },
+  historyCardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyFeeLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  historyFeeValue: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  historyEmptyCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyEmptyTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  historyEmptyDesc: {
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });

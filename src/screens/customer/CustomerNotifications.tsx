@@ -12,6 +12,7 @@ import {
   Dimensions,
   Easing,
   RefreshControl,
+  InteractionManager,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,19 +69,23 @@ export default function CustomerNotifications() {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 180,
+        duration: 120,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.timing(scaleAnim, {
-        toValue: 0.88,
-        duration: 180,
+        toValue: 0.92,
+        duration: 120,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
     ]).start(() => {
       navigation.goBack();
-      if (callback) callback();
+      if (callback) {
+        InteractionManager.runAfterInteractions(() => {
+          callback();
+        });
+      }
     });
   };
 

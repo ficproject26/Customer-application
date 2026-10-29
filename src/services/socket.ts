@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { Platform, Vibration, NativeModules } from 'react-native';
+import { Platform, Vibration, NativeModules, AppState } from 'react-native';
 import { SOCKET_URL_ANDROID, SOCKET_URL_IOS } from './env';
 import { useOrderStore } from '../store/orderStore';
 import { useToastStore } from '../store/toastStore';
@@ -21,6 +21,7 @@ const CANDIDATE_SOCKET_URLS = [
   'http://localhost:8001',
   'http://10.0.2.2:5000',
   'http://localhost:5000',
+  'http://10.0.2.2:8000',
 ].filter(Boolean);
 
 class SocketServiceClient {
@@ -28,11 +29,20 @@ class SocketServiceClient {
   private listeners = new Map<string, Set<(data: any) => void>>();
   private isConnecting = false;
   private processedUpdates = new Map<string, number>();
+  private appStateBound = false;
 
-  connect(userId?: string, role?: string, token?: string) {
+  connect(userId?: string, role?: string, token?: string, customerId?: string) {
     let effectiveUserId = userId;
     let effectiveRole = role || 'customer';
     let effectiveToken = token;
+    let effectiveCustomerId = customerId;
+
+    if (!effectiveCustomerId) {
+      try {
+        const curUser = require('../store/authStore').useAuthStore.getState().currentUser;
+        effectiveCustomerId = curUser?.customerId || curUser?.registrationId;
+      } catch {}
+    }
 
     if (!effectiveUserId || effectiveUserId === 'cust_default') {
       try {
@@ -41,6 +51,9 @@ class SocketServiceClient {
         if (curUser && curUser.id && !curUser.isGuest) {
           effectiveUserId = curUser.id;
           effectiveRole = curUser.role || 'customer';
+          if (!effectiveCustomerId) {
+            effectiveCustomerId = curUser.customerId || curUser.registrationId;
+          }
         }
       } catch {}
     }
@@ -54,7 +67,17 @@ class SocketServiceClient {
       } catch {}
     }
 
+    this.setupAppStateListener();
+
     if (this.socket && this.socket.connected) {
+      if (effectiveUserId || effectiveCustomerId) {
+        this.socket.emit('register', {
+          userId: effectiveUserId,
+          role: effectiveRole,
+          token: effectiveToken,
+          customerId: effectiveCustomerId
+        });
+      }
       return;
     }
 
@@ -72,10 +95,16 @@ class SocketServiceClient {
       const targetUrl = CANDIDATE_SOCKET_URLS[index];
       console.log(`[Socket Client]: Connecting to ${targetUrl}...`);
 
+      let customerRegistrationId: string | undefined = undefined;
+      try {
+        const curUser = require('../store/authStore').useAuthStore.getState().currentUser;
+        customerRegistrationId = curUser?.customerId || curUser?.registrationId;
+      } catch {}
+
       const sock = io(targetUrl, {
         transports: ['websocket', 'polling'],
-        auth: { token: effectiveToken, userId: effectiveUserId, role: effectiveRole },
-        query: { token: effectiveToken, userId: effectiveUserId, role: effectiveRole },
+        auth: { token: effectiveToken, userId: effectiveUserId, role: effectiveRole, customerId: effectiveCustomerId || customerRegistrationId },
+        query: { token: effectiveToken, userId: effectiveUserId, role: effectiveRole, customerId: effectiveCustomerId || customerRegistrationId },
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 2000,
@@ -86,7 +115,12 @@ class SocketServiceClient {
         console.log(`[Socket Client]: Connected successfully to ${targetUrl}. Socket ID: ${sock.id}`);
         this.socket = sock;
         this.isConnecting = false;
-        sock.emit('register', { userId: effectiveUserId, role: effectiveRole, token: effectiveToken });
+        sock.emit('register', {
+          userId: effectiveUserId,
+          role: effectiveRole,
+          token: effectiveToken,
+          customerId: effectiveCustomerId || customerRegistrationId
+        });
 
         // Bind existing custom listeners
         this.listeners.forEach((callbacks, event) => {
@@ -107,6 +141,30 @@ class SocketServiceClient {
     };
 
     connectToUrl(0);
+  }
+
+  private setupAppStateListener() {
+    if (this.appStateBound) return;
+    this.appStateBound = true;
+    let lastForegroundSync = 0;
+
+    AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        const now = Date.now();
+        if (now - lastForegroundSync > 3000) {
+          lastForegroundSync = now;
+          console.log('[Socket Client]: App resumed to active foreground, reconciling customer data...');
+          try {
+            const authStore = require('../store/authStore').useAuthStore;
+            authStore.getState().fetchProfile().catch(() => {});
+            const notifStore = require('../store/notificationStore').useNotificationStore;
+            notifStore.getState().fetchNotifications().catch(() => {});
+            const orderStore = require('../store/orderStore').useOrderStore;
+            orderStore.getState().loadAllOrders(true).catch(() => {});
+          } catch (e) {}
+        }
+      }
+    });
   }
 
   private setupOrderStatusListener(sock: any) {
@@ -308,6 +366,8 @@ class SocketServiceClient {
     const handleAddressesUpdated = (data: any) => {
       try {
         const { clearApiCache } = require('./api');
+        clearApiCache('/customer/addresses');
+        clearApiCache('/auth/customer-addresses');
         clearApiCache('/auth/addresses');
         const authStore = require('../store/authStore').useAuthStore;
         authStore.getState().fetchProfile().catch(() => {});
@@ -355,9 +415,9 @@ class SocketServiceClient {
         clearApiCache('/customer/customer-notifications');
         const notifStore = require('../store/notificationStore').useNotificationStore;
         if (data?.all) {
-          notifStore.getState().markAllAsRead();
+          notifStore.getState().applyRemoteRead();
         } else if (data?.id) {
-          notifStore.getState().markAsRead(data.id);
+          notifStore.getState().applyRemoteRead(data.id);
         } else {
           notifStore.getState().fetchNotifications().catch(() => {});
         }
@@ -413,12 +473,22 @@ class SocketServiceClient {
         const { clearApiCache } = require('./api');
         clearApiCache('/categories');
         clearApiCache('/admin/public/categories');
-        const catService = require('./categoryService').categoryService;
-        if (catService && typeof catService.clearCache === 'function') {
-          catService.clearCache();
-        }
+        const { useProductStore } = require('../store/productStore');
+        useProductStore.getState().loadCategoryHierarchy(true).catch(() => {});
       } catch {}
       this.triggerLocalEvent('categories:updated', data);
+    };
+
+    // 14. Handle Membership Updated by Server or Website
+    const handleMembershipUpdated = (data: any) => {
+      try {
+        const { clearApiCache } = require('./api');
+        clearApiCache('/membership/status');
+        clearApiCache('/auth/customer-profile');
+        const authStore = require('../store/authStore').useAuthStore;
+        authStore.getState().fetchProfile().catch(() => {});
+      } catch {}
+      this.triggerLocalEvent('membership_updated', data);
     };
 
     sock.on('order_status_updated', handleStatusUpdate);
@@ -434,8 +504,9 @@ class SocketServiceClient {
     sock.on('banners:updated', handleBannersUpdated);
     sock.on('offers:updated', handleOffersUpdated);
     sock.on('categories:updated', handleCategoriesUpdated);
+    sock.on('membership_updated', handleMembershipUpdated);
+    sock.on('membership:updated', handleMembershipUpdated);
   }
-
 
   disconnect() {
     if (this.socket) {

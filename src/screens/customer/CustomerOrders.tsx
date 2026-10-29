@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Linking,
+  InteractionManager,
 } from 'react-native';
 import { useNavigation, useIsFocused, useRoute, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -84,8 +85,8 @@ export default function CustomerOrders() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  // 1. Primary Top Tab Filter (null = unselected / all)
-  const [selectedTopTab, setSelectedTopTab] = useState<TopTabType | null>(null);
+  // 1. Primary Top Tab Filter (Strict segregation: 'My Orders' | 'My Bookings' | 'Job Applied')
+  const [selectedTopTab, setSelectedTopTab] = useState<TopTabType>('My Orders');
 
   // 2. Secondary Category Filter ('All' or specific category)
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -127,25 +128,34 @@ export default function CustomerOrders() {
   // Live Jobs Catalog mapping for dynamic Job details resolution
   const [jobsCatalogMap, setJobsCatalogMap] = useState<Record<string, any>>({});
 
-  const refreshJobsCatalog = useCallback(() => {
-    apiFetch('/products?category=Jobs', { skipCache: true })
-      .then((res: any) => {
-        const rawList = res?.data || res?.products || res?.items || (Array.isArray(res) ? res : []);
-        if (Array.isArray(rawList)) {
-          const map: Record<string, any> = {};
-          rawList.forEach((p: any) => {
-            if (p.isDeleted !== true && p.status !== 'deleted' && p.isActive !== false) {
-              if (p.jobID) map[p.jobID.toLowerCase()] = p;
-              if (p._id) map[String(p._id).toLowerCase()] = p;
-              if (p.id) map[String(p.id).toLowerCase()] = p;
-              if (p.name) map[p.name.toLowerCase().trim()] = p;
-            }
-          });
-          setJobsCatalogMap(map);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const lastJobsFetchTimeRef = useRef<number>(0);
+  const refreshJobsCatalog = useCallback((force = false) => {
+    const now = Date.now();
+    // Cache jobs catalog for 5 minutes (300,000ms) to ensure instant tab switching
+    if (!force && now - lastJobsFetchTimeRef.current < 300000 && Object.keys(jobsCatalogMap).length > 0) {
+      return;
+    }
+    lastJobsFetchTimeRef.current = now;
+    InteractionManager.runAfterInteractions(() => {
+      apiFetch('/products?category=Jobs')
+        .then((res: any) => {
+          const rawList = res?.data || res?.products || res?.items || (Array.isArray(res) ? res : []);
+          if (Array.isArray(rawList)) {
+            const map: Record<string, any> = {};
+            rawList.forEach((p: any) => {
+              if (p.isDeleted !== true && p.status !== 'deleted' && p.isActive !== false) {
+                if (p.jobID) map[p.jobID.toLowerCase()] = p;
+                if (p._id) map[String(p._id).toLowerCase()] = p;
+                if (p.id) map[String(p.id).toLowerCase()] = p;
+                if (p.name) map[p.name.toLowerCase().trim()] = p;
+              }
+            });
+            setJobsCatalogMap(map);
+          }
+        })
+        .catch(() => {});
+    });
+  }, [jobsCatalogMap]);
 
   useFocusEffect(
     useCallback(() => {
@@ -706,7 +716,10 @@ export default function CustomerOrders() {
   // Auto-refresh orders silently in background when screen is focused
   useFocusEffect(
     useCallback(() => {
-      loadAllOrders().catch(() => {});
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadAllOrders().catch(() => {});
+      });
+      return () => task.cancel();
     }, [loadAllOrders])
   );
 
@@ -844,8 +857,11 @@ export default function CustomerOrders() {
     // 4. Services
     if (
       rawCat === 'Services' || rawCat === 'Service' || rawType === 'Services' || rawType === 'Service' ||
+      rawType === 'Home Services' || /services?/i.test(rawCat) || /services?/i.test(rawType) ||
       /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(rawCat) ||
       /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(anyItemCat) ||
+      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(details) ||
+      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(anyItemName) ||
       Boolean((order as any).appointment_slot) || Boolean((order as any).appointmentDate) || Boolean((order as any).appointmentTimeSlot) ||
       rawNum.startsWith('SRV-') || rawNum.startsWith('BK-') ||
       (rawOrderType === 'booking' && !['Stay', 'Travel', 'Jobs'].includes(rawCat))
@@ -2068,8 +2084,8 @@ export default function CustomerOrders() {
 
     return allOrders.filter((o) => {
       // 1. Direct ID match
-      const oCustId = o.customer_id || (o as any).customerId || o.user_id || (o as any).userId || (o as any).memberId;
-      if (cId && oCustId && String(oCustId) === String(cId)) return true;
+      const oCustId = o.customer_id || (o as any).customerId || (o as any).registrationId || o.user_id || (o as any).userId || (o as any).memberId;
+      if (cId && oCustId && (String(oCustId) === String(cId) || (cId.includes('_') && String(oCustId).endsWith(cId.split('_')[1])))) return true;
       if (custIdTarget && oCustId && String(oCustId) === String(custIdTarget)) return true;
 
       // 2. Phone match (last 10 digits)
@@ -2115,8 +2131,6 @@ export default function CustomerOrders() {
         counts['My Bookings']++;
       } else if (normCat === 'Jobs') {
         counts['Job Applied']++;
-      } else {
-        counts['My Orders']++;
       }
     });
     return counts;
@@ -2133,16 +2147,12 @@ export default function CustomerOrders() {
     if (selectedTopTab === 'Job Applied') {
       return ['All', 'Jobs'];
     }
-    return ['All', 'Services', 'Products', 'Daily Needs', 'Food', 'Stay', 'Travel', 'Jobs'];
+    return ['All', 'Products', 'Daily Needs', 'Food'];
   }, [selectedTopTab]);
 
-  // Handle Top Tab Switch (Toggle behavior: clicking active tab unselects it to null / show all)
+  // Handle Top Tab Switch (Always maintains an active tab selected)
   const handleSelectTopTab = (tab: TopTabType) => {
-    if (selectedTopTab === tab) {
-      setSelectedTopTab(null);
-    } else {
-      setSelectedTopTab(tab);
-    }
+    setSelectedTopTab(tab);
     setSelectedCategory('All');
   };
 

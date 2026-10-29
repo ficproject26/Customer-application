@@ -217,8 +217,11 @@ export function normalizeStoredOrderCategory<T extends Partial<Order>>(order: T)
   // 4. Services
   if (
     rawCat === 'Services' || rawCat === 'Service' || rawType === 'Services' || rawType === 'Service' ||
+    rawType === 'Home Services' || /services?/i.test(rawCat) || /services?/i.test(rawType) ||
     /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(rawCat) ||
     /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(anyItemCat) ||
+    /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(details) ||
+    /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(anyItemName) ||
     Boolean((order as any).appointment_slot) || Boolean((order as any).appointmentDate) || Boolean((order as any).appointmentTimeSlot) ||
     rawNum.startsWith('SRV-') || rawNum.startsWith('BK-') ||
     (rawOrderType === 'booking' && !['Stay', 'Travel', 'Jobs'].includes(rawCat))
@@ -379,8 +382,18 @@ export const useOrderStore = create<OrderState>()(
           let cPhone = '';
           try {
             const authStore = require('./authStore').useAuthStore.getState();
-            const curUser = authStore.currentUser;
-            cId = curUser?.customerId || curUser?.registrationId || curUser?.id || '';
+            let curUser = authStore.currentUser;
+            cId = curUser?.customerId || curUser?.registrationId || '';
+            if (!cId && curUser && !curUser.isGuest) {
+              const prof = await authStore.fetchProfile().catch(() => null);
+              if (prof) {
+                cId = prof.customerId || prof.registrationId || (prof.id && !prof.id.startsWith('customer_') ? prof.id : '');
+                curUser = prof;
+              }
+            }
+            if (!cId && curUser?.id && !curUser.id.startsWith('customer_')) {
+              cId = curUser.id;
+            }
             cPhone = (curUser?.phone || '').replace(/[^\d]/g, '').slice(-10);
             if (cId && !curUser?.isGuest) {
               queryParam = `?customerId=${encodeURIComponent(cId)}`;

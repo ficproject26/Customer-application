@@ -28,6 +28,7 @@ interface NotificationState {
   fetchNotifications: () => Promise<void>;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  applyRemoteRead: (id?: string) => void;
   clearAll: () => void;
   addNotification: (item: Omit<NotificationItem, 'id' | 'time' | 'unread' | 'body'> & { body?: string }) => void;
 }
@@ -103,6 +104,24 @@ export const useNotificationStore = create<NotificationState>()(
           method: 'PUT',
         }).catch((err) => {
           console.warn('[NotificationStore] Failed syncing markAllAsRead to server:', err);
+        });
+      },
+
+      applyRemoteRead: (id) => {
+        set((state) => {
+          if (!id) {
+            return {
+              notifications: state.notifications.map((n) => ({ ...n, unread: false })),
+              unreadCount: 0,
+            };
+          }
+          const updated = state.notifications.map((n) =>
+            n.id === id ? { ...n, unread: false } : n
+          );
+          return {
+            notifications: updated,
+            unreadCount: updated.filter((n) => n.unread).length,
+          };
         });
       },
 

@@ -262,7 +262,9 @@ export default function JoinNow() {
           panNumber: panNumber.trim().toUpperCase(),
           address: `${house.trim()}${street.trim() ? ', ' + street.trim() : ''}`,
           city: city.trim() || 'Bengaluru',
+          state: state.trim() || 'Karnataka',
           pincode: pincode.trim(),
+          locality: street.trim() || city.trim() || '',
         },
       });
 

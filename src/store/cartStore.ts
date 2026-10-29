@@ -16,6 +16,15 @@ export interface CartItem {
   vehicleNumber?: string;
   vehicleRegNo?: string;
   busNumber?: string;
+  bookingDate?: string;
+  bookingTime?: string;
+  checkInDate?: string;
+  checkInTime?: string;
+  checkOutDate?: string;
+  checkOutTime?: string;
+  bookingType?: string;
+  serviceTimingName?: string;
+  configurationDetails?: string;
 }
 
 export function isCartableCategory(category?: string, name?: string): boolean {
@@ -23,21 +32,12 @@ export function isCartableCategory(category?: string, name?: string): boolean {
   const n = (name || '').toLowerCase().trim();
   const combined = `${cat} ${n}`;
 
+  // Jobs are application-only and not purchase items in cart
   if (
-    combined.includes('service') ||
-    combined.includes('travel') ||
-    combined.includes('flight') ||
-    /\bcab\b/i.test(combined) ||
-    /\bbus\b/i.test(combined) ||
-    combined.includes('train') ||
-    combined.includes('tour') ||
-    combined.includes('stay') ||
-    combined.includes('hotel') ||
-    combined.includes('resort') ||
-    combined.includes('villa') ||
     combined.includes('job') ||
     combined.includes('employment') ||
-    combined.includes('rental')
+    combined.includes('internship') ||
+    combined.includes('vacancy')
   ) {
     return false;
   }
@@ -50,24 +50,41 @@ interface CartState {
   setCartItems: (items: CartItem[]) => void;
   updateQuantity: (id: string, quantity: number) => void;
   removeFromCart: (id: string) => void;
-  clearCart: () => void;
+  clearCart: (remote?: boolean | any) => void;
   syncFromServer: (serverCart: any[]) => void;
 }
 
 let cartSyncTimer: any = null;
+let isRemoteCartUpdating = false;
+
 function scheduleCartSyncToServer(cart: CartItem[]) {
+  if (isRemoteCartUpdating) return;
   if (cartSyncTimer) clearTimeout(cartSyncTimer);
   cartSyncTimer = setTimeout(async () => {
     try {
       const authModule = require('./authStore');
       const curUser = authModule.useAuthStore.getState().currentUser;
       if (!curUser || curUser.isGuest) return;
-      const uId = curUser.id || curUser.customerId;
+      // Always prioritize canonical customerId or registrationId, falling back to non-synthesized id
+      let uId = curUser.customerId || curUser.registrationId;
+      if (!uId && curUser.id && !curUser.id.startsWith('customer_')) {
+        uId = curUser.id;
+      }
+      if (!uId) {
+        uId = curUser.id;
+      }
       if (!uId) return;
       const { apiFetch } = require('../services/api');
+      const payloadCart = cart.map(item => ({
+        ...item,
+        price: typeof item.price === 'string' 
+          ? (parseFloat(item.price.replace(/[^\d.]/g, '')) || 0)
+          : Number(item.price || 0),
+        displayPrice: typeof item.price === 'string' && item.price.startsWith('₹') ? item.price : `₹${item.price}`,
+      }));
       await apiFetch('/auth/customer-profile', {
         method: 'PUT',
-        body: { userId: uId, cart },
+        body: { userId: uId, customerId: uId, cart: payloadCart },
       });
     } catch (e) {
       console.warn('[CartStore] Failed to sync cart to backend:', e);
@@ -135,14 +152,66 @@ export const useCartStore = create<CartState>()(
           scheduleCartSyncToServer(newItems);
           return { cartItems: newItems };
         }),
-      clearCart: () => {
-        scheduleCartSyncToServer([]);
+      clearCart: (remote = true) => {
+        if (remote !== false) {
+          scheduleCartSyncToServer([]);
+        }
         set({ cartItems: [] });
       },
       syncFromServer: (serverCart: any[]) => {
         if (!Array.isArray(serverCart)) return;
-        const valid = serverCart.filter((i) => i && i.id && isCartableCategory(i.category, i.name));
+        isRemoteCartUpdating = true;
+        let catalog: any[] = [];
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useProductStore } = require('./productStore');
+          catalog = useProductStore.getState().products || [];
+        } catch {}
+        const catalogMap = new Map(catalog.map((p) => [String(p.id || p._id), p]));
+
+        const valid: CartItem[] = [];
+        for (const i of serverCart) {
+          if (!i || !i.id) continue;
+          const strId = String(i.id);
+          const catProd = catalogMap.get(strId);
+          const catName = i.category || catProd?.category || catProd?.mainCategory || 'Products';
+          const itemName = i.name || catProd?.name || catProd?.title || 'Item';
+          if (!isCartableCategory(catName, itemName)) continue;
+
+          let formattedPrice = i.displayPrice !== undefined ? i.displayPrice : i.price;
+          if (formattedPrice === undefined && catProd?.price !== undefined) {
+            formattedPrice = catProd.price;
+          }
+          if (typeof formattedPrice === 'number') {
+            formattedPrice = `₹${formattedPrice}`;
+          } else if (typeof formattedPrice === 'string' && !formattedPrice.startsWith('₹') && /^\d/.test(formattedPrice)) {
+            formattedPrice = `₹${formattedPrice}`;
+          }
+
+          valid.push({
+            id: strId,
+            name: itemName,
+            price: formattedPrice || '₹0',
+            category: catName,
+            quantity: typeof i.quantity === 'number' && i.quantity > 0 ? i.quantity : 1,
+            image: i.image || catProd?.image || catProd?.imageUrl || (Array.isArray(catProd?.images) ? catProd.images[0]?.url : undefined),
+            variant: i.variant,
+            seller: i.seller || catProd?.vendorName || catProd?.vendor,
+            bookingDate: i.bookingDate,
+            bookingTime: i.bookingTime,
+            checkInDate: i.checkInDate,
+            checkInTime: i.checkInTime,
+            checkOutDate: i.checkOutDate,
+            checkOutTime: i.checkOutTime,
+            bookingType: i.bookingType,
+            serviceTimingName: i.serviceTimingName,
+            configurationDetails: i.configurationDetails,
+          });
+        }
         set({ cartItems: valid });
+        setTimeout(() => {
+          isRemoteCartUpdating = false;
+        }, 300);
       },
     }),
     {

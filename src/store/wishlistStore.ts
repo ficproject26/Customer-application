@@ -15,19 +15,29 @@ interface WishlistState {
   wishlistItems: WishlistItem[];
   toggleWishlist: (item: WishlistItem) => void;
   removeFromWishlist: (id: string) => void;
-  clearWishlist: () => void;
+  clearWishlist: (remote?: boolean | any) => void;
   syncFromServer: (serverFavorites: any[]) => void;
 }
 
 let wishlistSyncTimer: any = null;
+let isRemoteWishlistUpdating = false;
+
 function scheduleWishlistSyncToServer(items: WishlistItem[]) {
+  if (isRemoteWishlistUpdating) return;
   if (wishlistSyncTimer) clearTimeout(wishlistSyncTimer);
   wishlistSyncTimer = setTimeout(async () => {
     try {
+      if (isRemoteWishlistUpdating) return;
       const authModule = require('./authStore');
       const curUser = authModule.useAuthStore.getState().currentUser;
       if (!curUser || curUser.isGuest) return;
-      const uId = curUser.id || curUser.customerId;
+      let uId = curUser.customerId || curUser.registrationId;
+      if (!uId && curUser.id && !curUser.id.startsWith('customer_')) {
+        uId = curUser.id;
+      }
+      if (!uId) {
+        uId = curUser.id;
+      }
       if (!uId) return;
       const { apiFetch } = require('../services/api');
       const favorites = items.map((i) => i.id).filter(Boolean);
@@ -63,27 +73,71 @@ export const useWishlistStore = create<WishlistState>()(
           scheduleWishlistSyncToServer(newItems);
           return { wishlistItems: newItems };
         }),
-      clearWishlist: () => {
-        scheduleWishlistSyncToServer([]);
+      clearWishlist: (remote = true) => {
+        if (remote !== false) {
+          scheduleWishlistSyncToServer([]);
+        }
         set({ wishlistItems: [] });
       },
       syncFromServer: (serverFavorites: any[]) => {
         if (!Array.isArray(serverFavorites)) return;
+        isRemoteWishlistUpdating = true;
+        let catalog: any[] = [];
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { useProductStore } = require('./productStore');
+          catalog = useProductStore.getState().products || [];
+          if (catalog.length === 0) {
+            useProductStore.getState().loadProducts?.().catch?.(() => {});
+          }
+        } catch {}
         set((state) => {
           const currentMap = new Map(state.wishlistItems.map((i) => [i.id, i]));
+          const catalogMap = new Map(catalog.map((p) => [String(p.id || p._id), p]));
           const merged: WishlistItem[] = [];
+          const seen = new Set<string>();
+
           for (const fav of serverFavorites) {
             if (!fav) continue;
-            if (typeof fav === 'string') {
-              const existing = currentMap.get(fav);
-              if (existing) merged.push(existing);
-              else merged.push({ id: fav, name: 'Saved Item', price: '₹0', category: 'General' });
-            } else if (fav.id) {
-              merged.push(fav);
+            const favId = typeof fav === 'string' ? fav : String(fav.id || fav._id || '');
+            if (!favId || seen.has(favId)) continue;
+            seen.add(favId);
+
+            const existing = currentMap.get(favId);
+            if (existing && existing.name !== 'Saved Item') {
+              merged.push(existing);
+            } else {
+              const catProd = catalogMap.get(favId);
+              if (catProd) {
+                merged.push({
+                  id: favId,
+                  name: catProd.name || catProd.title || 'Saved Product',
+                  price: catProd.price ? (String(catProd.price).startsWith('₹') ? String(catProd.price) : `₹${catProd.price}`) : '₹0',
+                  category: catProd.category || catProd.mainCategory || 'Products',
+                  image: catProd.image || catProd.imageUrl || (Array.isArray(catProd.images) ? catProd.images[0]?.url : undefined),
+                  spec: catProd.spec || catProd.unit || '',
+                });
+              } else if (typeof fav === 'object' && fav.name) {
+                merged.push({
+                  id: favId,
+                  name: fav.name,
+                  price: fav.price || '₹0',
+                  category: fav.category || 'Products',
+                  image: fav.image,
+                  spec: fav.spec,
+                });
+              } else if (existing) {
+                merged.push(existing);
+              } else {
+                merged.push({ id: favId, name: 'Saved Item', price: '₹0', category: 'Products' });
+              }
             }
           }
           return { wishlistItems: merged };
         });
+        setTimeout(() => {
+          isRemoteWishlistUpdating = false;
+        }, 400);
       },
     }),
     {

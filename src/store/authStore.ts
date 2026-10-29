@@ -9,8 +9,8 @@ import { useNotificationStore } from './notificationStore';
 import { useOrderStore } from './orderStore';
 
 export function clearSessionAndUserData() {
-  try { useCartStore.getState().clearCart(); } catch {}
-  try { useWishlistStore.getState().clearWishlist(); } catch {}
+  try { useCartStore.getState().clearCart(false); } catch {}
+  try { useWishlistStore.getState().clearWishlist(false); } catch {}
   try { useActivityStore.getState().clearActivity(); } catch {}
   try { useNotificationStore.getState().clearAll(); } catch {}
   try { useOrderStore.getState().clearOrders(); } catch {}
@@ -51,6 +51,8 @@ export interface User {
   emailVerified?: boolean;
   phoneVerified?: boolean;
   address?: UserAddress;
+  addresses?: any[];
+  membershipHistory?: any[];
   walletBalance?: number;
   isGuest?: boolean;
 }
@@ -106,8 +108,13 @@ export const useAuthStore = create<AuthState>()(
     set({ currentUser: user, token: token || null, isOnboarded: true });
     try {
       const socketService = require('../services/socket').default;
-      socketService.connect(user.id, user.role || 'customer', token || undefined);
+      socketService.connect(user.id, user.role || 'customer', token || undefined, user.customerId || user.registrationId);
     } catch {}
+    if (user.id && !user.isGuest) {
+      setTimeout(() => {
+        get().fetchProfile().catch(() => {});
+      }, 50);
+    }
   },
 
   login: (identifier, role, callback) => {
@@ -135,6 +142,11 @@ export const useAuthStore = create<AuthState>()(
     // Immediate memory-first state update
     set({ currentUser: user, isOnboarded: true });
     if (callback) callback(user);
+    if (!user.isGuest) {
+      setTimeout(() => {
+        get().fetchProfile().catch(() => {});
+      }, 50);
+    }
 
     // Non-blocking background check for user-scoped cached overrides
     AsyncStorage.getItem(`connect_user_membership_${uId}`)
@@ -327,28 +339,25 @@ export const useAuthStore = create<AuthState>()(
       const [response, membershipRes] = await Promise.all([
         apiFetch(`/auth/customer-profile?userId=${encodeURIComponent(uId)}`, {
           method: 'GET',
+          skipCache: true,
         }),
-        apiFetch('/membership/status', { method: 'GET' }).catch(() => null),
+        apiFetch('/membership/status', { method: 'GET', skipCache: true }).catch(() => null),
       ]);
 
       if (response && (response.status === 'success' || response.success) && (response.data || response.user)) {
         const profData = response.data || response.user;
 
-        // Synchronize remote cart if present and not empty
-        if (Array.isArray(profData.cart) && profData.cart.length > 0) {
+        // Synchronize remote cart without triggering circular outbound sync
+        if (Array.isArray(profData.cart)) {
           try {
-            useCartStore.getState().setCartItems(profData.cart);
+            useCartStore.getState().syncFromServer(profData.cart);
           } catch {}
         }
 
-        // Synchronize remote favorites / wishlist
-        if (Array.isArray(profData.favorites) && profData.favorites.length > 0) {
+        // Synchronize remote favorites / wishlist without triggering circular outbound sync
+        if (Array.isArray(profData.favorites)) {
           try {
-            profData.favorites.forEach((favId: string) => {
-              if (favId && !useWishlistStore.getState().wishlistItems.some((w) => w.id === favId)) {
-                useWishlistStore.getState().toggleWishlist({ id: favId, name: 'Saved Item', price: '₹0', category: 'General' });
-              }
-            });
+            useWishlistStore.getState().syncFromServer(profData.favorites);
           } catch {}
         }
 
@@ -361,13 +370,42 @@ export const useAuthStore = create<AuthState>()(
           else if (rawTier === 'none') confirmedTier = undefined;
         }
 
+        let normalizedAddr = state.currentUser?.address;
+        if (typeof profData.address === 'string' && profData.address) {
+          normalizedAddr = {
+            address: profData.address,
+            city: profData.city || state.currentUser?.address?.city || 'Bengaluru',
+            state: profData.state || state.currentUser?.address?.state || 'Karnataka',
+            pincode: profData.pincode || state.currentUser?.address?.pincode || '',
+            house: profData.address,
+            street: profData.city || 'Bengaluru',
+          };
+        } else if (typeof profData.address === 'object' && profData.address) {
+          normalizedAddr = {
+            ...state.currentUser?.address,
+            ...profData.address,
+          };
+        }
+
         const mergedUser: User = {
           ...state.currentUser,
           ...profData,
+          customerId: profData.customerId || profData.registrationId || state.currentUser?.customerId,
+          registrationId: profData.registrationId || profData.customerId || state.currentUser?.registrationId,
+          id: profData.id || profData._id || state.currentUser?.id,
+          address: normalizedAddr,
           membership: confirmedTier,
+          membershipTier: profData.membershipTier || membershipRes?.membershipTier || state.currentUser?.membershipTier,
+          membershipHistory: Array.isArray(profData.membershipHistory) ? profData.membershipHistory : (state.currentUser?.membershipHistory || []),
           avatar: profData.avatar || state.currentUser?.avatar || '',
         };
         set({ currentUser: mergedUser });
+        if (mergedUser.customerId && (!state.currentUser?.customerId || state.currentUser.customerId !== mergedUser.customerId)) {
+          try {
+            const socketService = require('../services/socket').default;
+            socketService.connect(mergedUser.id, mergedUser.role || 'customer', state.token || undefined, mergedUser.customerId);
+          } catch {}
+        }
         return mergedUser;
       }
     } catch (err) {

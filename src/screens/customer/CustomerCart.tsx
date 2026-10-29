@@ -1,11 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, StatusBar } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, StatusBar, RefreshControl } from 'react-native';
 import * as Icons from 'lucide-react-native';
 import { useCartStore } from '../../store/cartStore';
 import { useToastStore } from '../../store/toastStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useTranslation } from '../../store/languageStore';
@@ -15,6 +15,22 @@ export default function CustomerCart() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const cartItems = useCartStore((state) => state.cartItems);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      useAuthStore.getState().fetchProfile().catch(() => {});
+    }, [])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await useAuthStore.getState().fetchProfile();
+    } catch {} finally {
+      setRefreshing(false);
+    }
+  }, []);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeFromCart = useCartStore((state) => state.removeFromCart);
   const clearCart = useCartStore((state) => state.clearCart);
@@ -154,6 +170,14 @@ export default function CustomerCart() {
             style={styles.itemList}
             contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#FF6A00']}
+                tintColor={colors.primary || '#FF6A00'}
+              />
+            }
           >
             {cartItems.map((item) => {
               const defaultImg =

@@ -634,38 +634,62 @@ export default function EditProfile() {
             {/* Default Address Section */}
             <Text style={[styles.sectionHeading, { color: colors.textSecondary }]}>Default Address</Text>
             <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}>
-              {currentUser?.address ? (
-                <>
-                  <View style={styles.addressDisplayRow}>
-                    <Icons.MapPin color={isLight ? '#475569' : '#F4C400'} size={20} style={styles.addressIcon} />
-                    <View style={styles.addressInfo}>
-                      <Text style={[styles.addressText, { color: colors.text }]}>{currentUser.address.address}</Text>
-                      <Text style={[styles.addressCityText, { color: colors.textSecondary }]}>
-                        {currentUser.address.city}, {currentUser.address.state} - {currentUser.address.pincode}
-                      </Text>
-                    </View>
+              {(() => {
+                const defaultAddr: any = (Array.isArray(currentUser?.addresses) && currentUser.addresses.length > 0)
+                  ? (currentUser.addresses.find((a: any) => a.isDefault || a.isRegistrationAddress) || currentUser.addresses[0])
+                  : currentUser?.address;
+
+                const fullAddrStr = typeof defaultAddr === 'string'
+                  ? defaultAddr
+                  : (defaultAddr?.address || [defaultAddr?.house, defaultAddr?.street].filter(Boolean).join(', ') || '');
+                const cityStr = typeof defaultAddr === 'object' ? (defaultAddr?.city || (currentUser as any)?.city || '') : ((currentUser as any)?.city || '');
+                const stateStr = typeof defaultAddr === 'object' ? (defaultAddr?.state || (currentUser as any)?.state || '') : ((currentUser as any)?.state || '');
+                const pinStr = typeof defaultAddr === 'object' ? (defaultAddr?.pincode || (currentUser as any)?.pincode || '') : ((currentUser as any)?.pincode || '');
+                const locationLine = [cityStr, stateStr].filter(Boolean).join(', ') + (pinStr ? ` - ${pinStr}` : '');
+
+                const hasValidAddress = Boolean(fullAddrStr || locationLine.trim());
+
+                if (hasValidAddress) {
+                  return (
+                    <>
+                      <View style={styles.addressDisplayRow}>
+                        <Icons.MapPin color={isLight ? '#475569' : '#F4C400'} size={20} style={styles.addressIcon} />
+                        <View style={styles.addressInfo}>
+                          {fullAddrStr ? (
+                            <Text style={[styles.addressText, { color: colors.text }]}>{fullAddrStr}</Text>
+                          ) : null}
+                          {locationLine ? (
+                            <Text style={[styles.addressCityText, { color: colors.textSecondary }]}>
+                              {locationLine}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
+                      <TouchableOpacity
+                        style={styles.manageAddressButton}
+                        activeOpacity={0.7}
+                        onPress={() => navigation.navigate('MyAddresses')}
+                      >
+                        <Text style={[styles.manageAddressText, { color: colors.text }]}>Manage Addresses</Text>
+                        <Icons.ChevronRight color={colors.textSecondary} size={16} />
+                      </TouchableOpacity>
+                    </>
+                  );
+                }
+
+                return (
+                  <View style={styles.emptyAddressBlock}>
+                    <Text style={[styles.emptyAddressText, { color: colors.textSecondary }]}>No default address</Text>
+                    <TouchableOpacity
+                      style={styles.addAddressBtn}
+                      onPress={() => navigation.navigate('MyAddresses')}
+                    >
+                      <Text style={styles.addAddressBtnText}>Add Address →</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={[styles.fieldDivider, { backgroundColor: colors.border }]} />
-                  <TouchableOpacity
-                    style={styles.manageAddressButton}
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('MyAddresses')}
-                  >
-                    <Text style={[styles.manageAddressText, { color: colors.text }]}>Manage Addresses</Text>
-                    <Icons.ChevronRight color={colors.textSecondary} size={16} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <View style={styles.emptyAddressBlock}>
-                  <Text style={[styles.emptyAddressText, { color: colors.textSecondary }]}>No default address</Text>
-                  <TouchableOpacity
-                    style={styles.addAddressBtn}
-                    onPress={() => navigation.navigate('MyAddresses')}
-                  >
-                    <Text style={styles.addAddressBtnText}>Add Address →</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                );
+              })()}
             </View>
           </ScrollView>
 
