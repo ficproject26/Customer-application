@@ -15,32 +15,44 @@ const { width } = Dimensions.get('window');
 
 const LOCATIONS = [
   {
-    city: 'Chennai',
-    address: 'SK Technology, 2nd Floor, Annex Building, Anna Salai, Chennai - 600002',
-    phone: '+91 44 2851 1234',
-    mapUrl: 'https://maps.google.com/?q=Chennai+Anna+Salai',
+    type: 'HEAD OFFICE',
+    city: 'Krishnagiri',
+    address: 'RK Towers, Rayakottai Rd, opposite to HP Petrol Bunk, Wahab Nagar, Krishnagiri, Tamil Nadu 635002',
+    phone: '+91 63694 06416',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=RK+Towers+Rayakottai+Rd+Krishnagiri+Tamil+Nadu+635002',
     accent: '#F59E0B',
   },
   {
+    type: 'BRANCH OFFICE',
     city: 'Tirupattur',
-    address: 'SK Technology, Main Road, Near Bus Stand, Tirupattur - 635601',
-    phone: '+91 4179 225 678',
-    mapUrl: 'https://maps.google.com/?q=Tirupattur+Tamil+Nadu',
+    address: 'No 83, Hyundai showroom, 1st floor, opp to Jio Petrol Bunk, Tirupattur, Tamil Nadu - 635853',
+    phone: '+91 63694 06416',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Tirupattur+Tamil+Nadu+635853',
     accent: '#38BDF8',
   },
   {
-    city: 'Krishnagiri',
-    address: 'SK Technology, 1st Floor, Commercial Complex, Krishnagiri - 635001',
-    phone: '+91 4343 232 567',
-    mapUrl: 'https://maps.google.com/?q=Krishnagiri+Tamil+Nadu',
+    type: 'BRANCH OFFICE',
+    city: 'Chennai',
+    address: '22, VVM Towers, 3rd Floor, Pattullos Rd, Anna Salai, Royapettah, Chennai, Tamil Nadu 600002',
+    phone: '+91 63694 06416',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=22+VVM+Towers+Pattullos+Rd+Anna+Salai+Royapettah+Chennai+600002',
     accent: '#34D399',
   },
   {
+    type: 'LIAISON OFFICE',
     city: 'Bangalore',
-    address: 'SK Technology, 5th Floor, Tower B, Whitefield IT Park, Bangalore - 560066',
-    phone: '+91 80 4178 9090',
-    mapUrl: 'https://maps.google.com/?q=Bangalore+Whitefield+IT+Park',
+    address: 'Excel Coworks, Marilingappa layout, Nagarbhavi, Papareddypalya, Bangalore.',
+    phone: '+91 63694 06416',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=Excel+Coworks+Marilingappa+layout+Nagarbhavi+Bangalore',
     accent: '#C084FC',
+  },
+  {
+    type: 'AGENT BRANCH',
+    city: 'Palacode',
+    address: '832F+39C, Theerthagiri Nagar, Karagathahalli, Palacode, Tamil Nadu 636808',
+    phone: '+91 63694 06416',
+    mapUrl: 'https://www.google.com/maps/search/?api=1&query=832F%2B39C+Theerthagiri+Nagar+Karagathahalli+Palacode+Tamil+Nadu+636808',
+    accent: '#EC4899',
   },
 ];
 
@@ -70,7 +82,12 @@ export default function LandingLocations() {
               activeOpacity={0.9}
               onPress={() => openMap(loc.mapUrl)}
             >
-              {/* City dot */}
+              {/* Office Type Tag */}
+              <View style={styles.typeBadge}>
+                <Text style={[styles.typeBadgeText, { color: loc.accent }]}>{loc.type}</Text>
+              </View>
+
+              {/* City header */}
               <View style={styles.cardHeader}>
                 <View style={[styles.dot, { backgroundColor: loc.accent }]} />
                 <Text style={styles.cityName}>{loc.city}</Text>
@@ -78,13 +95,13 @@ export default function LandingLocations() {
               </View>
 
               {/* Address */}
-              <Text style={styles.address} numberOfLines={2}>
+              <Text style={styles.address} numberOfLines={3}>
                 {loc.address}
               </Text>
 
               {/* Phone */}
               <View style={styles.phoneRow}>
-                <Icons.Phone color="rgba(244, 196, 0, 0.6)" size={11} />
+                <Icons.Phone color="rgba(244, 196, 0, 0.8)" size={11} />
                 <Text style={styles.phone}>{loc.phone}</Text>
               </View>
 
@@ -106,12 +123,12 @@ export default function LandingLocations() {
             source={require('../../assets/images/forge_india_logo.jpg')}
             style={styles.footerLogoImage}
           />
-          <Text style={styles.footerBrand}>Connect App</Text>
+          <Text style={styles.footerBrand}>Forge India Connect</Text>
           <Text style={styles.footerTagline}>
             Everything Connected. Everywhere You Go.
           </Text>
           <Text style={styles.footerCopyright}>
-            © 2025 SK Technology. All rights reserved.
+            © 2026 Forge India Connect. All rights reserved.
           </Text>
         </View>
       </View>
@@ -162,8 +179,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
     padding: 14,
-    minHeight: 150,
+    minHeight: 160,
     justifyContent: 'space-between',
+  },
+  typeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  typeBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   cardHeader: {
     flexDirection: 'row',

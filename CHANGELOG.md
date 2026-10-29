@@ -4,6 +4,20 @@ All notable changes to the Connect Mobile application are documented here.
 
 ## [Unreleased] - 2026-10-29
 
+### Added
+- **Customer Website to Mobile App Landing Page & Brand Presence Feature Sync**:
+  - **Complete Landing Flow Synchronization**: Mounted `LandingEcosystem`, `LandingPricing`, `LandingHowItWorks`, `LandingCTA`, and `LandingLocations` into `LandingPage.tsx` to match the Customer Website landing page hierarchy (`Hero` → `Marketplace` → `Ecosystem` → `Pricing` → `HowItWorks` → `CTA` → `Locations`).
+  - **Verified Physical Office Locations (`LandingLocations.tsx`)**: Replaced 4 placeholder mock entries with the 5 verified Forge India Connect offices matching `BranchLocations.jsx`:
+    - **Krishnagiri** (*HEAD OFFICE*): RK Towers, Rayakottai Rd, opposite to HP Petrol Bunk, Wahab Nagar (635002)
+    - **Tirupattur** (*BRANCH OFFICE*): No 83, Hyundai showroom, 1st floor, opp to Jio Petrol Bunk (635853)
+    - **Chennai** (*BRANCH OFFICE*): 22, VVM Towers, 3rd Floor, Pattullos Rd, Anna Salai, Royapettah (600002)
+    - **Bangalore** (*LIAISON OFFICE*): Excel Coworks, Marilingappa layout, Nagarbhavi, Papareddypalya
+    - **Palacode** (*AGENT BRANCH*): 832F+39C, Theerthagiri Nagar, Karagathahalli (636808)
+    - Official contact number unified across all branches: `+91 63694 06416`.
+    - Added office classification badges and direct one-touch Google Maps URL launching.
+    - Updated footer branding to **Forge India Connect**.
+  - **Membership Pricing Tiers Parity (`LandingPricing.tsx`)**: Synchronized tier perks with `Pricing.jsx` (Silver, Gold Elite, Diamond Prestige) to eliminate discrepancies in member expectations across Web and Mobile.
+
 ### Fixed
 - **Permanent Customer Website ↔ Mobile App Cart Synchronization Fix**:
   - **Backend IDOR Fix**: Fixed `src/routes/auth.ts` lines 1504–1522 where `GET /api/auth/customer-profile` was rejecting customer registration IDs (`FIC-CUS-...`) with `HTTP 403 FORBIDDEN_IDOR`. Expanded `allowedIds` to include `userId`, `customerId`, `registrationId`, `_id`, email, and phone.

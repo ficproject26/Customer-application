@@ -18,6 +18,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LandingHero from '../components/landing/LandingHero';
 import LandingMarketplace, { Product, PRODUCTS } from '../components/landing/LandingMarketplace';
+import LandingEcosystem from '../components/landing/LandingEcosystem';
+import LandingPricing from '../components/landing/LandingPricing';
+import LandingHowItWorks from '../components/landing/LandingHowItWorks';
+import LandingCTA from '../components/landing/LandingCTA';
+import LandingLocations from '../components/landing/LandingLocations';
 import * as Icons from 'lucide-react-native';
 import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 import GlassCard from '../components/GlassCard';
@@ -186,6 +191,33 @@ export default function LandingPage() {
           likedItems={likedItems}
           onToggleLike={handleToggleLike}
         />
+
+        {/* 7-Pillar Ecosystem Grid */}
+        <LandingEcosystem
+          onCategoryPress={(catName) => {
+            Alert.alert(catName, `Sign in to explore verified ${catName} offerings.`, [
+              { text: 'Sign In Now', onPress: handleExplorePress },
+              { text: 'Cancel', style: 'cancel' }
+            ]);
+          }}
+        />
+
+        {/* Pricing Tiers Selection Cards */}
+        <LandingPricing
+          scrollY={scrollY}
+          onSelectTier={(_tierName) => {
+            navigation.navigate('Login');
+          }}
+        />
+
+        {/* How It Works Steps */}
+        <LandingHowItWorks scrollY={scrollY} />
+
+        {/* Call to Action Banner */}
+        <LandingCTA onJoinPress={handleJoinPress} />
+
+        {/* Office & Branch Locations */}
+        <LandingLocations />
       </Animated.ScrollView>
 
       {/* Product Details Premium Modal */}
