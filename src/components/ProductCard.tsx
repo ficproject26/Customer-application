@@ -154,14 +154,21 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
   }, [item, isJob]);
 
   // Handlers
+  const handleApplyNow = useCallback(() => {
+    if (isGuestUser) {
+      useAuthGuardStore.getState().showAuthModal('apply for this job position');
+      return;
+    }
+    navigation.navigate('JobDetails', { job: item, openApplySheet: true });
+  }, [isGuestUser, navigation, item]);
+
   const handleAddToCart = useCallback(() => {
     if (isProcessing) return;
     setIsProcessing(true);
     setTimeout(() => setIsProcessing(false), 200);
 
-    if (!hasCart) {
-      showToast('Please select booking options to proceed', 'Book Now', () => handleOpenRespectivePage());
-      handleOpenRespectivePage();
+    if (isJob || !hasCart) {
+      showToast('Jobs are application-only', 'Apply Now', () => handleApplyNow());
       return;
     }
 
@@ -172,12 +179,16 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
         id: item.id,
         name: item.name,
         price: item.price,
+        originalPrice: item.originalPrice || (item as any).mrp,
+        mrp: (item as any).mrp || item.originalPrice,
         category: item.category,
         image: cardImage,
+        seller: (item as any).vendorName || (item as any).vendor || (item as any).company || (item as any).seller,
+        vehicleNumber: (item as any).vehicleNumber || (item as any).vehicleRegNo || (item as any).busNumber,
       });
       showToast('Added to cart · View Cart', 'View Cart', () => navigation.navigate('Cart'));
     }
-  }, [isProcessing, hasCart, isInCart, item, cardImage, navigation, showToast, addToCart, handleOpenRespectivePage]);
+  }, [isProcessing, isJob, hasCart, isInCart, item, cardImage, navigation, showToast, addToCart, handleApplyNow]);
 
   const handleBuyNow = useCallback(() => {
     if (isProcessing) return;
@@ -203,14 +214,6 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
     setTimeout(() => setIsProcessing(false), 200);
     handleOpenRespectivePage();
   }, [isProcessing, handleOpenRespectivePage]);
-
-  const handleApplyNow = useCallback(() => {
-    if (isGuestUser) {
-      useAuthGuardStore.getState().showAuthModal('apply for this job position');
-      return;
-    }
-    navigation.navigate('JobDetails', { job: item, openApplySheet: true });
-  }, [isGuestUser, navigation, item]);
 
   const fallbackImage = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=300&auto=format&fit=crop&q=80';
   const reviewsCount = (item as any).reviews || (item as any).reviewsCount || item.ratingCount || '120';
@@ -313,13 +316,25 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
           /* Services / Travel / Stay: Two Buttons "Add to Cart" + "Book Now" */
           <>
             <TouchableOpacity
-              style={[styles.outlineBtn, { borderColor: '#FF6A00' }]}
+              style={[
+                styles.outlineBtn,
+                isInCart ? { borderColor: '#16A34A', backgroundColor: isDark ? '#064E3B' : '#DCFCE7' } : { borderColor: '#FF6A00' }
+              ]}
               activeOpacity={0.85}
               onPress={handleAddToCart}
               disabled={isProcessing}
             >
-              <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
-              <Text style={styles.outlineBtnText} numberOfLines={1}>{t('Add to Cart')}</Text>
+              {isInCart ? (
+                <>
+                  <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
+                  <Text style={[styles.outlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>{t('Added')}</Text>
+                </>
+              ) : (
+                <>
+                  <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                  <Text style={styles.outlineBtnText} numberOfLines={1}>{t('Add to Cart')}</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity

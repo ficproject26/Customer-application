@@ -24,7 +24,10 @@ Future agents working on this repository **MUST** strictly preserve the followin
    - Every booking or order created by the mobile client MUST include `customerId` (or `customer_id`), `customer_email`, and accurate `type`. Never send unauthenticated or anonymous booking requests when a user session exists.
 
 4. **Cart & Wishlist Consistency Rule**:
-   - Both products and supported services (Services, Stay, Travel) are valid cart items. Non-cartable categories are strictly limited to Jobs (application only).
+   - Both products and supported booking categories (Services, Stay, Travel, Food, Daily Needs) are valid persistent cart items.
+   - Non-cartable categories are strictly limited to Jobs (jobs are application-only and must never be placed in the cart).
+   - Tapping "Add to Cart" on Mobile across all eligible categories must add the item directly to `useCartStore`, toggle the button to the green `Added` checkmark state, show a confirmation toast, and NOT navigate away to booking screens.
+   - Inside service/travel/stay scheduling modals, customers must have the option to both "Add to Cart" (saving customized date/time/package/boarding details into cart) and "Proceed to Pay" / "Book Now".
    - Prices must be normalized and sanitized symmetrically across numeric (`120`) and formatted currency strings (`"₹120"` -> `120`) to eliminate `NaN` calculations in totals and checkout.
    - Wishlist toggle actions must synchronize persisted array of IDs to `/auth/customer-profile` and map cleanly to loaded product catalog items without creating phantom entries.
 

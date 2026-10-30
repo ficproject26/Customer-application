@@ -108,7 +108,22 @@ export const useCartStore = create<CartState>()(
           let newItems: CartItem[];
           if (existing) {
             newItems = state.cartItems.map((i) =>
-              i.id === item.id ? { ...i, quantity: i.quantity + qtyToAdd } : i
+              i.id === item.id
+                ? {
+                    ...i,
+                    quantity: i.quantity + qtyToAdd,
+                    bookingDate: item.bookingDate || i.bookingDate,
+                    bookingTime: item.bookingTime || i.bookingTime,
+                    checkInDate: item.checkInDate || i.checkInDate,
+                    checkInTime: item.checkInTime || i.checkInTime,
+                    checkOutDate: item.checkOutDate || i.checkOutDate,
+                    checkOutTime: item.checkOutTime || i.checkOutTime,
+                    configurationDetails: item.configurationDetails || i.configurationDetails,
+                    vehicleNumber: item.vehicleNumber || i.vehicleNumber,
+                    vehicleRegNo: item.vehicleRegNo || i.vehicleRegNo,
+                    busNumber: item.busNumber || i.busNumber,
+                  }
+                : i
             );
           } else {
             newItems = [
@@ -117,11 +132,25 @@ export const useCartStore = create<CartState>()(
                 id: item.id,
                 name: item.name || 'Item',
                 price: item.price || '₹0',
+                originalPrice: item.originalPrice,
+                mrp: item.mrp,
                 category: item.category || 'General',
                 quantity: qtyToAdd,
                 image: item.image,
                 variant: item.variant,
                 seller: item.seller,
+                vehicleNumber: item.vehicleNumber,
+                vehicleRegNo: item.vehicleRegNo,
+                busNumber: item.busNumber,
+                bookingDate: item.bookingDate,
+                bookingTime: item.bookingTime,
+                checkInDate: item.checkInDate,
+                checkInTime: item.checkInTime,
+                checkOutDate: item.checkOutDate,
+                checkOutTime: item.checkOutTime,
+                bookingType: item.bookingType,
+                serviceTimingName: item.serviceTimingName,
+                configurationDetails: item.configurationDetails,
               },
             ];
           }

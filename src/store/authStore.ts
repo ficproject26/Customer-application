@@ -336,13 +336,15 @@ export const useAuthStore = create<AuthState>()(
     const uId = state.currentUser.id;
 
     try {
-      const [response, membershipRes] = await Promise.all([
-        apiFetch(`/auth/customer-profile?userId=${encodeURIComponent(uId)}`, {
-          method: 'GET',
-          skipCache: true,
-        }),
-        apiFetch('/membership/status', { method: 'GET', skipCache: true }).catch(() => null),
-      ]);
+      let response: any = await apiFetch(`/auth/customer-profile?userId=${encodeURIComponent(uId)}`, {
+        method: 'GET',
+        skipCache: true,
+      });
+      if (!response || response.status === 'error' || response.error || response.code === 'FORBIDDEN_IDOR' || response.status === 403) {
+        response = await apiFetch('/auth/customer-profile', { method: 'GET', skipCache: true });
+      }
+
+      const membershipRes: any = await apiFetch('/membership/status', { method: 'GET', skipCache: true }).catch(() => null);
 
       if (response && (response.status === 'success' || response.success) && (response.data || response.user)) {
         const profData = response.data || response.user;

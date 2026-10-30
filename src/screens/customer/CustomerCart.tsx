@@ -217,6 +217,31 @@ export default function CustomerCart() {
                       {item.name}
                     </Text>
 
+                    {(item.bookingDate || item.bookingTime || item.checkInDate || item.configurationDetails || item.vehicleNumber) && (
+                      <View style={{ marginTop: 2, marginBottom: 4 }}>
+                        {item.bookingDate && (
+                          <Text style={{ fontSize: 10.5, color: '#D97706', fontWeight: '600' }} numberOfLines={1}>
+                            📅 {item.bookingDate} {item.bookingTime ? `• ${item.bookingTime}` : ''}
+                          </Text>
+                        )}
+                        {item.checkInDate && (
+                          <Text style={{ fontSize: 10.5, color: '#D97706', fontWeight: '600' }} numberOfLines={1}>
+                            🏨 Check-in: {item.checkInDate} {item.checkOutDate ? `| Out: ${item.checkOutDate}` : ''}
+                          </Text>
+                        )}
+                        {item.vehicleNumber && (
+                          <Text style={{ fontSize: 10, color: colors.subtext, fontWeight: '500' }} numberOfLines={1}>
+                            Bus / Vehicle: {item.vehicleNumber}
+                          </Text>
+                        )}
+                        {item.configurationDetails && (
+                          <Text style={{ fontSize: 10, color: colors.subtext, fontWeight: '500' }} numberOfLines={1}>
+                            {item.configurationDetails}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
                     <View style={styles.priceAndQtyRow}>
                       <Text style={[styles.itemPrice, { color: isLight ? '#0F172A' : '#F5B800' }]}>
                         {item.price}

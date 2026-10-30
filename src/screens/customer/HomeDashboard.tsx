@@ -1718,18 +1718,9 @@ export default function HomeDashboard() {
                           activeOpacity={0.8}
                           onPress={(e) => {
                             e.stopPropagation?.();
-                            if (isStay) {
-                              navigation.navigate('StayDetails', {
-                                stay: {
-                                  ...prod,
-                                  priceNum: typeof prod.price === 'number' ? prod.price : (parseFloat(String(prod.price || '0').replace(/[^\d.]/g, '')) || 0),
-                                },
-                              });
-                            } else {
-                              const cardItem = formatCardItem(prod);
-                              addToCart(cardItem);
-                              showToast(t('Added to cart'), 'success');
-                            }
+                            const cardItem = formatCardItem(prod);
+                            addToCart(cardItem);
+                            showToast(t('Added to cart'), 'success');
                           }}
                           style={{
                             width: 32,

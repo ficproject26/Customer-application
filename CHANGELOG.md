@@ -2,6 +2,20 @@
 
 All notable changes to the Connect Mobile application are documented here.
 
+## [Unreleased] - 2026-10-30
+
+### Fixed
+- **Unified Customer Cart & Cross-Platform Category Synchronization (Modules 1–6)**:
+  - **Mobile "Add to Cart" Button Routing Fix**: Resolved critical workflow bug in `CategoryDetails.tsx` where tapping "Add to Cart" on Services, Stay, or Travel items bypassed the Cart and routed directly into payment/booking confirmation (`setSchedulingItem(service)` -> `handleConfirmBooking`).
+    - Now tapping "Add to Cart" on any Service, Travel, or Stay card adds the configured item directly to `useCartStore`, toggles the card button to the green `Added` checkmark state, displays a toast confirmation (`"Added to cart · View Cart"`), and preserves the user's position on the screen.
+    - Inside the booking/service schedule modal sheet, added a secondary outlined **"Add to Cart"** button alongside the primary booking action. Customers can customize date, time slot, duration package, or travel boarding/dropping points and save their customized configuration directly into the cart.
+  - **Cart Metadata Preservation (`cartStore.ts`)**: Resolved attribute loss in `useCartStore.addToCart` where booking attributes (`bookingDate`, `bookingTime`, `checkInDate`, `checkInTime`, `checkOutDate`, `checkOutTime`, `bookingType`, `serviceTimingName`, `configurationDetails`, `vehicleNumber`, `vehicleRegNo`, `busNumber`) were dropped during new item addition.
+  - **ProductCard Direct Cart Integration**: Updated `ProductCard.tsx` so that Service, Stay, and Travel listings correctly add to cart with seller, vehicle, and price details without falling back to navigation helpers.
+  - **Cart Booking Metadata Rendering (`CustomerCart.tsx`)**: Enhanced cart item cards to render booking schedule badges (`📅 Date • Time`, `🏨 Check-in / Out`, `Bus/Vehicle Reg No`, and configuration packages) under the item name.
+  - **Resilient Fallback for Profile Cart Retrieval (`authStore.ts`)**: Added fallback handling for `GET /customer-profile` without query parameter to ensure customer cart and profile fetch succeeds regardless of IDOR URL variation.
+  - **Jobs Application-Only Protection**: Maintained strict enforcement of `isCartableCategory` returning `false` for Job listings; jobs remain application-only and are never placed in the purchase cart.
+  - **Full Cross-Platform Synchronization Verified**: Verified bidirectional cart synchronization between Customer Mobile and Customer Website across Products, Food, Daily Needs, Services, and Travel.
+
 ## [Unreleased] - 2026-10-29
 
 ### Added

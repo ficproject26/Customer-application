@@ -3748,6 +3748,44 @@ export default function CategoryDetails() {
     setRazorpayModalVisible(true);
   };
 
+  const handleAddToCartFromScheduler = useCallback(() => {
+    if (!schedulingItem) return;
+    const effectiveCat = getEffectiveCategory(schedulingItem);
+    const { priceStr } = getCalculatedServicePrice(schedulingItem);
+
+    const bookedDateStr = (effectiveCat === 'Travel' && routeParams.journeyDate)
+      ? routeParams.journeyDate
+      : (selectedDateObj ? selectedDateObj.fullDateStr : 'Today');
+    const bookedSlotTime = (effectiveCat === 'Travel' && schedulingItem.departureTime)
+      ? schedulingItem.departureTime
+      : (selectedSlotObj ? selectedSlotObj.time : 'Direct Express');
+
+    const configDetails = [
+      effectiveCat === 'Travel' && selectedBoardingPoint ? `Boarding: ${selectedBoardingPoint}` : '',
+      effectiveCat === 'Travel' && selectedDroppingPoint ? `Dropping: ${selectedDroppingPoint}` : '',
+      selectedProblemPackage ? `Package: ${selectedProblemPackage}` : '',
+      selectedDuration ? `Duration: ${selectedDuration}` : '',
+    ].filter(Boolean).join(' | ');
+
+    addToCart({
+      id: schedulingItem.id,
+      name: schedulingItem.name,
+      price: priceStr || String(schedulingItem.price || '₹299'),
+      category: categoryName || schedulingItem.mainCategory || effectiveCat || 'Services',
+      image: schedulingItem.image,
+      quantity: 1,
+      bookingDate: bookedDateStr,
+      bookingTime: bookedSlotTime,
+      seller: schedulingItem.vendorName || schedulingItem.brand,
+      vehicleNumber: schedulingItem.vehicleNumber || schedulingItem.vehicleRegNo || schedulingItem.busNumber,
+      configurationDetails: configDetails || undefined,
+    });
+
+    setSchedulingItem(null);
+    setTravelBookingStep('GUESTS');
+    showToast('Added to cart · View Cart', 'View Cart', () => setIsCartVisible(true));
+  }, [schedulingItem, selectedDateObj, selectedSlotObj, selectedBoardingPoint, selectedDroppingPoint, selectedProblemPackage, selectedDuration, routeParams.journeyDate, categoryName, showToast, addToCart, setIsCartVisible]);
+
   const handleRazorpaySuccess = async (paymentResult: {
     razorpay_payment_id: string;
     razorpay_order_id: string;
@@ -5207,28 +5245,48 @@ export default function CategoryDetails() {
                             return (
                               <>
                                 <TouchableOpacity
-                                  style={styles.compactOutlineBtn}
+                                  style={[
+                                    styles.compactOutlineBtn,
+                                    isInCart ? styles.compactOutlineBtnActive : null,
+                                  ]}
                                   activeOpacity={0.85}
                                   onPress={(e) => {
                                     e.stopPropagation?.();
-                                    showToast('Please select service schedule to proceed', 'Book Now', () => {
+                                    if (isInCart) {
+                                      showToast('Already in your cart', 'View Cart', () => setIsCartVisible(true));
+                                    } else {
                                       const nextDays = NEXT_7_DAYS;
                                       const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
                                       const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                      setSelectedDateObj(firstAvailDay);
-                                      setSelectedSlotObj(firstAvailSlot);
-                                      setSchedulingItem(service);
-                                    });
-                                    const nextDays = NEXT_7_DAYS;
-                                    const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
-                                    const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                    setSelectedDateObj(firstAvailDay);
-                                    setSelectedSlotObj(firstAvailSlot);
-                                    setSchedulingItem(service);
+                                      const { priceStr } = getCalculatedServicePrice(service);
+
+                                      addToCart({
+                                        id: service.id,
+                                        name: service.name,
+                                        price: priceStr || String(service.price || '₹299'),
+                                        category: categoryName || service.mainCategory || 'Services',
+                                        image: service.image,
+                                        quantity: 1,
+                                        bookingDate: firstAvailDay?.fullDateStr || 'Today',
+                                        bookingTime: firstAvailSlot?.time || '10:00 AM - 12:00 PM',
+                                        seller: service.vendorName || service.brand,
+                                        vehicleNumber: service.vehicleNumber || service.vehicleRegNo,
+                                      });
+                                      showToast('Added to cart · View Cart', 'View Cart', () => setIsCartVisible(true));
+                                    }
                                   }}
                                 >
-                                  <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
-                                  <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                  {isInCart ? (
+                                    <>
+                                      <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
+                                      <Text style={[styles.compactOutlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>Added</Text>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                                      <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                    </>
+                                  )}
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -5636,22 +5694,37 @@ export default function CategoryDetails() {
                   </View>
                 </ScrollView>
 
-                {/* Footer CTA: Proceed to Payment */}
-                <View style={[styles.schedulerFooter, { borderTopColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.08)' }]}>
+                {/* Footer CTA: Add to Cart + Proceed to Payment */}
+                <View style={[styles.schedulerFooter, { borderTopColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.08)', flexDirection: 'row', gap: 10 }]}>
                   <TouchableOpacity
                     disabled={!selectedBoardingPoint || !selectedDroppingPoint}
                     style={[
                       styles.confirmBookingBtn,
+                      { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#FF6A00' },
+                      (!selectedBoardingPoint || !selectedDroppingPoint) && { opacity: 0.5 },
+                    ]}
+                    onPress={handleAddToCartFromScheduler}
+                  >
+                    <Text style={[styles.confirmBookingBtnText, { color: '#FF6A00' }]}>
+                      Add to Cart
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    disabled={!selectedBoardingPoint || !selectedDroppingPoint}
+                    style={[
+                      styles.confirmBookingBtn,
+                      { flex: 1.3 },
                       (!selectedBoardingPoint || !selectedDroppingPoint) && styles.disabledConfirmBtn,
                     ]}
                     onPress={handleConfirmBooking}
                   >
                     <Text style={styles.confirmBookingBtnText}>
                       {!selectedBoardingPoint
-                        ? 'Select Boarding Point'
+                        ? 'Select Boarding'
                         : !selectedDroppingPoint
-                        ? 'Select Dropping Point'
-                        : `Proceed to Payment • ${getCalculatedServicePrice(schedulingItem).priceStr}`}
+                        ? 'Select Dropping'
+                        : 'Proceed to Pay'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -6166,22 +6239,39 @@ export default function CategoryDetails() {
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      disabled={!selectedDateObj || !selectedSlotObj}
-                      style={[
-                        styles.confirmBookingBtn,
-                        (!selectedDateObj || !selectedSlotObj) && styles.disabledConfirmBtn,
-                      ]}
-                      onPress={handleConfirmBooking}
-                    >
-                      <Text style={styles.confirmBookingBtnText}>
-                        {!selectedDateObj
-                          ? 'Select Date to Continue'
-                          : !selectedSlotObj
-                          ? 'Select Time Slot'
-                          : getConfirmCtaLabel(schedulingItem)}
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                      <TouchableOpacity
+                        disabled={!selectedDateObj || !selectedSlotObj}
+                        style={[
+                          styles.confirmBookingBtn,
+                          { flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#FF6A00' },
+                          (!selectedDateObj || !selectedSlotObj) && { opacity: 0.5 },
+                        ]}
+                        onPress={handleAddToCartFromScheduler}
+                      >
+                        <Text style={[styles.confirmBookingBtnText, { color: '#FF6A00' }]}>
+                          Add to Cart
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        disabled={!selectedDateObj || !selectedSlotObj}
+                        style={[
+                          styles.confirmBookingBtn,
+                          { flex: 1.3 },
+                          (!selectedDateObj || !selectedSlotObj) && styles.disabledConfirmBtn,
+                        ]}
+                        onPress={handleConfirmBooking}
+                      >
+                        <Text style={styles.confirmBookingBtnText}>
+                          {!selectedDateObj
+                            ? 'Select Date'
+                            : !selectedSlotObj
+                            ? 'Select Slot'
+                            : getConfirmCtaLabel(schedulingItem)}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               </>

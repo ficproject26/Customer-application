@@ -301,6 +301,8 @@ export default function ProductDetails() {
         quantity: qty,
         category: product!.category,
         image: activeImage,
+        seller: (product as any).vendorName || (product as any).brand || (product as any).vendor,
+        vehicleNumber: (product as any).vehicleNumber || (product as any).vehicleRegNo || (product as any).busNumber,
       });
       showToast('Added to cart · View Cart', 'View Cart', () =>
         navigation.navigate('Cart')
