@@ -177,6 +177,9 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
     } else {
       addToCart({
         id: item.id,
+        productId: item.id,
+        vendorId: (item as any).vendorId || (item as any).vendor_id,
+        vendor_id: (item as any).vendorId || (item as any).vendor_id,
         name: item.name,
         price: item.price,
         originalPrice: item.originalPrice || (item as any).mrp,
@@ -198,6 +201,9 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
     if (!isInCart) {
       addToCart({
         id: item.id,
+        productId: item.id,
+        vendorId: (item as any).vendorId || (item as any).vendor_id,
+        vendor_id: (item as any).vendorId || (item as any).vendor_id,
         name: item.name,
         price: item.price,
         category: item.category,

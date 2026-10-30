@@ -3823,11 +3823,15 @@ export default function CategoryDetails() {
     const resolvedCustId = curAuthUser?.customerId || curAuthUser?.registrationId || curAuthUser?.id || '';
     const resolvedCustEmail = curAuthUser?.email || '';
     const effectiveCategory = bookingInfo.effectiveCat === 'Stay' ? 'Stay' : isTravelBooking ? 'Travel' : (bookingInfo.effectiveCat || 'Services');
+    const resolvedVendorId = bookingInfo.item?.vendorId || bookingInfo.item?.vendor_id || '';
+    const bookingProductId = bookingInfo.item?.id || bookingInfo.item?._id || '';
 
     const newServiceOrder: any = {
       id: bookingId,
       order_number: bookingId,
-      vendor_id: 'v1',
+      vendor_id: resolvedVendorId,
+      vendorId: resolvedVendorId,
+      productId: bookingProductId,
       vendor_name: resolvedVendorName,
       category: effectiveCategory,
       order_type: 'booking',
@@ -3854,7 +3858,14 @@ export default function CategoryDetails() {
       travelers: initialTravelers,
       seat: isTravelBooking ? '' : 'U4',
       seat_status: initialSeatStatus,
-      items: [{ name: `${bookingInfo.name} (${bookingInfo.problemPackage})`, quantity: 1, price: bookingInfo.numPrice }],
+      items: [{
+        productId: bookingProductId,
+        vendorId: resolvedVendorId,
+        vendor_id: resolvedVendorId,
+        name: `${bookingInfo.name} (${bookingInfo.problemPackage})`,
+        quantity: 1,
+        price: bookingInfo.numPrice
+      }],
       item_count: 1,
       amount: bookingInfo.numPrice,
       status: initialStatus,
@@ -4451,6 +4462,9 @@ export default function CategoryDetails() {
                                   } else {
                                     addToCart({
                                       id: hotel.id,
+                                      productId: hotel.id,
+                                      vendorId: hotel.vendorId || (hotel as any).vendor_id,
+                                      vendor_id: hotel.vendorId || (hotel as any).vendor_id,
                                       name: hotel.name,
                                       price: hotel.price || `₹${hotel.pricePerNight || 1999}`,
                                       originalPrice: hotel.originalPrice || hotel.mrp,

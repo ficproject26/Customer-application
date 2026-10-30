@@ -1596,7 +1596,9 @@ export default function StayDetails() {
                           const newStayOrder: Order = {
                             id: newId,
                             order_number: newId,
-                            vendor_id: stay.vendor_id || stay.vendorId || 'v1',
+                            vendor_id: stay.vendorId || stay.vendor_id || '',
+                            vendorId: stay.vendorId || stay.vendor_id || '',
+                            productId: stay.id || stay._id,
                             vendor_name: stay.name || 'Luxury Resort & Stay',
                             category: 'Stay',
                             order_type: 'booking',
@@ -1633,7 +1635,9 @@ export default function StayDetails() {
                             body: {
                               id: newId,
                               order_number: newId,
-                              vendor_id: stay.vendor_id || stay.vendorId || 'v1',
+                              vendor_id: stay.vendorId || stay.vendor_id || '',
+                            vendorId: stay.vendorId || stay.vendor_id || '',
+                            productId: stay.id || stay._id,
                               customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
                               customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
                               customer_name: guestNameVal,
@@ -1863,7 +1867,9 @@ export default function StayDetails() {
             body: {
               id: newId,
               order_number: newId,
-              vendor_id: stay.vendor_id || stay.vendorId || 'v1',
+              vendor_id: stay.vendorId || stay.vendor_id || '',
+                            vendorId: stay.vendorId || stay.vendor_id || '',
+                            productId: stay.id || stay._id,
               customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
               customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
               customer_name: guestNameVal,

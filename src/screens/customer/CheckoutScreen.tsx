@@ -614,6 +614,10 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
         const itemPrice = parsePrice(i.price);
         const itemOrig = parsePrice(i.originalPrice || i.mrp) || itemPrice;
         return {
+          id: i.id,
+          productId: i.productId || i.id,
+          vendorId: i.vendorId || (i as any).vendor_id || '',
+          vendor_id: i.vendorId || (i as any).vendor_id || '',
           name: i.name,
           quantity: i.quantity || 1,
           price: itemPrice,
@@ -624,13 +628,14 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
         };
       });
 
+      const primaryCartVendor = (cartItems[0] as any)?.vendorId || (cartItems[0] as any)?.vendor_id || '';
       const newOrder: Order = {
         id: orderId,
         order_number: orderId,
         user_id: authUser?.id || '',
         customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
         customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
-        vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
+        vendor_id: primaryCartVendor,
         vendor_name: (cartItems[0] as any)?.vendorName || 'Connect Store',
         category: resolvedOrderCategory as any,
         order_type: 'order',
@@ -698,7 +703,7 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
         body: {
           id: orderId,
           order_number: orderId,
-          vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
+          vendor_id: primaryCartVendor,
           userId: authUser?.id || '',
           user_id: authUser?.id || '',
           customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
@@ -793,13 +798,14 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
 
     const authUser = useAuthStore.getState().currentUser;
     const contactPhone = selectedAddressObj?.phone?.trim() || authUser?.phone?.trim() || '';
+    const primaryCartVendor = (cartItems[0] as any)?.vendorId || (cartItems[0] as any)?.vendor_id || '';
     const newOrder: Order = {
       id: confirmedOrderId,
       order_number: confirmedOrderId,
       user_id: authUser?.id || '',
       customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
       customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
-      vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
+      vendor_id: primaryCartVendor,
       vendor_name: (cartItems[0] as any)?.vendorName || 'Connect Store',
       category: resolvedOrderCategory as any,
       order_type: 'order',
@@ -868,7 +874,7 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
         body: {
           id: confirmedOrderId,
           order_number: confirmedOrderId,
-          vendor_id: (cartItems[0] as any)?.vendorId || 'v1',
+          vendor_id: primaryCartVendor,
           userId: authUser?.id || '',
           user_id: authUser?.id || '',
           customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,

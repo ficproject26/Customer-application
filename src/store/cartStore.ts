@@ -13,6 +13,9 @@ export interface CartItem {
   image?: string;
   variant?: string;
   seller?: string;
+  vendorId?: string;
+  vendor_id?: string;
+  productId?: string;
   vehicleNumber?: string;
   vehicleRegNo?: string;
   busNumber?: string;
@@ -122,6 +125,11 @@ export const useCartStore = create<CartState>()(
                     vehicleNumber: item.vehicleNumber || i.vehicleNumber,
                     vehicleRegNo: item.vehicleRegNo || i.vehicleRegNo,
                     busNumber: item.busNumber || i.busNumber,
+                    bookingType: item.bookingType || i.bookingType,
+                    serviceTimingName: item.serviceTimingName || i.serviceTimingName,
+                    vendorId: item.vendorId || (item as any).vendor_id || i.vendorId || (i as any).vendor_id,
+                    vendor_id: item.vendorId || (item as any).vendor_id || i.vendor_id || (i as any).vendorId,
+                    productId: item.productId || item.id || i.productId || i.id,
                   }
                 : i
             );
@@ -130,6 +138,9 @@ export const useCartStore = create<CartState>()(
               ...state.cartItems,
               {
                 id: item.id,
+                productId: item.productId || item.id,
+                vendorId: item.vendorId || (item as any).vendor_id || '',
+                vendor_id: item.vendorId || (item as any).vendor_id || '',
                 name: item.name || 'Item',
                 price: item.price || '₹0',
                 originalPrice: item.originalPrice,

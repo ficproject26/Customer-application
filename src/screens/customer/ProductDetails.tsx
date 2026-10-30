@@ -294,6 +294,9 @@ export default function ProductDetails() {
     } else {
       addToCart({
         id: product!.id,
+        productId: product!.id,
+        vendorId: (product as any).vendorId || (product as any).vendor_id,
+        vendor_id: (product as any).vendorId || (product as any).vendor_id,
         name: fullCartItemName,
         price: `₹${unitSellingPrice.toLocaleString('en-IN')}`,
         originalPrice: product.mrp || (product as any).originalPrice,
