@@ -6,7 +6,9 @@ All notable changes to the Connect Mobile application are documented here.
 
 ### Fixed
 - **Unified Customer Cart & Cross-Platform Category Synchronization (Modules 1–6)**:
-  - **Mobile "Add to Cart" Button Routing Fix**: Resolved critical workflow bug in `CategoryDetails.tsx` where tapping "Add to Cart" on Services, Stay, or Travel items bypassed the Cart and routed directly into payment/booking confirmation (`setSchedulingItem(service)` -> `handleConfirmBooking`).
+  - **Mobile "Add to Cart" Button Routing Fix**: Resolved critical workflow bug in `CategoryDetails.tsx` where tapping "Add to Cart" on Services, Stay, or Travel items bypassed the Cart and routed directly into payment/booking confirmation or detail pages.
+    - Updated Stay cards to add the stay reservation with check-in/out dates, price, and room details directly to `useCartStore`, toggling button to green "Added" state.
+    - Updated Travel cards to add the bus/cab journey ticket with route points directly to `useCartStore`, toggling button to green "Added" state.
     - Now tapping "Add to Cart" on any Service, Travel, or Stay card adds the configured item directly to `useCartStore`, toggles the card button to the green `Added` checkmark state, displays a toast confirmation (`"Added to cart · View Cart"`), and preserves the user's position on the screen.
     - Inside the booking/service schedule modal sheet, added a secondary outlined **"Add to Cart"** button alongside the primary booking action. Customers can customize date, time slot, duration package, or travel boarding/dropping points and save their customized configuration directly into the cart.
   - **Cart Metadata Preservation (`cartStore.ts`)**: Resolved attribute loss in `useCartStore.addToCart` where booking attributes (`bookingDate`, `bookingTime`, `checkInDate`, `checkInTime`, `checkOutDate`, `checkOutTime`, `bookingType`, `serviceTimingName`, `configurationDetails`, `vehicleNumber`, `vehicleRegNo`, `busNumber`) were dropped during new item addition.
