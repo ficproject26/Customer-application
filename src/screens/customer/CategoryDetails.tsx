@@ -4435,36 +4435,50 @@ export default function CategoryDetails() {
                         <Text style={styles.stayFreeCancelTag}>Free cancellation</Text>
 
                         <View style={styles.compactActionRow}>
-                          <TouchableOpacity
-                            style={styles.compactOutlineBtn}
-                            activeOpacity={0.85}
-                            onPress={(e) => {
-                              e.stopPropagation?.();
-                              showToast('Please select dates & room to complete stay booking', 'Book Stay', () =>
-                                navigation.navigate('StayDetails', {
-                                  stay: hotel,
-                                  checkIn: formatStayDateDisplay(checkInDateObj),
-                                  checkOut: formatStayDateDisplay(checkOutDateObj),
-                                  nights: stayNights,
-                                  adults: stayAdults,
-                                  children: stayChildren,
-                                  rooms: stayRooms,
-                                })
-                              );
-                              navigation.navigate('StayDetails', {
-                                stay: hotel,
-                                checkIn: formatStayDateDisplay(checkInDateObj),
-                                checkOut: formatStayDateDisplay(checkOutDateObj),
-                                nights: stayNights,
-                                adults: stayAdults,
-                                children: stayChildren,
-                                rooms: stayRooms,
-                              });
-                            }}
-                          >
-                            <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
-                            <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
-                          </TouchableOpacity>
+                          {(() => {
+                            const isStayInCart = cartItems.some((c) => c.id === hotel.id);
+                            return (
+                              <TouchableOpacity
+                                style={[
+                                  styles.compactOutlineBtn,
+                                  isStayInCart ? styles.compactOutlineBtnActive : null
+                                ]}
+                                activeOpacity={0.85}
+                                onPress={(e) => {
+                                  e.stopPropagation?.();
+                                  if (isStayInCart) {
+                                    showToast('Already in your cart', 'View Cart', () => setIsCartVisible(true));
+                                  } else {
+                                    addToCart({
+                                      id: hotel.id,
+                                      name: hotel.name,
+                                      price: hotel.price || `₹${hotel.pricePerNight || 1999}`,
+                                      originalPrice: hotel.originalPrice || hotel.mrp,
+                                      category: 'Stay',
+                                      image: hotel.image || hotel.imageUrl,
+                                      seller: hotel.vendorName || hotel.seller || 'Stay Partner',
+                                      checkInDate: formatStayDateDisplay(checkInDateObj),
+                                      checkOutDate: formatStayDateDisplay(checkOutDateObj),
+                                      configurationDetails: `${stayNights} Night(s) • ${stayRooms} Room(s) • ${stayAdults} Adult(s)`,
+                                    });
+                                    showToast('Stay added to cart · View Cart', 'View Cart', () => setIsCartVisible(true));
+                                  }
+                                }}
+                              >
+                                {isStayInCart ? (
+                                  <>
+                                    <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
+                                    <Text style={[styles.compactOutlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>Added</Text>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                                    <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })()}
 
                           <TouchableOpacity
                             style={styles.compactPrimaryBtn}
@@ -4999,39 +5013,55 @@ export default function CategoryDetails() {
                             </View>
 
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
-                              <TouchableOpacity
-                                style={styles.compactOutlineBtn}
-                                activeOpacity={0.85}
-                                onPress={() => {
-                                  showToast('Please select seats to complete your travel booking', 'Book Seats', () => {
-                                    const nextDays = NEXT_7_DAYS;
-                                    const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
-                                    const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                    setSelectedDateObj(firstAvailDay);
-                                    setSelectedSlotObj(firstAvailSlot);
-                                    setTravelBookingStep('GUESTS');
-                                    const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
-                                    const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
-                                    setSelectedBoardingPoint(defBoarding);
-                                    setSelectedDroppingPoint(defDropping);
-                                    setSchedulingItem(service);
-                                  });
-                                  const nextDays = NEXT_7_DAYS;
-                                  const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
-                                  const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                  setSelectedDateObj(firstAvailDay);
-                                  setSelectedSlotObj(firstAvailSlot);
-                                  setTravelBookingStep('GUESTS');
-                                  const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
-                                  const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
-                                  setSelectedBoardingPoint(defBoarding);
-                                  setSelectedDroppingPoint(defDropping);
-                                  setSchedulingItem(service);
-                                }}
-                              >
-                                <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
-                                <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
-                              </TouchableOpacity>
+                              {(() => {
+                                const isTravelInCart = cartItems.some((c) => c.id === service.id);
+                                return (
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.compactOutlineBtn,
+                                      isTravelInCart ? styles.compactOutlineBtnActive : null
+                                    ]}
+                                    activeOpacity={0.85}
+                                    onPress={(e) => {
+                                      e.stopPropagation?.();
+                                      if (isTravelInCart) {
+                                        showToast('Already in your cart', 'View Cart', () => setIsCartVisible(true));
+                                      } else {
+                                        const nextDays = NEXT_7_DAYS;
+                                        const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                        const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                        const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
+                                        const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
+                                        addToCart({
+                                          id: service.id,
+                                          name: service.name,
+                                          price: service.price || '₹499',
+                                          category: 'Travel',
+                                          image: service.image,
+                                          seller: service.operator || service.vendorName || service.brand || 'Travel Partner',
+                                          bookingDate: firstAvailDay?.fullDateStr || 'Today',
+                                          bookingTime: firstAvailSlot?.time || '10:00 PM',
+                                          vehicleNumber: service.vehicleNumber || service.vehicleRegNo || service.busNumber,
+                                          configurationDetails: `${defBoarding} → ${defDropping}`,
+                                        });
+                                        showToast('Travel ticket added to cart · View Cart', 'View Cart', () => setIsCartVisible(true));
+                                      }
+                                    }}
+                                  >
+                                    {isTravelInCart ? (
+                                      <>
+                                        <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
+                                        <Text style={[styles.compactOutlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>Added</Text>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
+                                        <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                      </>
+                                    )}
+                                  </TouchableOpacity>
+                                );
+                              })()}
 
                               <TouchableOpacity
                                 style={styles.compactPrimaryBtn}
