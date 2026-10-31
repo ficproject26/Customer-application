@@ -53,6 +53,7 @@ import { useOrderStore } from '../../store/orderStore';
 import { useAuthStore } from '../../store/authStore';
 import { useWishlistStore } from '../../store/wishlistStore';
 import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
+import { prepareRazorpayOrder } from '../../services/razorpayService';
 import { useToastStore } from '../../store/toastStore';
 import { getRelevantProductImage } from '../../utils/productImages';
 import { useAuthGuardStore } from '../../store/authGuardStore';
@@ -1192,52 +1193,51 @@ export default function CategoryDetails() {
 
   const availableTravelOrigins = useMemo(() => {
     const set = new Set<string>();
-    DEFAULT_POPULAR_ORIGINS.forEach((o) => set.add(o));
     (dynamicVendorTravelItems || []).forEach((b: any) => {
-      if (b.from) set.add(b.from);
-      (b.boardingPoints || []).forEach((bp: string) => {
-        const c = bp.split('(')[0]?.trim();
+      if (b.from) set.add(b.from.split('(')[0]?.trim());
+      (b.boardingPoints || []).forEach((bp: any) => {
+        const str = typeof bp === 'string' ? bp : (bp?.name || bp?.city || bp?.point);
+        const c = str?.split('(')[0]?.trim();
         if (c) set.add(c);
       });
     });
+    if (set.size === 0) {
+      DEFAULT_POPULAR_ORIGINS.forEach((o) => set.add(o));
+    }
     return Array.from(set).filter(Boolean);
   }, [dynamicVendorTravelItems]);
 
   const availableTravelDestinations = useMemo(() => {
     const set = new Set<string>();
-    DEFAULT_POPULAR_DESTINATIONS.forEach((d) => set.add(d));
     (dynamicVendorTravelItems || []).forEach((b: any) => {
-      if (b.to) set.add(b.to);
-      (b.droppingPoints || []).forEach((dp: string) => {
-        const c = dp.split('(')[0]?.trim();
+      if (b.to) set.add(b.to.split('(')[0]?.trim());
+      (b.droppingPoints || []).forEach((dp: any) => {
+        const str = typeof dp === 'string' ? dp : (dp?.name || dp?.city || dp?.point);
+        const c = str?.split('(')[0]?.trim();
         if (c) set.add(c);
       });
     });
+    if (set.size === 0) {
+      DEFAULT_POPULAR_DESTINATIONS.forEach((d) => set.add(d));
+    }
     return Array.from(set).filter(Boolean);
   }, [dynamicVendorTravelItems]);
-
 
   // Dynamic Route Buses (buses matching from & to)
   const currentRouteBuses = useMemo(() => {
     if (!isTravelCategory) return [];
     let items = dynamicVendorTravelItems || [];
-    const reqFrom = (routeParams.from || '').trim().toLowerCase();
-    const reqTo = (routeParams.to || '').trim().toLowerCase();
+    const reqFrom = (travelFrom || routeParams.from || '').trim().toLowerCase();
+    const reqTo = (travelTo || routeParams.to || '').trim().toLowerCase();
     if (reqFrom || reqTo) {
-      const routeMatches = items.filter((s: any) => {
-        const sFrom = (s.from || s.origin || s.route || '').toLowerCase();
-        const sTo = (s.to || s.destination || s.route || '').toLowerCase();
-        const sBoarding = (s.boardingPoints || []).join(' ').toLowerCase();
-        const sDropping = (s.droppingPoints || []).join(' ').toLowerCase();
-
-        const matchFrom = !reqFrom || sFrom.includes(reqFrom) || sBoarding.includes(reqFrom);
-        const matchTo = !reqTo || sTo.includes(reqTo) || sDropping.includes(reqTo);
+      return items.filter((s: any) => {
+        const matchFrom = !reqFrom || matchesLocation(s.from, reqFrom, s.boardingPoints);
+        const matchTo = !reqTo || matchesLocation(s.to, reqTo, s.droppingPoints);
         return matchFrom && matchTo;
       });
-      if (routeMatches.length > 0) return routeMatches;
     }
     return items;
-  }, [isTravelCategory, routeParams.from, routeParams.to, dynamicVendorTravelItems]);
+  }, [isTravelCategory, travelFrom, travelTo, routeParams.from, routeParams.to, dynamicVendorTravelItems]);
 
   // Dynamic Unique Bus Operators
   const availableBusOperators = useMemo(() => {
@@ -1571,7 +1571,7 @@ export default function CategoryDetails() {
         priceLabel: 'Fare per seat',
         ctaText: 'Select Seats',
         actionType: 'booking',
-        emptyText: 'No buses found for this route',
+        emptyText: 'No travel options found for your selected route and filters.',
         searchPlaceholder: 'Search buses, operators, routes, boarding points...',
       };
     }
@@ -2037,17 +2037,17 @@ export default function CategoryDetails() {
         const isTravelItem = pCat === 'travel' || pCat.includes('bus') || cleanSub.includes('bus') || cleanSub.includes('sleeper');
         const operatorName = p.operator || p.operatorName || p.vendorName || p.companyName || p.businessName || 'Verified Travels';
         const boardingPointsList = Array.isArray(p.boardingPoints) && p.boardingPoints.length > 0
-          ? p.boardingPoints
-          : (p.boardingPoint ? [p.boardingPoint] : ['Bangalore (Majestic 21:30)']);
+          ? p.boardingPoints.map((bp: any) => typeof bp === 'string' ? bp : `${bp?.name || bp?.city || bp?.point || 'Boarding Point'}${bp?.time ? ` (${bp.time})` : ''}`)
+          : (p.boardingPoint ? [String(p.boardingPoint)] : []);
         const droppingPointsList = Array.isArray(p.droppingPoints) && p.droppingPoints.length > 0
-          ? p.droppingPoints
-          : (p.dropPoint ? [p.dropPoint] : ['Chennai (Koyambedu 06:00)']);
+          ? p.droppingPoints.map((dp: any) => typeof dp === 'string' ? dp : `${dp?.name || dp?.city || dp?.point || 'Dropping Point'}${dp?.time ? ` (${dp.time})` : ''}`)
+          : (p.dropPoint ? [String(p.dropPoint)] : []);
         const travelAmenities = Array.isArray(p.selectedAmenities) && p.selectedAmenities.length > 0
           ? p.selectedAmenities
-          : (Array.isArray(p.amenities) && p.amenities.length > 0 ? p.amenities : ['AC Sleeper', 'Live GPS', 'Charging Point']);
+          : (Array.isArray(p.amenities) && p.amenities.length > 0 ? p.amenities : ['AC', 'Live GPS Tracking']);
 
-        const resolvedFrom = p.from || p.origin || (p.boardingPoint ? p.boardingPoint.split('(')[0]?.trim() : (typeof p.boardingPoints?.[0] === 'string' ? p.boardingPoints[0].split('(')[0]?.trim() : 'Bangalore'));
-        const resolvedTo = p.to || p.destination || (p.dropPoint ? p.dropPoint.split('(')[0]?.trim() : (typeof p.droppingPoints?.[0] === 'string' ? p.droppingPoints[0].split('(')[0]?.trim() : 'Chennai'));
+        const resolvedFrom = p.from || p.origin || p.fromCity || (p.boardingPoint ? String(p.boardingPoint).split('(')[0]?.trim() : (boardingPointsList[0] ? boardingPointsList[0].split('(')[0]?.trim() : ''));
+        const resolvedTo = p.to || p.destination || p.toCity || (p.dropPoint ? String(p.dropPoint).split('(')[0]?.trim() : (droppingPointsList[0] ? droppingPointsList[0].split('(')[0]?.trim() : ''));
         const resolvedBusType = p.itemType || p.busType || p.subType || (cleanSub.includes('bus') ? 'AC Sleeper' : displaySub);
         const numPrice = typeof p.price === 'number' ? p.price : (parseFloat(String(p.price || '0').replace(/[^\d.]/g, '')) || 0);
         const origPriceNum = p.originalPrice ? (typeof p.originalPrice === 'number' ? p.originalPrice : (parseFloat(String(p.originalPrice).replace(/[^\d.]/g, '')) || 0)) : 0;
@@ -2126,14 +2126,16 @@ export default function CategoryDetails() {
         if ((s.seatsLeft || s.stock || 0) < travelPassengers) return false;
 
         // 2. Departure Location Match
-        if (travelFrom && travelFrom.trim()) {
-          const matchFrom = matchesLocation(s.from, travelFrom, s.boardingPoints);
+        const effectiveFrom = (travelFrom || routeParams.from || '').trim();
+        if (effectiveFrom && effectiveFrom.toLowerCase() !== 'all') {
+          const matchFrom = matchesLocation(s.from, effectiveFrom, s.boardingPoints);
           if (!matchFrom) return false;
         }
 
         // 3. Destination Location Match
-        if (travelTo && travelTo.trim()) {
-          const matchTo = matchesLocation(s.to, travelTo, s.droppingPoints);
+        const effectiveTo = (travelTo || routeParams.to || '').trim();
+        if (effectiveTo && effectiveTo.toLowerCase() !== 'all') {
+          const matchTo = matchesLocation(s.to, effectiveTo, s.droppingPoints);
           if (!matchTo) return false;
         }
 
@@ -2665,6 +2667,13 @@ export default function CategoryDetails() {
     selectedBusBoarding,
     selectedBusDropping,
     selectedBusSort,
+    travelFrom,
+    travelTo,
+    travelType,
+    travelDepartureTime,
+    travelPriceRange,
+    travelPassengers,
+    dynamicVendorTravelItems,
     apiProducts,
     routeParams,
     routeParams.from,
@@ -2946,22 +2955,14 @@ export default function CategoryDetails() {
   const draftBusDisplayedServices = useMemo(() => {
     if (!isTravelCategory) return [];
     let items = dynamicVendorTravelItems || [];
-    const reqFrom = (routeParams.from || '').trim().toLowerCase();
-    const reqTo = (routeParams.to || '').trim().toLowerCase();
+    const reqFrom = (travelFrom || routeParams.from || '').trim().toLowerCase();
+    const reqTo = (travelTo || routeParams.to || '').trim().toLowerCase();
     if (reqFrom || reqTo) {
-      const routeMatches = items.filter((s: any) => {
-        const sFrom = (s.from || s.origin || s.route || '').toLowerCase();
-        const sTo = (s.to || s.destination || s.route || '').toLowerCase();
-        const sBoarding = (s.boardingPoints || []).join(' ').toLowerCase();
-        const sDropping = (s.droppingPoints || []).join(' ').toLowerCase();
-
-        const matchFrom = !reqFrom || sFrom.includes(reqFrom) || sBoarding.includes(reqFrom);
-        const matchTo = !reqTo || sTo.includes(reqTo) || sDropping.includes(reqTo);
+      items = items.filter((s: any) => {
+        const matchFrom = !reqFrom || matchesLocation(s.from, reqFrom, s.boardingPoints);
+        const matchTo = !reqTo || matchesLocation(s.to, reqTo, s.droppingPoints);
         return matchFrom && matchTo;
       });
-      if (routeMatches.length > 0) {
-        items = routeMatches;
-      }
     }
     const query = searchQuery.toLowerCase().trim();
 
@@ -3040,6 +3041,9 @@ export default function CategoryDetails() {
     return items;
   }, [
     isTravelCategory,
+    travelFrom,
+    travelTo,
+    dynamicVendorTravelItems,
     routeParams.from,
     routeParams.to,
     selectedSubcat,
@@ -3744,18 +3748,29 @@ export default function CategoryDetails() {
     setSchedulingItem(null);
     setTravelBookingStep('GUESTS');
 
-    // Open Razorpay Test Mode Checkout
-    const orderId = `order_srv_${Date.now()}`;
-    setRazorpayOrder({
-      orderId,
-      amount: numPrice * 100, // in paise
-      currency: 'INR',
-      keyId: 'rzp_test_THLM17MgXLM2tP',
+    // Create Razorpay Checkout order via authorized backend API
+    prepareRazorpayOrder({
+      amount: numPrice,
       planType: 'service_booking',
       planName: bookedItemName,
       priceText: priceStr,
+      userId: useAuthStore.getState().currentUser?.id || useAuthStore.getState().currentUser?.customerId || '',
+      onOrderReady: (ord) => {
+        setRazorpayOrder(ord);
+        setRazorpayModalVisible(true);
+      },
+    }).catch(() => {
+      setRazorpayOrder({
+        orderId: `order_srv_${Date.now()}`,
+        amount: numPrice * 100,
+        currency: 'INR',
+        keyId: 'rzp_test_THLM17MgXLM2tP',
+        planType: 'service_booking',
+        planName: bookedItemName,
+        priceText: priceStr,
+      });
+      setRazorpayModalVisible(true);
     });
-    setRazorpayModalVisible(true);
   };
 
   const handleAddToCartFromScheduler = useCallback(() => {
@@ -3865,6 +3880,12 @@ export default function CategoryDetails() {
       vehicle_number: bookingInfo.vehicleNumber || '',
       vehicleNumber: bookingInfo.vehicleNumber || '',
       busNumber: bookingInfo.vehicleNumber || '',
+      serviceName: bookingInfo.name,
+      packageName: bookingInfo.problemPackage || '',
+      appointmentDate: bookingInfo.date,
+      appointmentTimeSlot: bookingInfo.slot,
+      serviceDate: bookingInfo.date,
+      serviceTime: bookingInfo.slot,
       appointment_slot: `${bookingInfo.date} at ${bookingInfo.slot}`,
       boarding_point: bookingInfo.boardingPoint,
       dropping_point: bookingInfo.droppingPoint,

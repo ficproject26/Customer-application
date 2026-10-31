@@ -6,10 +6,11 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   TextInput,
+  StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
 import { useThemeStore } from '../store/themeStore';
 import { RAZORPAY_KEY_ID } from '../services/env';
@@ -51,6 +52,7 @@ export default function RazorpayModal({
 }: RazorpayModalProps) {
   const colors = useThemeStore((state) => state.colors);
   const isDark = useThemeStore((state) => state.isDark);
+  const insets = useSafeAreaInsets();
 
   const [selectedMethod, setSelectedMethod] = useState<'upi' | 'card' | 'netbanking' | 'wallet'>('upi');
   const [upiId, setUpiId] = useState('');
@@ -63,6 +65,7 @@ export default function RazorpayModal({
   if (!orderData) return null;
 
   const keyId = orderData.keyId || RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP';
+  const isTestMode = keyId.startsWith('rzp_test_') || Boolean(orderData.orderId && orderData.orderId.startsWith('order_test_'));
   const displayAmount = orderData.priceText || `₹${(orderData.amount / 100).toLocaleString('en-IN')}`;
   const merchant = merchantName || 'Connect Mobile';
 
@@ -87,10 +90,13 @@ export default function RazorpayModal({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={false}
+      transparent={true}
+      statusBarTranslucent={true}
       onRequestClose={onCancel}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B132B' : '#F4F6F9' }]}>
+      <View style={[styles.container, { backgroundColor: isDark ? '#0B132B' : '#F4F6F9', paddingTop: insets.top }]}>
+        <StatusBar barStyle="light-content" backgroundColor={isDark ? '#1C2541' : '#0A2540'} translucent />
+        
         {/* Top Header Bar */}
         <View style={[styles.header, { backgroundColor: isDark ? '#1C2541' : '#0A2540' }]}>
           <View style={styles.headerLeft}>
@@ -101,9 +107,15 @@ export default function RazorpayModal({
             <View>
               <Text style={styles.headerTitle}>Razorpay Checkout</Text>
               <View style={styles.badgeRow}>
-                <View style={styles.testBadge}>
-                  <Text style={styles.testBadgeText}>TEST MODE</Text>
-                </View>
+                {isTestMode ? (
+                  <View style={styles.testBadge}>
+                    <Text style={styles.testBadgeText}>TEST MODE</Text>
+                  </View>
+                ) : (
+                  <View style={styles.liveBadge}>
+                    <Text style={styles.liveBadgeText}>SECURE PAY</Text>
+                  </View>
+                )}
                 <Text style={styles.headerSubtitle}>Key: {keyId.substring(0, 14)}...</Text>
               </View>
             </View>
@@ -125,6 +137,16 @@ export default function RazorpayModal({
             <Text style={styles.amountValue}>{displayAmount}</Text>
           </View>
         </View>
+
+        {/* Customer Information Preview */}
+        {Boolean(userInfo && (userInfo.name || userInfo.phone || userInfo.email)) && (
+          <View style={[styles.customerInfoBar, { backgroundColor: isDark ? '#141D35' : '#F1F5F9', borderBottomColor: isDark ? '#2D3748' : '#E2E8F0' }]}>
+            <Icons.User color={isDark ? '#94A3B8' : '#64748B'} size={14} />
+            <Text style={[styles.customerInfoText, { color: isDark ? '#CBD5E1' : '#475569' }]} numberOfLines={1}>
+              {[userInfo.name, userInfo.phone, userInfo.email].filter(Boolean).join(' • ')}
+            </Text>
+          </View>
+        )}
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
           {/* Payment Method Selector */}
@@ -287,7 +309,14 @@ export default function RazorpayModal({
         </ScrollView>
 
         {/* Bottom Pay Button Footer */}
-        <View style={[styles.footer, { backgroundColor: isDark ? '#1C2541' : '#FFFFFF', borderTopColor: isDark ? '#334155' : '#E2E8F0' }]}>
+        <View style={[
+          styles.footer,
+          {
+            backgroundColor: isDark ? '#1C2541' : '#FFFFFF',
+            borderTopColor: isDark ? '#334155' : '#E2E8F0',
+            paddingBottom: Math.max(insets.bottom, 16),
+          }
+        ]}>
           <TouchableOpacity
             style={[styles.payButton, isProcessing && { opacity: 0.8 }]}
             onPress={handlePayNow}
@@ -303,7 +332,7 @@ export default function RazorpayModal({
             )}
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -370,6 +399,29 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 9,
     fontWeight: '900',
+  },
+  liveBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  liveBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  customerInfoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  customerInfoText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   headerSubtitle: {
     fontSize: 11,

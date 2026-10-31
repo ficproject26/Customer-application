@@ -811,7 +811,8 @@ export default function CustomerOrders() {
     if (!order) return 'Products';
     const rawCat = String(order.category || '').trim();
     const rawType = String((order as any).type || '').trim();
-    const rawOrderType = String(order.order_type || '').trim();
+    const rawOrderType = String(order.order_type || '').trim().toLowerCase();
+    const rawBookingType = String((order as any).booking_type || (order as any).bookingType || '').trim().toLowerCase();
     const rawNum = String(order.order_number || order.id || '');
     const details = String(order.product_details || '').toLowerCase();
     const firstItemCat = String(order.items?.[0]?.category || '').trim();
@@ -820,8 +821,8 @@ export default function CustomerOrders() {
 
     // 1. Jobs
     if (
-      rawCat === 'Jobs' || rawCat.toLowerCase() === 'jobs' ||
-      rawType === 'Job' || rawType === 'Jobs' ||
+      rawCat.toLowerCase() === 'jobs' || rawCat.toLowerCase() === 'job' ||
+      rawType.toLowerCase() === 'jobs' || rawType.toLowerCase() === 'job' ||
       rawNum.startsWith('JOB') || rawNum.includes('job') ||
       Boolean(order.application_status) || Boolean(order.resume_name) ||
       Boolean(order.applicant_education) || Boolean((order as any).candidateResume)
@@ -829,49 +830,55 @@ export default function CustomerOrders() {
       return 'Jobs';
     }
 
-    // 2. Stay
+    // 2. Authoritative Services / Home Services / Appointments
     if (
-      rawCat === 'Stay' || rawType === 'Stay' ||
-      firstItemCat.toLowerCase() === 'viila' || firstItemCat.toLowerCase() === 'villa' || firstItemCat.toLowerCase() === 'resort' || firstItemCat.toLowerCase() === 'hotel' ||
-      anyItemCat.includes('villa') || anyItemCat.includes('viila') || anyItemCat.includes('resort') || anyItemCat.includes('hotel') ||
-      Boolean((order as any).hotel_name) || Boolean((order as any).check_in) || Boolean((order as any).checkInDate) ||
-      /\b(villa|viila|resort|hotel|deluxe room|room stay|night stay|nights? stay)\b/i.test(details) ||
-      /\b(villa|viila|resort|hotel|deluxe room)\b/i.test(anyItemName)
+      rawCat === 'Services' || rawCat === 'Service' || rawCat === 'Home Services' ||
+      rawType === 'Services' || rawType === 'Service' || rawType === 'Home Services' ||
+      rawBookingType === 'service' || rawBookingType === 'services' ||
+      rawCat.toLowerCase() === 'services' || rawCat.toLowerCase() === 'service' || rawCat.toLowerCase() === 'home services' ||
+      rawType.toLowerCase() === 'services' || rawType.toLowerCase() === 'service' || rawType.toLowerCase() === 'home services' ||
+      ['healthcare', 'automobile', 'education', 'financial', 'legal', 'it/digital'].includes(rawCat.toLowerCase()) ||
+      ['healthcare', 'automobile', 'education', 'financial', 'legal', 'it/digital'].includes(rawType.toLowerCase()) ||
+      Boolean((order as any).appointment_slot) || Boolean((order as any).appointmentDate) || Boolean((order as any).appointmentTimeSlot) ||
+      rawNum.startsWith('SRV-') ||
+      (/\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(details) && !['stay', 'travel', 'bus', 'flight'].includes(rawCat.toLowerCase())) ||
+      (/\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(anyItemName) && !['stay', 'travel', 'bus', 'flight'].includes(rawCat.toLowerCase()))
     ) {
-      return 'Stay';
+      return 'Services';
     }
 
-    // 3. Travel
+    // 3. Authoritative Travel / Bus / Transport
     if (
-      rawCat === 'Travel' || rawType === 'Travel' || rawCat === 'Bus' || rawType === 'Bus' ||
-      anyItemCat.includes('bus') || anyItemCat.includes('flight') || anyItemCat.includes('travel') ||
+      rawCat === 'Travel' || rawCat === 'Bus' || rawCat.toLowerCase() === 'travel' || rawCat.toLowerCase() === 'bus' ||
+      rawType === 'Travel' || rawType === 'Bus' || rawType.toLowerCase() === 'travel' || rawType.toLowerCase() === 'bus' ||
+      rawBookingType === 'travel' || rawBookingType === 'bus' ||
       Boolean((order as any).boarding_point) || Boolean((order as any).dropping_point) ||
       Boolean((order as any).boardingPoint) || Boolean((order as any).droppingPoint) ||
-      Boolean((order as any).travelers?.length) ||
+      Boolean((order as any).bus_name) || Boolean((order as any).busNumber) ||
+      anyItemCat.includes('bus') || anyItemCat.includes('flight') || anyItemCat.includes('travel') ||
       /\b(bus|travels?|volvo|sleeper|seater|ksrtc|vrl|intrcity|airavat|flight)\b/i.test(details) ||
       /\b(bus|travels?|ksrtc|vrl|intrcity|airavat)\b/i.test(String(order.vendor_name || ''))
     ) {
       return 'Travel';
     }
 
-    // 4. Services
+    // 4. Authoritative Stay / Hotel / Resort
     if (
-      rawCat === 'Services' || rawCat === 'Service' || rawType === 'Services' || rawType === 'Service' ||
-      rawType === 'Home Services' || /services?/i.test(rawCat) || /services?/i.test(rawType) ||
-      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(rawCat) ||
-      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control)\b/i.test(anyItemCat) ||
-      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(details) ||
-      /\b(electrician|plumber|plumbers|carpenter|carpenters|cleaning|salon|healthcare|doctor|appliance|pest control|service & jet wash|jet wash|home service|mechanic|painter|technician)\b/i.test(anyItemName) ||
-      Boolean((order as any).appointment_slot) || Boolean((order as any).appointmentDate) || Boolean((order as any).appointmentTimeSlot) ||
-      rawNum.startsWith('SRV-') || rawNum.startsWith('BK-') ||
-      (rawOrderType === 'booking' && !['Stay', 'Travel', 'Jobs'].includes(rawCat))
+      rawCat === 'Stay' || rawCat.toLowerCase() === 'stay' || rawCat.toLowerCase() === 'hotel' || rawCat.toLowerCase() === 'resort' ||
+      rawType === 'Stay' || rawType.toLowerCase() === 'stay' || rawType.toLowerCase() === 'hotel' || rawType.toLowerCase() === 'resort' ||
+      rawBookingType === 'stay' || rawBookingType === 'hotel' || rawBookingType === 'resort' ||
+      firstItemCat.toLowerCase() === 'viila' || firstItemCat.toLowerCase() === 'villa' || firstItemCat.toLowerCase() === 'resort' || firstItemCat.toLowerCase() === 'hotel' ||
+      anyItemCat.includes('villa') || anyItemCat.includes('viila') || anyItemCat.includes('resort') || anyItemCat.includes('hotel') ||
+      Boolean((order as any).hotel_name) ||
+      /\b(villa|viila|resort|hotel|deluxe room|room stay|night stay|nights? stay)\b/i.test(details) ||
+      /\b(villa|viila|resort|hotel|deluxe room)\b/i.test(anyItemName)
     ) {
-      return 'Services';
+      return 'Stay';
     }
 
     // 5. Food & Dining
     if (
-      rawCat === 'Food' || rawType === 'Food' ||
+      rawCat === 'Food' || rawType === 'Food' || rawCat.toLowerCase() === 'food' || rawType.toLowerCase() === 'food' ||
       /\b(north indian|south indian|chinese|biryani|restaurant|dining|fast food|bakery|beverages|cafe)\b/i.test(rawCat) ||
       /\b(north indian|south indian|chinese|biryani|restaurant|dining|fast food|bakery|beverages|cafe)\b/i.test(anyItemCat) ||
       /\b(biryani|naan|roti|curry|paneer|chicken|dosa|idli|thali|pizza|burger|fried rice|noodles|sandwich|shawarma|tandoor|tikka|meal|meals)\b/i.test(details) ||
@@ -882,7 +889,7 @@ export default function CustomerOrders() {
 
     // 6. Daily Needs / Grocery
     if (
-      rawCat === 'Daily Needs' || rawType === 'Daily Needs' ||
+      rawCat === 'Daily Needs' || rawType === 'Daily Needs' || rawCat.toLowerCase() === 'daily needs' || rawType.toLowerCase() === 'daily needs' ||
       /\b(groceries|grocery|dairy|daily|supermarket)\b/i.test(rawCat) ||
       /\b(groceries|grocery|dairy|daily|supermarket)\b/i.test(anyItemCat) ||
       /\b(milk|lays|curd|bread|eggs?|butter|chips|paneer|biscuit|biscuits|tea|coffee|atta|rice|dal|sugar|oil|vegetables?|fruits?)\b/i.test(details) ||
@@ -892,11 +899,18 @@ export default function CustomerOrders() {
     }
 
     // 7. Products
-    if (rawCat === 'Products' || rawType === 'Products' || rawCat === 'Electronics' || rawCat === 'Fashion') {
+    if (
+      rawCat === 'Products' || rawType === 'Products' || rawCat.toLowerCase() === 'products' || rawType.toLowerCase() === 'products' ||
+      rawCat === 'Electronics' || rawCat === 'Fashion'
+    ) {
       return 'Products';
     }
 
-    if (rawOrderType === 'booking') return 'Services';
+    // 8. Default fallback for booking order_type
+    if (rawOrderType === 'booking' || rawNum.startsWith('BK-')) {
+      return 'Services';
+    }
+
     return 'Products';
   };
 
@@ -941,7 +955,7 @@ export default function CustomerOrders() {
       case 'Stay':
         return { label: 'STAY BOOKING', color: '#0EA5E9', icon: Icons.Hotel };
       case 'Travel':
-        return { label: 'BUS TICKET', color: '#EC4899', icon: Icons.Bus };
+        return { label: 'TRAVEL BOOKING', color: '#EC4899', icon: Icons.Bus };
       case 'Jobs':
         return { label: 'JOB APPLICATION', color: '#059669', icon: Icons.Briefcase };
       default:
@@ -949,15 +963,15 @@ export default function CustomerOrders() {
     }
   };
 
-  // Helper to determine if an order is a Bus Booking
+  // Helper to determine if an order is a Bus / Travel Booking
   const isBusOrder = (order: Order | null | undefined): boolean => {
     if (!order) return false;
     const cat = String(order.category || '').toLowerCase();
     const normCat = normalizeOrderCategory(order).toLowerCase();
     const pd = String(order.product_details || '').toLowerCase();
     const vendor = String(order.vendor_name || '').toLowerCase();
-    const hasBoarding = Boolean((order as any).boarding_point);
-    const hasDropping = Boolean((order as any).dropping_point);
+    const hasBoarding = Boolean((order as any).boarding_point || (order as any).boardingPoint);
+    const hasDropping = Boolean((order as any).dropping_point || (order as any).droppingPoint);
     const hasTravelers = Boolean((order as any).travelers && (order as any).travelers.length > 0);
 
     if (cat === 'travel' || normCat === 'travel') return true;
@@ -976,16 +990,16 @@ export default function CustomerOrders() {
   const isServiceOrder = (order: Order | null | undefined): boolean => {
     if (!order) return false;
     if (isBusOrder(order)) return false;
-    const cat = String(order.category || '').toLowerCase();
     const normCat = normalizeOrderCategory(order).toLowerCase();
+    if (normCat === 'services') return true;
+    const cat = String(order.category || '').toLowerCase();
     const ordType = String(order.order_type || (order as any).type || '').toLowerCase();
     const ordNum = String(order.order_number || order.id || '').toUpperCase();
     const pd = String(order.product_details || '').toLowerCase();
 
-    if (ordNum.startsWith('BK-') || ordNum.includes('SRV') || ordNum.includes('BK')) return true;
+    if (ordNum.startsWith('SRV-')) return true;
     if (ordType === 'booking' && normCat !== 'stay' && normCat !== 'travel') return true;
     if (
-      normCat === 'services' ||
       cat.includes('service') ||
       cat.includes('repair') ||
       cat.includes('plumb') ||
@@ -1002,9 +1016,23 @@ export default function CustomerOrders() {
     if (
       /\b(repair|service|cleaning|jet wash|plumber|electrician|carpenter|inspection|technician|installation)\b/i.test(pd)
     ) {
-      if (!cat.includes('food') && !cat.includes('daily') && !pd.includes('biryani') && !pd.includes('milk')) return true;
+      if (!cat.includes('food') && !cat.includes('daily') && !pd.includes('biryani') && !pd.includes('milk') && !cat.includes('stay') && !cat.includes('travel')) return true;
     }
     return false;
+  };
+
+  // Helper to determine if an order is a Stay Booking
+  const isStayOrder = (order: Order | null | undefined): boolean => {
+    if (!order) return false;
+    const normCat = normalizeOrderCategory(order).toLowerCase();
+    return normCat === 'stay';
+  };
+
+  // Helper to determine if an order is a Travel / Ticket Booking
+  const isTravelOrder = (order: Order | null | undefined): boolean => {
+    if (!order) return false;
+    const normCat = normalizeOrderCategory(order).toLowerCase();
+    return normCat === 'travel' || isBusOrder(order);
   };
 
   // Helper to extract clean structured info from a Service Booking Order
@@ -2849,9 +2877,598 @@ export default function CustomerOrders() {
     );
   };
 
+  // Dedicated Service Booking Card (Per Section 3A Requirements)
+  const renderServiceBookingCard = (order: Order, customKey?: string) => {
+    const sInfo = getResolvedServiceInfo(order);
+    const statusMeta = getStatusMeta(order.status);
+    const isCancelled = isCancelledStatus(order.status);
+    const cardKey = customKey || `srv_booking_${order.id || order.order_number || Math.random()}`;
+
+    // Highlighted service name: e.g. "LINEMAN (Standard Service & Jet Wash)"
+    const rawPd = String(order.product_details || '');
+    let displayServiceName = '';
+    if (rawPd.includes('•')) {
+      displayServiceName = rawPd.split('•')[0].trim();
+      if (displayServiceName.includes('(') && !displayServiceName.endsWith(')')) {
+        displayServiceName += ')';
+      }
+    } else {
+      displayServiceName = rawPd || (order as any).serviceName || order.items?.[0]?.name || 'Professional Service';
+    }
+
+    const businessName = (order as any).business_name || order.vendor_name || order.provider_name || 'Connect Expert Partner';
+    const bookingIdStr = String(order.order_number || order.id || 'BK-1001');
+    const createdDateStr = new Date(order.created_at || (order as any).createdAt || Date.now()).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const paymentStatusStr = (order.payment_status || ((order as any).paymentStatus === 'Paid' ? 'Paid' : 'Paid')).toUpperCase();
+    const isPaymentPaid = paymentStatusStr.includes('PAID');
+
+    return (
+      <View
+        key={cardKey}
+        style={[
+          styles.orderCard,
+          {
+            backgroundColor: isLight ? '#FFFFFF' : 'rgba(13, 22, 54, 0.75)',
+            borderColor: isLight ? '#E9D5FF' : 'rgba(139, 92, 246, 0.25)',
+            opacity: isCancelled ? 0.75 : 1,
+            marginBottom: 14,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={() => setSelectedOrderForDetails(order)}
+          style={{ padding: 14 }}
+        >
+          {/* Top Row: Category Pill + Status Pill */}
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderLeft}>
+              <View
+                style={[
+                  styles.categoryPill,
+                  {
+                    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                    borderColor: 'rgba(139, 92, 246, 0.3)',
+                  },
+                ]}
+              >
+                <Icons.Wrench color="#8B5CF6" size={11} />
+                <Text style={[styles.categoryPillText, { color: '#8B5CF6' }]}>
+                  SERVICE BOOKING
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.statusPill,
+                { backgroundColor: statusMeta.bg, borderColor: statusMeta.border },
+              ]}
+            >
+              <Text style={[styles.statusPillText, { color: statusMeta.color }]}>
+                {statusMeta.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* First – Service Name (Highlight) */}
+          <View style={{ marginBottom: 4 }}>
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: '900',
+                color: isLight ? '#1E1B4B' : '#F5F3FF',
+                lineHeight: 22,
+              }}
+              numberOfLines={2}
+            >
+              {displayServiceName}
+            </Text>
+          </View>
+
+          {/* Second – Business / Vendor Name */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 12 }}>
+            <Icons.Store color={isLight ? '#7C3AED' : '#A78BFA'} size={13} />
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontWeight: '700',
+                color: isLight ? '#6B21A8' : '#C084FC',
+              }}
+              numberOfLines={1}
+            >
+              {businessName}
+            </Text>
+            <View
+              style={{
+                backgroundColor: isLight ? '#EDE9FE' : 'rgba(139, 92, 246, 0.2)',
+                paddingHorizontal: 5,
+                paddingVertical: 1,
+                borderRadius: 4,
+              }}
+            >
+              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#7C3AED' }}>Verified</Text>
+            </View>
+          </View>
+
+          {/* Third – Booking Information (Grid Container) */}
+          <View
+            style={{
+              backgroundColor: isLight ? '#FAF5FF' : 'rgba(139, 92, 246, 0.08)',
+              borderRadius: 12,
+              padding: 10,
+              borderWidth: 1,
+              borderColor: isLight ? '#F3E8FF' : 'rgba(139, 92, 246, 0.15)',
+              marginBottom: 10,
+            }}
+          >
+            {/* Booking ID & Booking Date */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ fontSize: 11, color: isLight ? '#6B7280' : '#9CA3AF' }}>Booking ID:</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: colors.text }}>#{bookingIdStr}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Icons.Calendar color={isLight ? '#6B7280' : '#9CA3AF'} size={11} />
+                <Text style={{ fontSize: 11, color: isLight ? '#6B7280' : '#9CA3AF' }}>Booked: {createdDateStr}</Text>
+              </View>
+            </View>
+
+            {/* Scheduled Service Date & Actual Time Slot */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 6,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: isLight ? '#E9D5FF' : 'rgba(139, 92, 246, 0.15)',
+                marginVertical: 4,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    backgroundColor: isLight ? '#EDE9FE' : 'rgba(139, 92, 246, 0.25)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icons.Clock color="#7C3AED" size={13} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: isLight ? '#6B7280' : '#9CA3AF', textTransform: 'uppercase' }}>
+                    Scheduled Service
+                  </Text>
+                  <Text style={{ fontSize: 12.5, fontWeight: '800', color: colors.text }}>
+                    {sInfo.dateStr}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: isLight ? '#6B7280' : '#9CA3AF', textTransform: 'uppercase' }}>
+                  Time Slot
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: isLight ? '#F5F3FF' : 'rgba(139, 92, 246, 0.2)',
+                    paddingHorizontal: 7,
+                    paddingVertical: 2,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: isLight ? '#DDD6FE' : 'rgba(139, 92, 246, 0.3)',
+                  }}
+                >
+                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#7C3AED' }}>
+                    {sInfo.timeStr}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Payment Status & Booking Amount */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 11, color: isLight ? '#6B7280' : '#9CA3AF' }}>Payment:</Text>
+                <View
+                  style={{
+                    backgroundColor: isPaymentPaid ? (isLight ? '#DCFCE7' : 'rgba(16, 185, 129, 0.15)') : (isLight ? '#FEF3C7' : 'rgba(245, 158, 11, 0.15)'),
+                    paddingHorizontal: 6,
+                    paddingVertical: 1.5,
+                    borderRadius: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '800',
+                      color: isPaymentPaid ? '#059669' : '#D97706',
+                    }}
+                  >
+                    {isPaymentPaid ? '● PAID' : '● PENDING'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                <Text style={{ fontSize: 11, color: isLight ? '#6B7280' : '#9CA3AF' }}>Amount:</Text>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: isLight ? '#0F172A' : '#F5B800' }}>
+                  ₹{(Number(order.amount || (order as any).finalAmount || 0)).toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Fourth – Customer Information & Execution Address */}
+          <View
+            style={{
+              flexDirection: 'column',
+              gap: 4,
+              borderTopWidth: 1,
+              borderTopColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.08)',
+              paddingTop: 8,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, marginRight: 8 }}>
+                <Icons.User color={isLight ? '#64748B' : '#94A3B8'} size={12} />
+                <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {sInfo.customerName}
+                </Text>
+              </View>
+              {sInfo.customerPhone ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icons.Phone color={isLight ? '#64748B' : '#94A3B8'} size={11} />
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: isLight ? '#475569' : '#94A3B8' }}>
+                    {sInfo.customerPhone}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {sInfo.serviceAddress ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                <Icons.MapPin color="#7C3AED" size={11} />
+                <Text
+                  style={{
+                    fontSize: 10.5,
+                    color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.65)',
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
+                  {sInfo.serviceAddress}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Bottom Tap to View Details Indicator */}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 10,
+              paddingTop: 8,
+              borderTopWidth: 1,
+              borderTopColor: isLight ? '#F3E8FF' : 'rgba(255, 255, 255, 0.06)',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Icons.ShieldCheck color="#10B981" size={13} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>
+                Service Security PIN: {sInfo.otpCode}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: isLight ? '#7C3AED' : '#C084FC' }}>
+                View Details
+              </Text>
+              <Icons.ChevronRight color={isLight ? '#7C3AED' : '#C084FC'} size={13} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Dedicated Stay Booking Card (Per Section 3B Requirements)
+  const renderStayBookingCard = (order: Order, customKey?: string) => {
+    const o = order as any;
+    const statusMeta = getStatusMeta(order.status);
+    const isCancelled = isCancelledStatus(order.status);
+    const cardKey = customKey || `stay_booking_${order.id || order.order_number || Math.random()}`;
+
+    const stayName = o.hotel_name || o.stay_name || o.product_details?.split('(')[0]?.trim() || o.items?.[0]?.name || 'Luxury Stay';
+    const businessName = o.business_name || order.vendor_name || 'Hotel & Resort Partner';
+    const bookingIdStr = String(order.order_number || order.id || 'BK-STAY-101');
+    const checkInStr = o.checkInDate || o.check_in || (o.dates?.split('to')[0]?.trim()) || 'Check-in: 02:00 PM';
+    const checkOutStr = o.checkOutDate || o.check_out || (o.dates?.split('to')[1]?.trim()) || 'Check-out: 11:00 AM';
+    const roomTypeStr = o.room_type || o.roomName || 'Deluxe Room';
+    const guestsStr = o.guests_count || (o.adults ? `${o.adults} Adults${o.children ? `, ${o.children} Children` : ''}` : '2 Guests');
+    const paymentStatusStr = (order.payment_status || (o.paymentStatus === 'Paid' ? 'Paid' : 'Paid')).toUpperCase();
+    const isPaymentPaid = paymentStatusStr.includes('PAID');
+    const customerName = order.customer_name || o.memberName || currentUser?.name || 'Customer';
+    const customerPhone = order.customer_phone || o.customerPhone || o.phone || currentUser?.phone || '';
+    const propertyAddress = o.customer_address || o.property_address || o.location || '';
+
+    return (
+      <View
+        key={cardKey}
+        style={[
+          styles.orderCard,
+          {
+            backgroundColor: isLight ? '#FFFFFF' : 'rgba(13, 22, 54, 0.75)',
+            borderColor: isLight ? '#BAE6FD' : 'rgba(14, 165, 233, 0.25)',
+            opacity: isCancelled ? 0.75 : 1,
+            marginBottom: 14,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={() => setSelectedOrderForDetails(order)}
+          style={{ padding: 14 }}
+        >
+          {/* Top Row: Category Pill + Status Pill */}
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderLeft}>
+              <View
+                style={[
+                  styles.categoryPill,
+                  {
+                    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                    borderColor: 'rgba(14, 165, 233, 0.3)',
+                  },
+                ]}
+              >
+                <Icons.Hotel color="#0EA5E9" size={11} />
+                <Text style={[styles.categoryPillText, { color: '#0EA5E9' }]}>
+                  STAY BOOKING
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.statusPill,
+                { backgroundColor: statusMeta.bg, borderColor: statusMeta.border },
+              ]}
+            >
+              <Text style={[styles.statusPillText, { color: statusMeta.color }]}>
+                {statusMeta.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* First – Stay / Property Name */}
+          <View style={{ marginBottom: 4 }}>
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: '900',
+                color: isLight ? '#0C4A6E' : '#E0F2FE',
+                lineHeight: 22,
+              }}
+              numberOfLines={2}
+            >
+              {stayName}
+            </Text>
+          </View>
+
+          {/* Second – Business Name */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 12 }}>
+            <Icons.Building2 color={isLight ? '#0284C7' : '#38BDF8'} size={13} />
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontWeight: '700',
+                color: isLight ? '#0369A1' : '#7DD3FC',
+              }}
+              numberOfLines={1}
+            >
+              {businessName}
+            </Text>
+          </View>
+
+          {/* Third – Stay Booking Information (Grid Container) */}
+          <View
+            style={{
+              backgroundColor: isLight ? '#F0F9FF' : 'rgba(14, 165, 233, 0.08)',
+              borderRadius: 12,
+              padding: 10,
+              borderWidth: 1,
+              borderColor: isLight ? '#E0F2FE' : 'rgba(14, 165, 233, 0.15)',
+              marginBottom: 10,
+            }}
+          >
+            {/* Booking ID */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ fontSize: 11, color: isLight ? '#6B7280' : '#9CA3AF' }}>Booking ID:</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: colors.text }}>#{bookingIdStr}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Icons.Bed color="#0284C7" size={12} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>{roomTypeStr}</Text>
+              </View>
+            </View>
+
+            {/* Check-In & Check-Out Date & Time */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 8,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: isLight ? '#BAE6FD' : 'rgba(14, 165, 233, 0.15)',
+                marginVertical: 4,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', textTransform: 'uppercase' }}>
+                    Check-In
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text, marginTop: 2 }}>
+                  {checkInStr}
+                </Text>
+              </View>
+
+              <View style={{ paddingHorizontal: 8, alignItems: 'center' }}>
+                <Icons.ArrowRight color="#0284C7" size={14} />
+                {o.nightsCount ? (
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#0284C7' }}>
+                    {o.nightsCount}N
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#3B82F6' }} />
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', textTransform: 'uppercase' }}>
+                    Check-Out
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text, marginTop: 2, textAlign: 'right' }}>
+                  {checkOutStr}
+                </Text>
+              </View>
+            </View>
+
+            {/* Guests, Payment Status & Amount */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Icons.Users color={isLight ? '#64748B' : '#94A3B8'} size={12} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>{guestsStr}</Text>
+                <View
+                  style={{
+                    backgroundColor: isPaymentPaid ? (isLight ? '#DCFCE7' : 'rgba(16, 185, 129, 0.15)') : (isLight ? '#FEF3C7' : 'rgba(245, 158, 11, 0.15)'),
+                    paddingHorizontal: 5,
+                    paddingVertical: 1,
+                    borderRadius: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 9.5,
+                      fontWeight: '800',
+                      color: isPaymentPaid ? '#059669' : '#D97706',
+                    }}
+                  >
+                    {isPaymentPaid ? 'PAID' : 'PENDING'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                <Text style={{ fontSize: 11, color: isLight ? '#6B7280' : '#9CA3AF' }}>Total:</Text>
+                <Text style={{ fontSize: 15, fontWeight: '900', color: isLight ? '#0F172A' : '#F5B800' }}>
+                  ₹{(Number(order.amount || o.finalAmount || 0)).toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Fourth – Customer Details & Location */}
+          <View
+            style={{
+              flexDirection: 'column',
+              gap: 4,
+              borderTopWidth: 1,
+              borderTopColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.08)',
+              paddingTop: 8,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, marginRight: 8 }}>
+                <Icons.User color={isLight ? '#64748B' : '#94A3B8'} size={12} />
+                <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                  {customerName}
+                </Text>
+              </View>
+              {customerPhone ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icons.Phone color={isLight ? '#64748B' : '#94A3B8'} size={11} />
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: isLight ? '#475569' : '#94A3B8' }}>
+                    {customerPhone}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {propertyAddress ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                <Icons.MapPin color="#0EA5E9" size={11} />
+                <Text
+                  style={{
+                    fontSize: 10.5,
+                    color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.65)',
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
+                  {propertyAddress}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Bottom Tap to View Details Indicator */}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 10,
+              paddingTop: 8,
+              borderTopWidth: 1,
+              borderTopColor: isLight ? '#E0F2FE' : 'rgba(255, 255, 255, 0.06)',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Icons.ShieldCheck color="#0EA5E9" size={13} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#0284C7' }}>
+                Confirmed Stay Voucher
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: isLight ? '#0284C7' : '#38BDF8' }}>
+                View Stay Details
+              </Text>
+              <Icons.ChevronRight color={isLight ? '#0284C7' : '#38BDF8'} size={13} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   // Render Order Card Component
   const renderOrderCard = (order: Order, customKey?: string) => {
-    if (isBusOrder(order)) {
+    const normCat = normalizeOrderCategory(order);
+    if (normCat === 'Services' || isServiceOrder(order)) {
+      return renderServiceBookingCard(order, customKey);
+    }
+    if (normCat === 'Stay' || isStayOrder(order)) {
+      return renderStayBookingCard(order, customKey);
+    }
+    if (normCat === 'Travel' || isBusOrder(order)) {
       return renderBusTicketCard(order, customKey);
     }
     const categoryMeta = getCategoryMeta(order);
@@ -5466,6 +6083,370 @@ export default function CustomerOrders() {
                               </TouchableOpacity>
                             )}
                           </View>
+                        </ScrollView>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : isStayOrder(selectedOrderForDetails) ? (
+                <>
+                  {/* Dedicated Stay Reservation Booking Sheet (Per Section 3B Requirements) */}
+                  {(() => {
+                    const o = selectedOrderForDetails as any;
+                    const statusMeta = getStatusMeta(selectedOrderForDetails.status);
+                    const isCancelled = isCancelledStatus(selectedOrderForDetails.status);
+                    const isCompleted = isCompletedStatus(selectedOrderForDetails.status);
+                    const stayName = o.hotel_name || o.stay_name || o.product_details?.split('(')[0]?.trim() || o.items?.[0]?.name || 'Luxury Stay';
+                    const businessName = o.business_name || selectedOrderForDetails.vendor_name || 'Hotel & Resort Partner';
+                    const bookingIdStr = String(selectedOrderForDetails.order_number || selectedOrderForDetails.id || 'BK-STAY-101');
+                    const checkInStr = o.checkInDate || o.check_in || (o.dates?.split('to')[0]?.trim()) || '02:00 PM';
+                    const checkOutStr = o.checkOutDate || o.check_out || (o.dates?.split('to')[1]?.trim()) || '11:00 AM';
+                    const roomTypeStr = o.room_type || o.roomName || 'Deluxe Room';
+                    const guestsStr = o.guests_count || (o.adults ? `${o.adults} Adults${o.children ? `, ${o.children} Children` : ''}` : '2 Guests');
+                    const paymentStatusStr = (selectedOrderForDetails.payment_status || (o.paymentStatus === 'Paid' ? 'Paid' : 'Paid')).toUpperCase();
+                    const isPaymentPaid = paymentStatusStr.includes('PAID');
+                    const customerName = selectedOrderForDetails.customer_name || o.memberName || currentUser?.name || 'Customer';
+                    const customerPhone = selectedOrderForDetails.customer_phone || o.customerPhone || o.phone || currentUser?.phone || '';
+                    const propertyAddress = o.customer_address || o.property_address || o.location || 'Bangalore, Karnataka';
+                    const stepData = getStepperDataForOrder(selectedOrderForDetails);
+
+                    return (
+                      <>
+                        {/* 1. Modal Header */}
+                        <View
+                          style={[
+                            styles.modalHeader,
+                            { borderBottomColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.08)' },
+                          ]}
+                        >
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={[styles.modalTitle, { color: colors.text }]}>Stay Reservation Details</Text>
+                              <View
+                                style={[
+                                  styles.categoryPill,
+                                  {
+                                    backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                                    borderColor: 'rgba(14, 165, 233, 0.3)',
+                                  },
+                                ]}
+                              >
+                                <Icons.Hotel color="#0EA5E9" size={11} />
+                                <Text style={[styles.categoryPillText, { color: '#0EA5E9' }]}>
+                                  STAY BOOKING
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                              <Text
+                                style={[
+                                  styles.orderNumberText,
+                                  { color: isLight ? '#64748B' : 'rgba(255, 255, 255, 0.6)' },
+                                ]}
+                              >
+                                #{bookingIdStr}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  Alert.alert('Copied', `Stay Booking #${bookingIdStr} copied!`);
+                                }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Icons.Copy color="#0EA5E9" size={13} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => setSelectedOrderForDetails(null)}
+                            style={styles.modalCloseBtn}
+                          >
+                            <Icons.X color={colors.text} size={18} />
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* Modal Body */}
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+                          {/* 1. Property & Room Card */}
+                          <View
+                            style={{
+                              backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                              borderRadius: 16,
+                              borderWidth: 1,
+                              borderColor: isLight ? '#E0F2FE' : 'rgba(14, 165, 233, 0.2)',
+                              padding: 14,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                              <View
+                                style={{
+                                  width: 52,
+                                  height: 52,
+                                  borderRadius: 12,
+                                  backgroundColor: isLight ? '#E0F2FE' : 'rgba(14, 165, 233, 0.2)',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <Icons.Hotel color="#0EA5E9" size={26} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 16, fontWeight: '900', color: colors.text }} numberOfLines={1}>
+                                  {stayName}
+                                </Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: isLight ? '#0369A1' : '#7DD3FC', marginTop: 1 }}>
+                                  {businessName} • {roomTypeStr}
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                                  <Icons.MapPin color="#0EA5E9" size={11} />
+                                  <Text style={{ fontSize: 11, color: isLight ? '#64748B' : '#94A3B8' }} numberOfLines={1}>
+                                    {propertyAddress}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* 2. Check-In & Check-Out Schedule Card */}
+                          <View
+                            style={{
+                              backgroundColor: isLight ? '#F0F9FF' : 'rgba(14, 165, 233, 0.08)',
+                              borderRadius: 16,
+                              borderWidth: 1,
+                              borderColor: isLight ? '#BAE6FD' : 'rgba(14, 165, 233, 0.2)',
+                              padding: 14,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              {/* Check-In */}
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' }} />
+                                  <Text style={{ fontSize: 11, fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', textTransform: 'uppercase' }}>
+                                    Check-In
+                                  </Text>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: '900', color: colors.text, marginTop: 4 }}>
+                                  {checkInStr}
+                                </Text>
+                              </View>
+
+                              {/* Duration Arrow */}
+                              <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
+                                <Icons.ArrowRight color="#0284C7" size={18} />
+                                {o.nightsCount ? (
+                                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#0284C7', marginTop: 2 }}>
+                                    {o.nightsCount} Night(s)
+                                  </Text>
+                                ) : null}
+                              </View>
+
+                              {/* Check-Out */}
+                              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3B82F6' }} />
+                                  <Text style={{ fontSize: 11, fontWeight: '800', color: isLight ? '#64748B' : '#94A3B8', textTransform: 'uppercase' }}>
+                                    Check-Out
+                                  </Text>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: '900', color: colors.text, marginTop: 4, textAlign: 'right' }}>
+                                  {checkOutStr}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: isLight ? '#E0F2FE' : 'rgba(14, 165, 233, 0.15)' }}>
+                              <Icons.Users color="#0EA5E9" size={14} />
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }}>
+                                Guests: {guestsStr}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* 3. Stepper Card */}
+                          <View
+                            style={{
+                              backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                              borderRadius: 16,
+                              borderWidth: 1,
+                              borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
+                              padding: 14,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '900', color: colors.text }}>
+                                Reservation Status
+                              </Text>
+                              <View
+                                style={[
+                                  styles.statusPill,
+                                  { backgroundColor: statusMeta.bg, borderColor: statusMeta.border },
+                                ]}
+                              >
+                                <Text style={[styles.statusPillText, { color: statusMeta.color, fontSize: 10 }]}>
+                                  {statusMeta.label}
+                                </Text>
+                              </View>
+                            </View>
+
+                            <Text style={{ fontSize: 12, color: isLight ? '#475569' : '#CBD5E1', marginBottom: 14 }}>
+                              {stepData.statusDescription || 'Your stay reservation has been confirmed with the property.'}
+                            </Text>
+
+                            {/* Stepper Steps */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 }}>
+                              <View style={{ alignItems: 'center' }}>
+                                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Icons.Check color="#FFFFFF" size={13} strokeWidth={3} />
+                                </View>
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.text, marginTop: 4 }}>Confirmed</Text>
+                              </View>
+                              <View style={{ flex: 1, height: 2, backgroundColor: stepData.step2.done ? '#10B981' : '#E2E8F0', marginHorizontal: 4 }} />
+                              <View style={{ alignItems: 'center' }}>
+                                <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: stepData.step2.done ? '#10B981' : '#CBD5E1', backgroundColor: stepData.step2.done ? '#10B981' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                                  {stepData.step2.done && <Icons.Check color="#FFFFFF" size={11} strokeWidth={3} />}
+                                </View>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: colors.text, marginTop: 4 }}>Check-in Ready</Text>
+                              </View>
+                              <View style={{ flex: 1, height: 2, backgroundColor: isCompleted ? '#10B981' : '#E2E8F0', marginHorizontal: 4 }} />
+                              <View style={{ alignItems: 'center' }}>
+                                <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: isCompleted ? '#10B981' : '#CBD5E1', backgroundColor: isCompleted ? '#10B981' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                                  {isCompleted && <Icons.Check color="#FFFFFF" size={11} strokeWidth={3} />}
+                                </View>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: colors.text, marginTop: 4 }}>Completed</Text>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* 4. Govt Photo ID Info Box */}
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: 12,
+                              backgroundColor: isLight ? '#FFFBEB' : 'rgba(245, 158, 11, 0.12)',
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              borderColor: isLight ? '#FDE68A' : 'rgba(245, 158, 11, 0.25)',
+                              marginBottom: 12,
+                            }}
+                          >
+                            <Icons.AlertCircle color="#D97706" size={18} />
+                            <Text style={{ fontSize: 11.5, color: isLight ? '#92400E' : '#FCD34D', flex: 1, lineHeight: 16 }}>
+                              Please carry valid Government Photo ID proof (Aadhaar / Passport / Driving License) for all adult guests during check-in.
+                            </Text>
+                          </View>
+
+                          {/* 5. Guest Information Card */}
+                          <View
+                            style={{
+                              backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                              borderRadius: 16,
+                              borderWidth: 1,
+                              borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
+                              padding: 14,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginBottom: 8 }}>
+                              Guest & Contact Details
+                            </Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Text style={{ fontSize: 11.5, color: isLight ? '#64748B' : '#94A3B8' }}>Primary Guest:</Text>
+                              <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>{customerName}</Text>
+                            </View>
+                            {customerPhone ? (
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <Text style={{ fontSize: 11.5, color: isLight ? '#64748B' : '#94A3B8' }}>Contact Number:</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }}>{customerPhone}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+
+                          {/* 6. Payment Breakdown Card */}
+                          <View
+                            style={{
+                              backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.04)',
+                              borderRadius: 16,
+                              borderWidth: 1,
+                              borderColor: isLight ? '#E2E8F0' : colors.cardBorder,
+                              padding: 14,
+                              marginBottom: 16,
+                            }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginBottom: 10 }}>
+                              Payment Summary
+                            </Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <Text style={{ fontSize: 12, color: isLight ? '#64748B' : '#94A3B8' }}>Total Amount</Text>
+                              <Text style={{ fontSize: 15, fontWeight: '900', color: isLight ? '#0F172A' : '#F5B800' }}>
+                                ₹{(Number(selectedOrderForDetails.amount || o.finalAmount || 0)).toLocaleString('en-IN')}
+                              </Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ fontSize: 12, color: isLight ? '#64748B' : '#94A3B8' }}>Payment Status</Text>
+                              <View
+                                style={{
+                                  backgroundColor: isPaymentPaid ? (isLight ? '#DCFCE7' : 'rgba(16, 185, 129, 0.15)') : '#FEF3C7',
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 1.5,
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: isPaymentPaid ? '#059669' : '#D97706' }}>
+                                  {isPaymentPaid ? 'PAID' : 'PENDING'}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* 7. Action Buttons */}
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                              style={[
+                                styles.invoiceDownloadBtn,
+                                { flex: 1, backgroundColor: '#0EA5E9' },
+                              ]}
+                              onPress={() => downloadInvoicePDF(selectedOrderForDetails)}
+                              activeOpacity={0.85}
+                            >
+                              <Icons.Download color="#FFFFFF" size={15} />
+                              <Text style={[styles.invoiceDownloadBtnText, { color: '#FFFFFF' }]}>Download Voucher</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[
+                                styles.invoiceShareBtn,
+                                {
+                                  backgroundColor: isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',
+                                  borderColor: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.15)',
+                                  borderWidth: 1,
+                                },
+                              ]}
+                              onPress={() => shareInvoicePDF(selectedOrderForDetails)}
+                              activeOpacity={0.85}
+                            >
+                              <Icons.Share2 color={colors.text} size={15} />
+                              <Text style={[styles.invoiceShareBtnText, { color: colors.text }]}>Share</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {isActiveStatus(selectedOrderForDetails.status) && (
+                            <TouchableOpacity
+                              style={[styles.cancelOrderBtn, { marginTop: 10 }]}
+                              onPress={() => {
+                                const o = selectedOrderForDetails;
+                                setSelectedOrderForDetails(null);
+                                setSelectedOrderForCancel(o);
+                              }}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.cancelOrderBtnText}>Cancel Reservation</Text>
+                            </TouchableOpacity>
+                          )}
                         </ScrollView>
                       </>
                     );

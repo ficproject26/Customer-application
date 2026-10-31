@@ -109,39 +109,85 @@ export const LOCATION_ALIASES: Record<string, string> = {
   coorg: 'coorg',
   ooty: 'ooty',
   kochi: 'kochi',
+  tiruppur: 'tiruppur',
+  hosur: 'hosur',
+  nilambur: 'nilambur',
 };
+
+export function extractLocationBaseName(loc: any): string {
+  if (!loc) return '';
+  let str = '';
+  if (typeof loc === 'string') {
+    str = loc;
+  } else if (typeof loc === 'object') {
+    str = loc.city || loc.name || loc.point || '';
+  }
+  return str.split('(')[0].replace(/\[.*\]/, '').trim();
+}
 
 export function normalizeLocationName(loc: string): string {
   if (!loc) return '';
-  const clean = loc.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  const base = extractLocationBaseName(loc);
+  const clean = base.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  if (LOCATION_ALIASES[clean]) {
+    return LOCATION_ALIASES[clean];
+  }
   for (const [alias, canonical] of Object.entries(LOCATION_ALIASES)) {
-    if (clean.includes(alias) || alias.includes(clean)) {
+    if (clean === alias || clean === canonical) {
       return canonical;
     }
   }
   return clean;
 }
 
-export function matchesLocation(actual: string, query: string, subLocations: string[] = []): boolean {
-  if (!query || !query.trim()) return true;
-  const normQuery = normalizeLocationName(query);
-  const normActual = normalizeLocationName(actual);
-  if (normActual && normQuery && (normActual === normQuery || normActual.includes(normQuery) || normQuery.includes(normActual))) {
-    return true;
-  }
-  const qLower = query.toLowerCase().trim();
-  if (actual && actual.toLowerCase().includes(qLower)) return true;
+export function matchesLocation(actual: string, query: string, subLocations: any[] = []): boolean {
+  if (!query || !query.trim() || query.trim().toLowerCase() === 'all') return true;
+  const qClean = query.trim().toLowerCase();
+  const qBase = extractLocationBaseName(query).toLowerCase();
+  const normQuery = normalizeLocationName(qBase);
+
+  const candidateStrings: string[] = [];
+  if (actual) candidateStrings.push(String(actual));
 
   if (Array.isArray(subLocations)) {
     for (const sub of subLocations) {
       if (!sub) continue;
-      const normSub = normalizeLocationName(sub);
-      if (normSub && normQuery && (normSub === normQuery || normSub.includes(normQuery) || normQuery.includes(normSub))) {
-        return true;
+      if (typeof sub === 'string') {
+        candidateStrings.push(sub);
+      } else if (typeof sub === 'object') {
+        if (sub.name) candidateStrings.push(String(sub.name));
+        if (sub.city) candidateStrings.push(String(sub.city));
+        if (sub.point) candidateStrings.push(String(sub.point));
       }
-      if (sub.toLowerCase().includes(qLower)) return true;
     }
   }
+
+  for (const cand of candidateStrings) {
+    if (!cand) continue;
+    const candLower = cand.toLowerCase().trim();
+    const candBase = extractLocationBaseName(cand).toLowerCase();
+    const normCand = normalizeLocationName(candBase);
+
+    // 1. Canonical alias match (e.g. madurai === madurai, bengaluru === bangalore)
+    if (normCand && normQuery && normCand === normQuery) {
+      return true;
+    }
+    // 2. Exact word / base match
+    if (candBase === qBase || candBase === qClean || candLower === qClean) {
+      return true;
+    }
+    // 3. Substring match on base city names when at word boundaries
+    if (candBase.length >= 3 && qBase.length >= 3) {
+      const words = candBase.split(/[\s,/-]+/);
+      if (words.some(w => w === qBase || normalizeLocationName(w) === normQuery)) {
+        return true;
+      }
+      if (candBase.startsWith(qBase) || qBase.startsWith(candBase)) {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 

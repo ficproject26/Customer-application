@@ -40,6 +40,8 @@ local.properties
 node_modules/
 npm-debug.log
 yarn-error.log
+scratch/
+travel_screen_check.png
 
 # fastlane
 #

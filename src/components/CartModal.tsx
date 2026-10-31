@@ -27,7 +27,9 @@ export default function CartModal({ visible, onClose, navigation }: CartModalPro
   // Calculate total amount
   const calculateTotal = () => {
     return cartItems.reduce((acc, item) => {
-      const numericPrice = parseInt(item.price.replace(/[^\d]/g, ''), 10) || 0;
+      const numericPrice = typeof item.price === 'number'
+        ? item.price
+        : (parseInt(String(item.price || '0').replace(/[^\d]/g, ''), 10) || 0);
       return acc + (numericPrice * item.quantity);
     }, 0);
   };
