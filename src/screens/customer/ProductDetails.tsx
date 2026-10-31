@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -259,6 +260,43 @@ export default function ProductDetails() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Fetch full details from MongoDB Atlas silently in the background
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    const pId = rawItem?.id || rawItem?._id || routeParams.productId;
+    if (!pId) return;
+    setRefreshing(true);
+    try {
+      const res = await apiFetch(`/products/${pId}`, { skipCache: true });
+      if (res && (res.data || res.product)) {
+        const productData = res.data || res.product;
+        setProduct((prev) => {
+          const { price: livePrice, mrp: liveMrp, discountPercent } = calculatePrices(productData);
+          const liveGallery = extractAllImages(productData, prev, defaultFallbackImage);
+          const finalImg = liveGallery[0] || prev.image || defaultFallbackImage;
+
+          return {
+            ...prev,
+            ...productData,
+            price: livePrice > 0 ? livePrice : prev.price,
+            mrp: liveMrp || prev.mrp,
+            discountPercent: discountPercent || prev.discountPercent,
+            image: finalImg,
+            gallery: liveGallery,
+            unit: productData.unit || prev.unit,
+            foodType: productData.foodType || prev.foodType,
+            isVeg: productData.isVeg ?? prev.isVeg,
+            cuisine: productData.cuisine || prev.cuisine,
+          };
+        });
+      }
+    } catch (err) {
+      console.warn('[ProductDetails] onRefresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [rawItem?.id, rawItem?._id, routeParams.productId]);
+
   useEffect(() => {
     let isCurrent = true;
     const fetchLiveProduct = async () => {
@@ -548,7 +586,18 @@ export default function ProductDetails() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 110 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary || '#FF6A00']}
+            tintColor={colors.primary || '#FF6A00'}
+          />
+        }
+      >
         {/* Gallery Main Banner */}
         <View style={[styles.imageContainer, { backgroundColor: isDark ? '#050B1E' : '#FFFFFF', width, height: width * 0.78 }]}>
           <Image

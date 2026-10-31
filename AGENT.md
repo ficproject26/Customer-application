@@ -101,6 +101,38 @@ Future agents working on this repository **MUST** strictly preserve the followin
   - Implemented memory-first caching in `src/store/productStore.ts` with a 5-minute TTL (`HIERARCHY_CACHE_TTL = 300000`).
   - Screen access and category navigation latency reduced from >580ms to <10ms.
 
+### Issue F: Customer Mobile App My Bookings Category Mapping & Detail View
+- **Confirmed Root Causes**:
+  1. **Premature Heuristic Waterfall**:
+     `orderStore.ts` and `CustomerOrders.tsx` checked `Stay` heuristics (such as presence of `check_in` or `checkInDate`) prior to evaluating `Services`. In-flight or stored service bookings with truthy check-in properties were prematurely tagged as `'Stay'`.
+  2. **In-Memory Store Mutation**:
+     `normalizeStoredOrderCategory` in `orderStore.ts` mutated `order.category = 'Stay'` for any order passing the heuristic, poisoning the session state.
+  3. **Monolithic Card Layout**:
+     A single generic e-commerce layout was used for all cards, displaying generic subtext lines with `check_in` / `check_out` dates on non-product items, while lacking dedicated cards for Services and Stays.
+- **Fix**:
+  1. Authoritative category mapping prioritizing backend fields (`category`, `type`, `booking_type`, `order_type`) before fallback heuristics.
+  2. Dedicated category-specific card renderers:
+     - `renderServiceBookingCard` (Service Name highlighted, Business Name, Scheduled Date & Time Slot, Customer Info & Execution Address, OTP PIN, zero Stay fields).
+     - `renderStayBookingCard` (Property Name highlighted, Business Name, Check-in/Out, Guests, Room Type, Customer Info).
+     - `renderBusTicketCard` (Operator/Listing Name, Route, Timings, Seats).
+  3. Dedicated modal detail sheets for Service Bookings, Stay Reservations, and Travel Tickets.
+  4. Full card surface touchability routing to the booking detail modal.
+
+### Issue G: Native Pull-to-Refresh & Travel Card Action Alignment Overhaul
+- **Scope**:
+  - Implemented native `RefreshControl` across all data-driven screens:
+    - `HomeDashboard.tsx`: Root `ScrollView` reloads home items, banners, categories, and order counts.
+    - `CategoryDetails.tsx`: Listing `ScrollView` refreshes dynamic products, catalog cache, and categories with active filters and subcategories strictly preserved.
+    - `CustomerOrders.tsx`: Pull-to-refresh on both empty and populated list views reloading all orders with tab filters intact.
+    - `CustomerProfile.tsx` & `WishlistScreen.tsx`: Pull-to-refresh revalidating user profile and wishlist state.
+    - `ProductDetails.tsx`, `StayDetails.tsx`, `JobDetailsScreen.tsx`: Revalidating individual item state with cache bypass.
+  - Travel Card bottom section overhaul:
+    - Left section: Formatted current price (`₹`), original strikethrough price, discount percentage badge, and seats left indicator with green dot.
+    - Right section: Horizontal `Add to Cart` and `Book Now` action buttons with standardized height (36px), border radius (8px), minWidth (86px), balanced spacing (gap: 8px), and full label visibility with zero text clipping across small and large Android viewports.
+  - Hermes runtime guard:
+    - Resolved duplicate `formatTravelPrice` declaration that caused bundle assertion failure in Hermes engine.
+    - Verified clean cold start and hot refresh on `pixel_9a` (`emulator-5556`).
+
 ---
 
 ## 3. Regression Testing Procedures & Verified Invariants

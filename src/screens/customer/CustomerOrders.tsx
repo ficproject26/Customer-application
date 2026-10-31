@@ -726,8 +726,13 @@ export default function CustomerOrders() {
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
-    await loadAllOrders();
-    setRefreshing(false);
+    try {
+      await loadAllOrders(true);
+    } catch (err) {
+      console.warn('[CustomerOrders] Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Status Check Helpers
@@ -4110,6 +4115,14 @@ export default function CustomerOrders() {
         <ScrollView
           contentContainerStyle={styles.emptyScroll}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary || '#FF6A00']}
+              tintColor={colors.primary || '#FF6A00'}
+            />
+          }
         >
           {renderEmptyState()}
         </ScrollView>
@@ -4117,6 +4130,14 @@ export default function CustomerOrders() {
         <ScrollView
           contentContainerStyle={styles.ordersScroll}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary || '#FF6A00']}
+              tintColor={colors.primary || '#FF6A00'}
+            />
+          }
         >
           {groupedOrders.map((group, groupIdx) => (
             <View key={`group_${group.title}_${groupIdx}`} style={styles.groupSection}>

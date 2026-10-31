@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +16,7 @@ import { useWishlistStore } from '../../store/wishlistStore';
 import { useCartStore, isCartableCategory } from '../../store/cartStore';
 import { useToastStore } from '../../store/toastStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 import { openRespectivePage } from '../../utils/navigationHelpers';
 
 export default function WishlistScreen() {
@@ -27,6 +29,19 @@ export default function WishlistScreen() {
   const colors = useThemeStore((state) => state.colors);
   const isDark = useThemeStore((state) => state.isDark);
   const isLight = !isDark;
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await useAuthStore.getState().fetchProfile();
+    } catch (e) {
+      console.warn('[WishlistScreen] Refresh error:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const handleAddOrBook = (item: any) => {
     const hasCart = isCartableCategory(item.category, item.name);
@@ -67,7 +82,18 @@ export default function WishlistScreen() {
 
       {wishlistItems.length === 0 ? (
         /* Empty State */
-        <View style={styles.emptyContainer}>
+        <ScrollView
+          contentContainerStyle={[styles.emptyContainer, { flexGrow: 1 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary || '#FF6A00']}
+              tintColor={colors.primary || '#FF6A00'}
+            />
+          }
+        >
           <View style={[styles.emptyIconCircle, { backgroundColor: isLight ? '#F1F5F9' : '#1E293B' }]}>
             <Icons.Heart color={colors.textSecondary} size={36} />
           </View>
@@ -82,12 +108,20 @@ export default function WishlistScreen() {
           >
             <Text style={styles.exploreBtnText}>Explore Products</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       ) : (
         /* Wishlist Grid / List */
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary || '#FF6A00']}
+              tintColor={colors.primary || '#FF6A00'}
+            />
+          }
         >
           {wishlistItems.map((item) => (
             <TouchableOpacity

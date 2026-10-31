@@ -18,6 +18,7 @@ import {
   BackHandler,
   PanResponder,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +58,7 @@ import { prepareRazorpayOrder } from '../../services/razorpayService';
 import { useToastStore } from '../../store/toastStore';
 import { getRelevantProductImage } from '../../utils/productImages';
 import { useAuthGuardStore } from '../../store/authGuardStore';
+import { useProductStore } from '../../store/productStore';
 import { useTranslation } from '../../store/languageStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { dispatchCustomerNotification } from '../../services/notificationService';
@@ -1223,6 +1225,21 @@ export default function CategoryDetails() {
     return Array.from(set).filter(Boolean);
   }, [dynamicVendorTravelItems]);
 
+  const formatTravelPrice = (val: any) => {
+    if (val === undefined || val === null || val === '') return '₹0';
+    if (typeof val === 'number') return `₹${val.toLocaleString('en-IN')}`;
+    const str = String(val).trim();
+    if (str.startsWith('₹')) return str;
+    const num = parseInt(str.replace(/[^\d]/g, ''), 10);
+    return isNaN(num) ? str : `₹${num.toLocaleString('en-IN')}`;
+  };
+
+  const getTravelNumeric = (val: any) => {
+    if (typeof val === 'number') return val;
+    const num = parseInt(String(val || '').replace(/[^\d]/g, ''), 10);
+    return isNaN(num) ? 0 : num;
+  };
+
   // Dynamic Route Buses (buses matching from & to)
   const currentRouteBuses = useMemo(() => {
     if (!isTravelCategory) return [];
@@ -1414,8 +1431,13 @@ export default function CategoryDetails() {
       setSelectedBusOperator('All');
       resetActiveFilter = true;
     }
-    if (selectedDestination !== 'All Destinations') {
-      setSelectedDestination('All Destinations');
+    if (isStayCategory && selectedDestination !== 'Near me') {
+      setSelectedDestination('Near me');
+      resetActiveFilter = true;
+    }
+    if (isTravelCategory && (travelFrom || travelTo)) {
+      setTravelFrom('');
+      setTravelTo('');
       resetActiveFilter = true;
     }
 
@@ -1452,6 +1474,10 @@ export default function CategoryDetails() {
     selectedBusTypes,
     selectedBusOperator,
     selectedDestination,
+    isStayCategory,
+    isTravelCategory,
+    travelFrom,
+    travelTo,
     navigation,
   ]);
 
@@ -1606,8 +1632,8 @@ export default function CategoryDetails() {
 
   const isFocused = useIsFocused();
 
-  const fetchDynamicProducts = useCallback(async () => {
-    if (apiProducts.length === 0) {
+  const fetchDynamicProducts = useCallback(async (force = false) => {
+    if (force || apiProducts.length === 0) {
       setIsLoadingProducts(true);
     }
     setProductsFetchError(null);
@@ -1659,6 +1685,23 @@ export default function CategoryDetails() {
       setIsLoadingProducts(false);
     }
   }, [apiProducts.length]);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchDynamicProducts(true),
+        useProductStore.getState().loadAllCatalogData(true),
+        useProductStore.getState().loadCategoryHierarchy(true),
+      ]);
+    } catch (err) {
+      console.warn('[CategoryDetails] onRefresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchDynamicProducts]);
 
   useEffect(() => {
     // Re-fetch on screen focus so vendor-added items appear immediately
@@ -4214,6 +4257,14 @@ export default function CategoryDetails() {
           { paddingBottom: Math.max(insets.bottom, 20) + 70 },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary || '#FF6A00']}
+            tintColor={colors.primary || '#FF6A00'}
+          />
+        }
         onScroll={({ nativeEvent }) => {
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
           if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 150) {
@@ -5039,35 +5090,56 @@ export default function CategoryDetails() {
                             </View>
                           )}
 
-                          {/* BOTTOM PRICE & SELECT SEATS CTA */}
-                          <View
-                            style={[
-                              styles.travelBottomRow,
-                              { borderTopColor: isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)' },
-                            ]}
-                          >
-                            <View style={styles.travelPriceCol}>
-                              <View style={styles.travelPriceRow}>
-                                <Text style={[styles.travelPriceAmount, { color: isLight ? '#0F172A' : '#F8FAFC' }]}>
-                                  {service.price}
-                                </Text>
-                                {service.originalPrice && (
-                                  <Text style={styles.travelOriginalPrice}>{service.originalPrice}</Text>
-                                )}
-                              </View>
-                              <Text style={styles.travelSeatsLeftText}>
-                                {service.seatsLeft || service.seatsAvailable || 12} seats left
-                              </Text>
-                            </View>
+                          {/* BOTTOM PRICE & ACTIONS CTA */}
+                          {(() => {
+                            const currentPriceFormatted = formatTravelPrice(service.price);
+                            const numCurrent = getTravelNumeric(service.price);
+                            const numOrig = getTravelNumeric(service.originalPrice);
+                            const hasDiscount = numOrig > numCurrent && numCurrent > 0;
+                            const discountPercent = hasDiscount
+                              ? Math.round(((numOrig - numCurrent) / numOrig) * 100)
+                              : 0;
+                            const origPriceFormatted = hasDiscount ? formatTravelPrice(service.originalPrice) : null;
+                            const seatsCount = service.seatsLeft || service.seatsAvailable || 12;
+                            const isTravelInCart = cartItems.some((c) => c.id === service.id);
 
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
-                              {(() => {
-                                const isTravelInCart = cartItems.some((c) => c.id === service.id);
-                                return (
+                            return (
+                              <View
+                                style={[
+                                  styles.travelBottomRow,
+                                  { borderTopColor: isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)' },
+                                ]}
+                              >
+                                {/* Left Section – Price, Original Price, Discount & Seats */}
+                                <View style={styles.travelPriceCol}>
+                                  <View style={styles.travelPriceRow}>
+                                    <Text style={[styles.travelPriceAmount, { color: isLight ? '#0F172A' : '#F8FAFC' }]}>
+                                      {currentPriceFormatted}
+                                    </Text>
+                                    {origPriceFormatted && (
+                                      <Text style={styles.travelOriginalPrice}>{origPriceFormatted}</Text>
+                                    )}
+                                    {discountPercent > 0 && (
+                                      <View style={styles.travelDiscountBadge}>
+                                        <Text style={styles.travelDiscountBadgeText}>{discountPercent}% OFF</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                  <View style={styles.travelSeatsRow}>
+                                    <View style={styles.travelSeatsDot} />
+                                    <Text style={styles.travelSeatsLeftText}>
+                                      {seatsCount} seats left
+                                    </Text>
+                                  </View>
+                                </View>
+
+                                {/* Right Section – Actions: Add to Cart & Book Now */}
+                                <View style={styles.travelActionsRow}>
                                   <TouchableOpacity
                                     style={[
-                                      styles.compactOutlineBtn,
-                                      isTravelInCart ? styles.compactOutlineBtnActive : null
+                                      styles.travelActionBtn,
+                                      styles.travelOutlineBtn,
+                                      isTravelInCart && styles.travelOutlineBtnActive,
                                     ]}
                                     activeOpacity={0.85}
                                     onPress={(e) => {
@@ -5086,7 +5158,8 @@ export default function CategoryDetails() {
                                           vendorId: service.vendorId || (service as any).vendor_id,
                                           vendor_id: service.vendorId || (service as any).vendor_id,
                                           name: service.name,
-                                          price: service.price || '₹499',
+                                          price: currentPriceFormatted,
+                                          originalPrice: origPriceFormatted || undefined,
                                           category: 'Travel',
                                           image: service.image,
                                           seller: service.operator || service.vendorName || service.brand || 'Travel Partner',
@@ -5101,41 +5174,47 @@ export default function CategoryDetails() {
                                   >
                                     {isTravelInCart ? (
                                       <>
-                                        <Icons.Check color="#16A34A" size={11} strokeWidth={3} />
-                                        <Text style={[styles.compactOutlineBtnText, { color: '#16A34A' }]} numberOfLines={1}>Added</Text>
+                                        <Icons.Check color="#16A34A" size={12} strokeWidth={2.5} />
+                                        <Text style={[styles.travelActionBtnText, { color: '#16A34A' }]} numberOfLines={1}>
+                                          Added
+                                        </Text>
                                       </>
                                     ) : (
                                       <>
-                                        <Icons.ShoppingCart color="#FF6A00" size={11} strokeWidth={2.5} />
-                                        <Text style={styles.compactOutlineBtnText} numberOfLines={1}>Add to Cart</Text>
+                                        <Icons.ShoppingCart color="#FF6A00" size={12} strokeWidth={2.5} />
+                                        <Text style={[styles.travelActionBtnText, { color: '#FF6A00' }]} numberOfLines={1}>
+                                          Add to Cart
+                                        </Text>
                                       </>
                                     )}
                                   </TouchableOpacity>
-                                );
-                              })()}
 
-                              <TouchableOpacity
-                                style={styles.compactPrimaryBtn}
-                                activeOpacity={0.88}
-                                onPress={() => {
-                                  const nextDays = NEXT_7_DAYS;
-                                  const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
-                                  const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
-                                  setSelectedDateObj(firstAvailDay);
-                                  setSelectedSlotObj(firstAvailSlot);
-                                  setTravelBookingStep('GUESTS');
-                                  const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
-                                  const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
-                                  setSelectedBoardingPoint(defBoarding);
-                                  setSelectedDroppingPoint(defDropping);
-                                  setSchedulingItem(service);
-                                }}
-                              >
-                                <Icons.Calendar size={11} color="#FFFFFF" strokeWidth={2.5} />
-                                <Text style={styles.compactPrimaryBtnText} numberOfLines={1}>Book Now</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
+                                  <TouchableOpacity
+                                    style={[styles.travelActionBtn, styles.travelPrimaryBtn]}
+                                    activeOpacity={0.88}
+                                    onPress={() => {
+                                      const nextDays = NEXT_7_DAYS;
+                                      const firstAvailDay = nextDays.find((d) => !d.isFull) || nextDays[0];
+                                      const firstAvailSlot = TIMINGS_GRID.find((t) => t.status === 'AVAILABLE') || TIMINGS_GRID[0];
+                                      setSelectedDateObj(firstAvailDay);
+                                      setSelectedSlotObj(firstAvailSlot);
+                                      setTravelBookingStep('GUESTS');
+                                      const defBoarding = service.boardingPoints?.[0] || `${service.from || 'Bangalore'} Central Station (10:15 PM)`;
+                                      const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
+                                      setSelectedBoardingPoint(defBoarding);
+                                      setSelectedDroppingPoint(defDropping);
+                                      setSchedulingItem(service);
+                                    }}
+                                  >
+                                    <Icons.Calendar size={12} color="#FFFFFF" strokeWidth={2.5} />
+                                    <Text style={[styles.travelActionBtnText, { color: '#FFFFFF' }]} numberOfLines={1}>
+                                      Book Now
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            );
+                          })()}
                         </View>
                       );
                     })}
@@ -5455,7 +5534,7 @@ export default function CategoryDetails() {
                   </Text>
                   <TouchableOpacity
                     style={[styles.emptyResetBtn, { backgroundColor: '#F5B800', marginTop: 16 }]}
-                    onPress={fetchDynamicProducts}
+                    onPress={() => fetchDynamicProducts(true)}
                   >
                     <Text style={[styles.emptyResetBtnText, { color: '#0F172A', fontWeight: '800' }]}>Retry</Text>
                   </TouchableOpacity>
@@ -10807,32 +10886,98 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
+    gap: 8,
   },
   travelPriceCol: {
     flexDirection: 'column',
+    justifyContent: 'center',
+    flexShrink: 0,
+    minWidth: 95,
   },
   travelPriceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 6,
+    gap: 5,
+    flexWrap: 'wrap',
   },
   travelPriceAmount: {
     fontSize: 18,
     fontWeight: '900',
+    letterSpacing: -0.3,
   },
   travelOriginalPrice: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: '#94A3B8',
     textDecorationLine: 'line-through',
     fontWeight: '600',
   },
+  travelDiscountBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: '#86EFAC',
+  },
+  travelDiscountBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  travelSeatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 4,
+  },
+  travelSeatsDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
   travelSeatsLeftText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#16A34A',
-    marginTop: 2,
+  },
+  travelActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    flex: 1,
+  },
+  travelActionBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    gap: 4,
+    minWidth: 86,
+  },
+  travelOutlineBtn: {
+    borderWidth: 1.5,
+    borderColor: '#FF6A00',
+    backgroundColor: '#FFFFFF',
+  },
+  travelOutlineBtnActive: {
+    borderColor: '#16A34A',
+    backgroundColor: '#F0FDF4',
+  },
+  travelPrimaryBtn: {
+    backgroundColor: '#FF6A00',
+    borderWidth: 1.5,
+    borderColor: '#FF6A00',
+  },
+  travelActionBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
   },
   travelSelectSeatsBtn: {
     flexDirection: 'row',

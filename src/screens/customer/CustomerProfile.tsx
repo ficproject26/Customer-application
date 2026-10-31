@@ -13,6 +13,7 @@ import {
   PermissionsAndroid,
   Linking,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,6 +73,19 @@ export default function CustomerProfile() {
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchProfile();
+    } catch (e) {
+      console.warn('[CustomerProfile] Refresh error:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchProfile]);
 
   const loadProfileData = useCallback(() => {
     setProfileError(null);
@@ -444,6 +458,14 @@ export default function CustomerProfile() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary || '#FF6A00']}
+              tintColor={colors.primary || '#FF6A00'}
+            />
+          }
         >
           {/* Production Redesigned Top Profile Card */}
           <TouchableOpacity

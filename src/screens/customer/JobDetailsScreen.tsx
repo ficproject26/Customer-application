@@ -13,6 +13,7 @@ import {
   StatusBar,
   NativeModules,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -84,6 +85,20 @@ export default function JobDetailsScreen() {
     (rawJob.employmentType || '').toLowerCase().includes('intern');
 
   const jobID = rawJob.jobID || (rawJob.id ? `JOB-${String(rawJob.id).replace(/[^\d]/g, '').slice(-5) || '10482'}` : 'JOB-10482');
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    const jId = rawJob?.id;
+    if (!jId) return;
+    setRefreshing(true);
+    try {
+      await apiFetch(`/products/${jId}`, { skipCache: true });
+    } catch (err) {
+      console.warn('[JobDetailsScreen] onRefresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [rawJob?.id]);
 
   // Application Sheet State
   const [isApplyModalVisible, setIsApplyModalVisible] = useState(
@@ -336,7 +351,18 @@ export default function JobDetailsScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary || '#FF6A00']}
+            tintColor={colors.primary || '#FF6A00'}
+          />
+        }
+      >
         {/* ========================================================================= */}
         {/* 1. JOB OVERVIEW CARD                                                      */}
         {/* ========================================================================= */}

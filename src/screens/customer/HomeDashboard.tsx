@@ -385,6 +385,8 @@ export default function HomeDashboard() {
     try {
       await Promise.all([
         loadHomeData(true),
+        useBannerStore.getState().loadBanners(true),
+        useProductStore.getState().loadCategoryHierarchy(true),
         useOrderStore.getState().loadAllOrders(true),
       ]);
     } catch {
@@ -1309,6 +1311,14 @@ export default function HomeDashboard() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         removeClippedSubviews={true}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary || '#FF6A00']}
+            tintColor={colors.primary || '#FF6A00'}
+          />
+        }
       >
 
 

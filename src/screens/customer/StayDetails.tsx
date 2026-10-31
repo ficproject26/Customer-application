@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
   StatusBar,
   PanResponder,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -306,6 +307,20 @@ export default function StayDetails() {
     { val: '55', label: '55' },
   ];
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    const stayId = stay?.id || stay?._id;
+    if (!stayId) return;
+    setRefreshing(true);
+    try {
+      await apiFetch(`/products/${stayId}`, { skipCache: true });
+    } catch (err) {
+      console.warn('[StayDetails] onRefresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [stay?.id, stay?._id]);
+
   // Calendar Modal State (Opened on clicking Date field)
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [datePickerTarget, setDatePickerTarget] = useState<'checkIn' | 'checkOut'>('checkIn');
@@ -559,6 +574,14 @@ export default function StayDetails() {
           styles.scrollContent,
           { paddingBottom: Math.max(insets.bottom, 16) + 85 },
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary || '#FF6A00']}
+            tintColor={colors.primary || '#FF6A00'}
+          />
+        }
       >
         {/* IMAGE GALLERY */}
         <View style={styles.galleryContainer}>
