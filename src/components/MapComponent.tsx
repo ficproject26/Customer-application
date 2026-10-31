@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, Dimensions } from 'react-native';
+import { View, StyleSheet, Text, Dimensions, Animated } from 'react-native';
 import Svg, { Circle, Line, Path, Rect, G } from 'react-native-svg';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import { useThemeStore } from '../store/themeStore';
 
 const { width } = Dimensions.get('window');
@@ -57,23 +56,42 @@ export default function MapComponent({
     ? route.filter((c) => Array.isArray(c) && c.length >= 2 && !isNaN(Number(c[0])) && !isNaN(Number(c[1])))
     : [];
 
-  // Reanimated values for simulated pulse rings on pins
-  const pulse = useSharedValue(0.4);
+  // Standard React Native Animated loop for simulated pulse rings on pins
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 1500 }),
-      -1,
-      true
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.4,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
     );
-  }, []);
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
 
-  const animatedPulseStyle = useAnimatedStyle(() => {
-    return {
-      opacity: 1 - pulse.value,
-      transform: [{ scale: pulse.value * 2.2 }],
-    };
-  });
+  const animatedPulseStyle = {
+    opacity: pulseAnim.interpolate({
+      inputRange: [0.4, 1],
+      outputRange: [0.6, 0],
+    }),
+    transform: [
+      {
+        scale: pulseAnim.interpolate({
+          inputRange: [0.4, 1],
+          outputRange: [0.88, 2.2],
+        }),
+      },
+    ],
+  };
 
   // If react-native-maps is available, render Google Maps
   if (NativeMapView && NativeMarker) {
