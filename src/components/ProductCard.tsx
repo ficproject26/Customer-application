@@ -142,13 +142,13 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
 
   // Formatted Subtitle with pipe delimiter (e.g. "Hot & Fresh | Italian", "Private Pool | 5 BHK")
   const formattedSubtitle = useMemo(() => {
-    if (item.spec && item.spec.includes('|')) return item.spec;
+    if (item.spec && typeof item.spec === 'string' && item.spec.includes('|')) return item.spec;
     const subcat = (item as any).subcategory || (item as any).subcategoryName || '';
     const brandOrCat = (item as any).brand || (item as any).company || item.category || '';
-    if (subcat && brandOrCat && subcat.toLowerCase() !== brandOrCat.toLowerCase()) {
+    if (subcat && brandOrCat && String(subcat).toLowerCase() !== String(brandOrCat).toLowerCase()) {
       return `${subcat} | ${brandOrCat}`;
     }
-    if (item.spec) return item.spec;
+    if (item.spec) return String(item.spec);
     if (isJob) return `${(item as any).company || 'Verified Employer'} | ${(item as any).location || 'India'}`;
     return `${item.category} • Quality Assured`;
   }, [item, isJob]);
@@ -246,9 +246,11 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
         ) : computedDiscount ? (
           <View style={styles.discountBadge}>
             <Text style={styles.discountBadgeText}>
-              {computedDiscount.includes('OFF')
+              {typeof computedDiscount === 'string' && computedDiscount.includes('OFF')
                 ? `${computedDiscount.replace('OFF', '').trim()} ${t('OFF')}`
-                : t(computedDiscount)}
+                : typeof computedDiscount === 'number'
+                ? `${computedDiscount}% ${t('OFF')}`
+                : t(String(computedDiscount))}
             </Text>
           </View>
         ) : null}

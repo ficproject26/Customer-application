@@ -24,9 +24,13 @@ interface MembershipCardProps {
 
 function MembershipCardComponent({ name, type, number, points, validity }: MembershipCardProps) {
   const currentUser = useAuthStore((state) => state.currentUser);
-  const rawTier = (type || currentUser?.membership || currentUser?.membershipTier || 'gold').toLowerCase();
+  const rawTier = String(type || currentUser?.membership || currentUser?.membershipTier || 'gold').toLowerCase();
   const effectiveType: 'silver' | 'gold' | 'diamond' = (['silver', 'gold', 'diamond'].includes(rawTier) ? rawTier : 'gold') as any;
-  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.name.toLowerCase().includes('guest') || (name || '').toLowerCase().includes('guest');
+  const isGuestUser =
+    !currentUser ||
+    currentUser.isGuest ||
+    Boolean(currentUser?.name && typeof currentUser.name === 'string' && currentUser.name.toLowerCase().includes('guest')) ||
+    Boolean(name && typeof name === 'string' && name.toLowerCase().includes('guest'));
   const cardDisplayName = isGuestUser ? 'Guest User' : (name || currentUser?.name || 'Guest User');
   const cardNumber = isGuestUser ? `CN-${effectiveType.toUpperCase()}-GUEST` : number;
 

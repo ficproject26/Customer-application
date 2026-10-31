@@ -22,6 +22,58 @@ class NotificationModule(private val reactContext: ReactApplicationContext) : Re
 
     override fun getName(): String = "SystemNotification"
 
+    private fun initNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = reactContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val channels = listOf(
+                NotificationChannel(
+                    "connect_orders_realtime_channel",
+                    "Orders & Bookings",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Real-time updates about your orders, deliveries, and bookings"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 250, 150, 250)
+                },
+                NotificationChannel(
+                    "connect_offers_channel",
+                    "Offers & Promotions",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "Special discounts, promotional campaigns, and exclusive deals"
+                },
+                NotificationChannel(
+                    "connect_account_channel",
+                    "Account & Membership",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Membership tier updates, wallet transactions, and security alerts"
+                    enableVibration(true)
+                },
+                NotificationChannel(
+                    "connect_default_channel",
+                    "General & Important Updates",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Important announcements and general application notices"
+                }
+            )
+
+            channels.forEach { notificationManager.createNotificationChannel(it) }
+        }
+    }
+
+    @ReactMethod
+    fun initializeChannels(promise: Promise) {
+        try {
+            initNotificationChannels()
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
+    }
+
     @ReactMethod
     fun showNotification(title: String, message: String) {
         showSystemNotification(title, message, "Orders", null, "connect_orders_realtime_channel")
@@ -36,32 +88,16 @@ class NotificationModule(private val reactContext: ReactApplicationContext) : Re
         channelIdParam: String?
     ) {
         try {
-            val channelId = channelIdParam ?: "connect_orders_realtime_channel"
-            val channelName = if (channelId.contains("account") || channelId.contains("membership")) {
-                "Account & Membership"
-            } else {
-                "Orders & Bookings"
-            }
-            val channelDesc = if (channelId.contains("account") || channelId.contains("membership")) {
-                "Membership, wallet, and account notifications"
-            } else {
-                "Real-time updates about your orders and bookings"
+            initNotificationChannels()
+
+            val channelId = when {
+                channelIdParam != null && channelIdParam.isNotEmpty() -> channelIdParam
+                title.contains("Offer", true) || message.contains("Offer", true) || title.contains("Discount", true) || title.contains("Sale", true) -> "connect_offers_channel"
+                title.contains("Membership", true) || title.contains("Diamond", true) || title.contains("Gold", true) || title.contains("Wallet", true) -> "connect_account_channel"
+                else -> "connect_orders_realtime_channel"
             }
 
             val notificationManager = reactContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    channelId,
-                    channelName,
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = channelDesc
-                    enableVibration(true)
-                    vibrationPattern = longArrayOf(0, 250, 150, 250)
-                }
-                notificationManager.createNotificationChannel(channel)
-            }
 
             val targetScreen = screen ?: "Orders"
             val launchIntent = reactContext.packageManager.getLaunchIntentForPackage(reactContext.packageName)?.apply {

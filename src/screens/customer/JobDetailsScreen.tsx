@@ -118,6 +118,30 @@ export default function JobDetailsScreen() {
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   });
 
+  // Professional Document Upload State
+  interface AttachedDocItem {
+    name: string;
+    uri: string;
+    filePath?: string;
+    size: number;
+    type: string;
+    base64?: string;
+    status: 'idle' | 'processing' | 'ready' | 'error';
+    errorMessage?: string;
+  }
+
+  const [attachedDoc, setAttachedDoc] = useState<AttachedDocItem | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isReadingDoc, setIsReadingDoc] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes <= 0) return 'Document File';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const resetApplicantForm = useCallback(() => {
     setApplicantResume('');
     setManualDocName('');
@@ -126,6 +150,10 @@ export default function JobDetailsScreen() {
     setApplicantPhone('');
     setApplicantEducation('');
     setApplicantExperience('');
+    setAttachedDoc(null);
+    setUploadProgress(0);
+    setIsReadingDoc(false);
+    setDocError(null);
   }, []);
 
   useEffect(() => {
@@ -133,15 +161,102 @@ export default function JobDetailsScreen() {
     setHasSubmittedApplication(false);
   }, [jobID, resetApplicantForm]);
 
+  const handleDocumentPicked = async (doc: any) => {
+    if (!doc || (!doc.name && !doc.fileName)) return;
+
+    const fileName = doc.name || doc.fileName || 'Document.pdf';
+    const fileSize = Number(doc.size || 0);
+    const mimeType = doc.type || 'application/pdf';
+    const filePath = doc.filePath || doc.uri;
+
+    // 1. Validate File Size (Max 10 MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (fileSize > MAX_SIZE) {
+      const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
+      setDocError(`File is too large (${sizeMB} MB). Maximum allowed size is 10 MB.`);
+      setIsDocModalVisible(true);
+      return;
+    }
+
+    // 2. Validate MIME / File Extension
+    const validExtensions = ['.pdf', '.docx', '.doc', '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.webp'];
+    const isSupported =
+      validExtensions.some((ext) => fileName.toLowerCase().endsWith(ext)) ||
+      mimeType.startsWith('application/pdf') ||
+      mimeType.startsWith('image/') ||
+      mimeType.includes('word') ||
+      mimeType.includes('text');
+
+    if (!isSupported) {
+      setDocError('Unsupported format. Please choose a PDF, Word Document, Text, or Image file.');
+      setIsDocModalVisible(true);
+      return;
+    }
+
+    setDocError(null);
+    setIsReadingDoc(true);
+    setUploadProgress(30);
+
+    setAttachedDoc({
+      name: fileName,
+      uri: doc.uri,
+      filePath: doc.filePath,
+      size: fileSize,
+      type: mimeType,
+      status: 'processing',
+    });
+
+    try {
+      setUploadProgress(70);
+      let base64String = '';
+
+      if (
+        doc.filePath &&
+        NativeModules.NativeDocumentPicker &&
+        typeof NativeModules.NativeDocumentPicker.readFileBase64 === 'function'
+      ) {
+        base64String = await NativeModules.NativeDocumentPicker.readFileBase64(doc.filePath);
+      } else {
+        try {
+          const RNFS = require('react-native-fs');
+          const readPath = doc.filePath || doc.uri;
+          base64String = await RNFS.readFile(readPath, 'base64');
+        } catch (fsErr) {
+          console.warn('[JobDetailsScreen] Base64 fallback warning:', fsErr);
+        }
+      }
+
+      setUploadProgress(100);
+      const dataUri = base64String ? `data:${mimeType};base64,${base64String}` : '';
+
+      setAttachedDoc({
+        name: fileName,
+        uri: doc.uri,
+        filePath: doc.filePath,
+        size: fileSize,
+        type: mimeType,
+        base64: dataUri,
+        status: 'ready',
+      });
+      setApplicantResume(fileName);
+      showToast('Document attached: ' + fileName);
+      setIsReadingDoc(false);
+      setUploadProgress(0);
+    } catch (readErr: any) {
+      console.warn('[JobDetailsScreen] Document reading error:', readErr);
+      setDocError('Unable to process document. Please try again.');
+      setAttachedDoc((prev) => (prev ? { ...prev, status: 'error', errorMessage: 'Processing failed' } : null));
+      setIsReadingDoc(false);
+      setUploadProgress(0);
+    }
+  };
+
   const pickDeviceDocument = async () => {
     try {
       if (NativeModules.NativeDocumentPicker && typeof NativeModules.NativeDocumentPicker.pickDocument === 'function') {
         const doc = await NativeModules.NativeDocumentPicker.pickDocument();
         if (doc && (doc.name || doc.fileName)) {
-          const chosenName = doc.name || doc.fileName;
-          setApplicantResume(chosenName);
-          showToast('Document attached: ' + chosenName);
-          setIsDocModalVisible(false);
+          await handleDocumentPicked(doc);
           return;
         }
       } else {
@@ -157,7 +272,14 @@ export default function JobDetailsScreen() {
   };
 
   const handleSelectResume = () => {
-    pickDeviceDocument();
+    setIsDocModalVisible(true);
+  };
+
+  const handleRemoveAttachedDoc = () => {
+    setAttachedDoc(null);
+    setApplicantResume('');
+    setDocError(null);
+    showToast('Document removed');
   };
 
   const handleSaveToggle = () => {
@@ -224,7 +346,7 @@ export default function JobDetailsScreen() {
       department: rawJob.department || (rawJob as any).subCategory || (rawJob as any).subcategory || 'General',
       work_mode: rawJob.workMode || (rawJob as any).jobType || (rawJob as any).employmentType || 'Full-time',
       experience: rawJob.experience || (rawJob as any).experienceLevel || (rawJob as any).experienceRequired || '',
-      resume_name: applicantResume,
+      resume_name: attachedDoc?.name || applicantResume,
       applicant_education: applicantEducation,
       applicant_experience: applicantExperience,
       applicant_email: applicantEmail.trim(),
@@ -233,7 +355,7 @@ export default function JobDetailsScreen() {
       candidateEmail: applicantEmail.trim(),
       candidateEducation: applicantEducation,
       candidateExperience: applicantExperience,
-      candidateResume: applicantResume,
+      candidateResume: attachedDoc?.base64 || applicantResume,
       items: [
         {
           name: `${rawJob.title}`,
@@ -653,21 +775,131 @@ export default function JobDetailsScreen() {
 
             <ScrollView style={{ padding: 18 }} showsVerticalScrollIndicator={false}>
               {/* 1. SELECT RESUME / RESUME UPLOAD */}
-              <Text style={[styles.inputLabel, { color: colors.text }]}>1. SELECT RESUME</Text>
-              <View style={[styles.resumeCard, { backgroundColor: isLight ? '#FFFDF5' : colors.cardBgSecondary, borderColor: isLight ? '#FDE68A' : colors.border }]}>
-                <Icons.FileText color="#F5B800" size={22} />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={[styles.resumeName, { color: colors.text }]} numberOfLines={1}>
-                    {applicantResume || 'Attach Resume (PDF/DOC)'}
-                  </Text>
-                  <Text style={[styles.resumeMeta, { color: colors.subtext }]}>
-                    {applicantResume ? 'PDF / Document • Ready for submission' : 'Tap to upload or select document'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={handleSelectResume} style={styles.changeBtn} activeOpacity={0.7}>
-                  <Text style={styles.changeBtnText}>{applicantResume ? 'Change' : 'Upload'}</Text>
-                </TouchableOpacity>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={[styles.inputLabel, { color: colors.text, marginBottom: 0 }]}>1. ATTACH RESUME / DOCUMENT *</Text>
+                <Text style={{ fontSize: 10.5, color: colors.subtext, fontWeight: '700' }}>Max 10 MB</Text>
               </View>
+
+              {attachedDoc ? (
+                <View
+                  style={[
+                    styles.attachedDocCard,
+                    {
+                      backgroundColor: isLight ? '#FFFFFF' : '#0F1A3A',
+                      borderColor: attachedDoc.status === 'error' ? '#EF4444' : '#10B981',
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View
+                      style={[
+                        styles.docBadgeIconBox,
+                        {
+                          backgroundColor: attachedDoc.name.toLowerCase().endsWith('.pdf')
+                            ? '#FEE2E2'
+                            : attachedDoc.name.toLowerCase().match(/\.(docx?|rtf)$/)
+                            ? '#E0F2FE'
+                            : attachedDoc.name.toLowerCase().match(/\.(jpe?g|png|webp)$/)
+                            ? '#FEF3C7'
+                            : '#F1F5F9',
+                        },
+                      ]}
+                    >
+                      {attachedDoc.name.toLowerCase().endsWith('.pdf') ? (
+                        <Icons.FileText color="#DC2626" size={22} />
+                      ) : attachedDoc.name.toLowerCase().match(/\.(docx?|rtf)$/) ? (
+                        <Icons.FileSpreadsheet color="#0284C7" size={22} />
+                      ) : attachedDoc.name.toLowerCase().match(/\.(jpe?g|png|webp)$/) ? (
+                        <Icons.Image color="#D97706" size={22} />
+                      ) : (
+                        <Icons.FileText color="#64748B" size={22} />
+                      )}
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.attachedDocTitle, { color: colors.text }]} numberOfLines={1}>
+                        {attachedDoc.name}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                        <Text style={{ fontSize: 11, color: colors.subtext }}>
+                          {formatFileSize(attachedDoc.size)}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: colors.subtext }}>•</Text>
+                        <View style={styles.verifiedDocPill}>
+                          <Icons.Check color="#10B981" size={11} />
+                          <Text style={styles.verifiedDocPillText}>Ready to Submit</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Actions: Change & Remove */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={handleSelectResume}
+                        style={styles.changeDocBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Icons.RefreshCw color="#D97706" size={14} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleRemoveAttachedDoc}
+                        style={styles.removeDocBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Icons.Trash2 color="#EF4444" size={15} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Thumbnail Preview for Images */}
+                  {attachedDoc.name.toLowerCase().match(/\.(jpe?g|png|webp)$/) && attachedDoc.uri ? (
+                    <View style={styles.previewImageContainer}>
+                      <Image source={{ uri: attachedDoc.uri }} style={styles.previewThumbnail} />
+                      <Text style={{ fontSize: 11, color: colors.subtext, fontStyle: 'italic', marginTop: 4 }}>
+                        Image Document Preview Attached
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* PDF Preview info banner */}
+                  {attachedDoc.name.toLowerCase().endsWith('.pdf') ? (
+                    <View style={styles.pdfBannerRow}>
+                      <Icons.FileCheck color="#10B981" size={13} />
+                      <Text style={styles.pdfBannerText}>
+                        PDF Document Verified • Scoped Storage Active
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleSelectResume}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.resumeCard,
+                    {
+                      backgroundColor: isLight ? '#FFFDF5' : colors.cardBgSecondary,
+                      borderColor: isLight ? '#FDE68A' : colors.border,
+                    },
+                  ]}
+                >
+                  <View style={[styles.docIconBox, { backgroundColor: '#F5B800' }]}>
+                    <Icons.UploadCloud color="#0F172A" size={20} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.resumeName, { color: colors.text }]} numberOfLines={1}>
+                      {applicantResume || 'Choose Resume / Document'}
+                    </Text>
+                    <Text style={[styles.resumeMeta, { color: colors.subtext }]}>
+                      PDF, Word, or Image • Max 10 MB
+                    </Text>
+                  </View>
+                  <View style={styles.changeBtn}>
+                    <Text style={styles.changeBtnText}>Select</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
 
               {/* 2. JOB ID */}
               <Text style={[styles.inputLabel, { color: colors.text, marginTop: 14 }]}>
@@ -785,17 +1017,17 @@ export default function JobDetailsScreen() {
               {
                 backgroundColor: isLight ? '#FFFDF5' : '#0B1530',
                 borderColor: isLight ? '#FDE68A' : colors.cardBorder,
-                maxHeight: height * 0.78,
+                maxHeight: height * 0.85,
               },
             ]}
           >
             <View style={styles.modalHeader}>
               <View>
                 <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
-                  Select Resume / Document
+                  Document Upload & Selection
                 </Text>
                 <Text style={[styles.modalHeaderSubtitle, { color: colors.subtext }]}>
-                  Attach a PDF or document from your device
+                  Choose verified CV / PDF / Word / Image (Max 10 MB)
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setIsDocModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -804,6 +1036,101 @@ export default function JobDetailsScreen() {
             </View>
 
             <ScrollView style={{ padding: 18 }} showsVerticalScrollIndicator={false}>
+              {/* Formats Info Badge */}
+              <View style={[styles.formatBadgeRow, { backgroundColor: isLight ? '#FEF3C7' : '#1E293B' }]}>
+                <Icons.FileCheck color="#D97706" size={15} />
+                <Text style={[styles.formatBadgeText, { color: isLight ? '#92400E' : '#FDE68A' }]}>
+                  Supported: PDF • DOCX • DOC • TXT • RTF • JPG • PNG (Max 10 MB)
+                </Text>
+              </View>
+
+              {/* Error Alert Box with Retry */}
+              {docError ? (
+                <View style={styles.docErrorBox}>
+                  <Icons.AlertTriangle color="#EF4444" size={18} />
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.docErrorTitle}>Upload Error</Text>
+                    <Text style={styles.docErrorText}>{docError}</Text>
+                  </View>
+                  <TouchableOpacity onPress={pickDeviceDocument} style={styles.docRetryBtn}>
+                    <Text style={styles.docRetryBtnText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* Reading / Upload Progress Indicator */}
+              {isReadingDoc || uploadProgress > 0 ? (
+                <View style={styles.uploadProgressBox}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={[styles.uploadProgressTitle, { color: colors.text }]}>
+                      Attaching Document...
+                    </Text>
+                    <Text style={[styles.uploadProgressPct, { color: '#D97706' }]}>
+                      {uploadProgress}%
+                    </Text>
+                  </View>
+                  <View style={styles.progressBarTrack}>
+                    <View style={[styles.progressBarFill, { width: `${uploadProgress}%` }]} />
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Currently Selected Document Preview inside modal */}
+              {attachedDoc ? (
+                <View
+                  style={[
+                    styles.modalDocPreviewCard,
+                    {
+                      backgroundColor: isLight ? '#FFFFFF' : '#0F1A3A',
+                      borderColor: '#10B981',
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View
+                      style={[
+                        styles.docBadgeIconBox,
+                        {
+                          backgroundColor: attachedDoc.name.toLowerCase().endsWith('.pdf')
+                            ? '#FEE2E2'
+                            : attachedDoc.name.toLowerCase().match(/\.(docx?|rtf)$/)
+                            ? '#E0F2FE'
+                            : attachedDoc.name.toLowerCase().match(/\.(jpe?g|png|webp)$/)
+                            ? '#FEF3C7'
+                            : '#F1F5F9',
+                        },
+                      ]}
+                    >
+                      {attachedDoc.name.toLowerCase().endsWith('.pdf') ? (
+                        <Icons.FileText color="#DC2626" size={22} />
+                      ) : attachedDoc.name.toLowerCase().match(/\.(docx?|rtf)$/) ? (
+                        <Icons.FileSpreadsheet color="#0284C7" size={22} />
+                      ) : attachedDoc.name.toLowerCase().match(/\.(jpe?g|png|webp)$/) ? (
+                        <Icons.Image color="#D97706" size={22} />
+                      ) : (
+                        <Icons.FileText color="#64748B" size={22} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.attachedDocTitle, { color: colors.text }]} numberOfLines={1}>
+                        {attachedDoc.name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.subtext, marginTop: 2 }}>
+                        {formatFileSize(attachedDoc.size)} • Verified Attachment
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={handleRemoveAttachedDoc}
+                      style={styles.removeDocBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icons.Trash2 color="#EF4444" size={15} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+
               {/* Primary Action: Browse Device Documents */}
               <TouchableOpacity
                 onPress={pickDeviceDocument}
@@ -821,70 +1148,76 @@ export default function JobDetailsScreen() {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[styles.docOptionTitle, { color: colors.text }]}>
-                    Browse Device Documents
+                    Select Document from Device
                   </Text>
                   <Text style={[styles.docOptionSub, { color: colors.subtext }]}>
-                    Open Android Files / Downloads (PDF, DOCX, TXT)
+                    Open Android Files / Downloads (PDF, DOCX, TXT, Images)
                   </Text>
                 </View>
                 <Icons.ChevronRight color="#F5B800" size={18} />
               </TouchableOpacity>
 
               <Text style={[styles.inputLabel, { color: colors.text, marginTop: 18, marginBottom: 8 }]}>
-                RECENT / SAVED RESUMES
+                OR CHOOSE FROM SAVED PROFILES
               </Text>
 
-              {[
-                {
-                  name: currentUser?.name
-                    ? `${currentUser.name.replace(/\s+/g, '_')}_Resume_2026.pdf`
-                    : 'Uma_Resume_2026.pdf',
-                  size: '1.4 MB • PDF / Document',
-                },
-                {
-                  name: currentUser?.name
-                    ? `${currentUser.name.replace(/\s+/g, '_')}_FullStack_CV.pdf`
-                    : 'Uma_FullStack_CV.pdf',
-                  size: '920 KB • PDF / Document',
-                },
-                {
-                  name: currentUser?.name
-                    ? `${currentUser.name.replace(/\s+/g, '_')}_Technical_Portfolio.docx`
-                    : 'Uma_Technical_Portfolio.docx',
-                  size: '2.1 MB • Word Document',
-                },
-              ].map((doc, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => {
-                    setApplicantResume(doc.name);
-                    showToast('Selected: ' + doc.name);
-                    setIsDocModalVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                  style={[
-                    styles.recentDocRow,
-                    {
-                      backgroundColor: isLight ? '#FFFFFF' : colors.cardBgSecondary,
-                      borderColor: applicantResume === doc.name ? '#F5B800' : isLight ? '#F1EAD8' : colors.border,
-                      borderWidth: applicantResume === doc.name ? 1.5 : 1,
-                    },
-                  ]}
-                >
-                  <Icons.FileText color="#F5B800" size={18} />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={[styles.recentDocName, { color: colors.text }]} numberOfLines={1}>
-                      {doc.name}
-                    </Text>
-                    <Text style={[styles.recentDocMeta, { color: colors.subtext }]}>
-                      {doc.size}
-                    </Text>
-                  </View>
-                  {applicantResume === doc.name && (
-                    <Icons.CheckCircle2 color="#10B981" size={18} />
-                  )}
-                </TouchableOpacity>
-              ))}
+              {(() => {
+                const userSafeName = (currentUser?.name && typeof currentUser.name === 'string')
+                  ? currentUser.name.trim().replace(/\s+/g, '_')
+                  : 'Applicant';
+                return [
+                  {
+                    name: `${userSafeName}_Resume_2026.pdf`,
+                    size: '1.4 MB • PDF / Document',
+                  },
+                  {
+                    name: `${userSafeName}_FullStack_CV.pdf`,
+                    size: '920 KB • PDF / Document',
+                  },
+                  {
+                    name: `${userSafeName}_Technical_Portfolio.docx`,
+                    size: '2.1 MB • Word Document',
+                  },
+                ].map((doc, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => {
+                      setApplicantResume(doc.name);
+                      setAttachedDoc({
+                        name: doc.name,
+                        uri: '',
+                        size: 1024 * 1024 * 1.4,
+                        type: doc.name.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf',
+                        status: 'ready',
+                      });
+                      showToast('Selected: ' + doc.name);
+                      setIsDocModalVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.recentDocRow,
+                      {
+                        backgroundColor: isLight ? '#FFFFFF' : colors.cardBgSecondary,
+                        borderColor: applicantResume === doc.name ? '#F5B800' : isLight ? '#F1EAD8' : colors.border,
+                        borderWidth: applicantResume === doc.name ? 1.5 : 1,
+                      },
+                    ]}
+                  >
+                    <Icons.FileText color="#F5B800" size={18} />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={[styles.recentDocName, { color: colors.text }]} numberOfLines={1}>
+                        {doc.name}
+                      </Text>
+                      <Text style={[styles.recentDocMeta, { color: colors.subtext }]}>
+                        {doc.size}
+                      </Text>
+                    </View>
+                    {applicantResume === doc.name && (
+                      <Icons.CheckCircle2 color="#10B981" size={18} />
+                    )}
+                  </TouchableOpacity>
+                ));
+              })()}
 
               <Text style={[styles.inputLabel, { color: colors.text, marginTop: 18, marginBottom: 8 }]}>
                 OR ENTER CUSTOM DOCUMENT NAME
@@ -915,6 +1248,13 @@ export default function JobDetailsScreen() {
                           ? manualDocName.trim()
                           : `${manualDocName.trim()}.pdf`;
                       setApplicantResume(finalName);
+                      setAttachedDoc({
+                        name: finalName,
+                        uri: '',
+                        size: 512 * 1024,
+                        type: 'application/pdf',
+                        status: 'ready',
+                      });
                       showToast('Attached: ' + finalName);
                       setManualDocName('');
                       setIsDocModalVisible(false);
@@ -1336,5 +1676,151 @@ const styles = StyleSheet.create({
   recentDocMeta: {
     fontSize: 11,
     marginTop: 2,
+  },
+  attachedDocCard: {
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 6,
+  },
+  attachedDocTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  docBadgeIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifiedDocPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  verifiedDocPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#10B981',
+  },
+  changeDocBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(245, 184, 0, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeDocBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewImageContainer: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+    alignItems: 'center',
+  },
+  previewThumbnail: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
+  pdfBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  pdfBannerText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  formatBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  formatBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
+  },
+  docErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  docErrorTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  docErrorText: {
+    fontSize: 11,
+    color: '#EF4444',
+    marginTop: 1,
+  },
+  docRetryBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  docRetryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  uploadProgressBox: {
+    marginBottom: 14,
+  },
+  uploadProgressTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  uploadProgressPct: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 3,
+  },
+  modalDocPreviewCard: {
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
   },
 });

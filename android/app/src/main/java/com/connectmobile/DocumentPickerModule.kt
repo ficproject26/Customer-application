@@ -36,7 +36,10 @@ class DocumentPickerModule(private val reactContext: ReactApplicationContext) :
                 "application/msword",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "text/plain",
-                "application/rtf"
+                "application/rtf",
+                "image/jpeg",
+                "image/png",
+                "image/webp"
             )
             putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
         }
@@ -53,7 +56,11 @@ class DocumentPickerModule(private val reactContext: ReactApplicationContext) :
                             "application/pdf",
                             "application/msword",
                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            "text/plain"
+                            "text/plain",
+                            "application/rtf",
+                            "image/jpeg",
+                            "image/png",
+                            "image/webp"
                         )
                     )
                 }
@@ -94,12 +101,43 @@ class DocumentPickerModule(private val reactContext: ReactApplicationContext) :
                     e.printStackTrace()
                 }
 
+                // Copy stream to cached file for guaranteed read access across processes
+                var localFilePath = ""
+                try {
+                    val inputStream = reactContext.contentResolver.openInputStream(uri)
+                    if (inputStream != null) {
+                        val cleanName = fileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+                        val cacheFile = java.io.File(reactContext.cacheDir, "picked_doc_${System.currentTimeMillis()}_$cleanName")
+                        cacheFile.outputStream().use { output ->
+                            inputStream.copyTo(output)
+                        }
+                        localFilePath = cacheFile.absolutePath
+                        if (fileSize <= 0) {
+                            fileSize = cacheFile.length()
+                        }
+                    }
+                } catch (copyErr: Exception) {
+                    copyErr.printStackTrace()
+                }
+
+                val detectedType = reactContext.contentResolver.getType(uri) ?: when {
+                    fileName.endsWith(".pdf", true) -> "application/pdf"
+                    fileName.endsWith(".docx", true) -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    fileName.endsWith(".doc", true) -> "application/msword"
+                    fileName.endsWith(".txt", true) -> "text/plain"
+                    fileName.endsWith(".jpg", true) || fileName.endsWith(".jpeg", true) -> "image/jpeg"
+                    fileName.endsWith(".png", true) -> "image/png"
+                    fileName.endsWith(".webp", true) -> "image/webp"
+                    else -> "application/octet-stream"
+                }
+
                 val map = Arguments.createMap().apply {
                     putString("uri", uri.toString())
                     putString("name", fileName)
                     putString("fileName", fileName)
+                    putString("filePath", localFilePath)
                     putDouble("size", fileSize.toDouble())
-                    putString("type", reactContext.contentResolver.getType(uri) ?: "application/pdf")
+                    putString("type", detectedType)
                 }
 
                 pickerPromise?.resolve(map)
@@ -107,6 +145,22 @@ class DocumentPickerModule(private val reactContext: ReactApplicationContext) :
                 pickerPromise?.reject("CANCELLED", "User cancelled document picker")
             }
             pickerPromise = null
+        }
+    }
+
+    @ReactMethod
+    fun readFileBase64(filePath: String, promise: Promise) {
+        try {
+            val file = java.io.File(filePath)
+            if (!file.exists()) {
+                promise.reject("FILE_NOT_FOUND", "File does not exist: $filePath")
+                return
+            }
+            val bytes = file.readBytes()
+            val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            promise.resolve(base64)
+        } catch (e: Exception) {
+            promise.reject("READ_ERROR", e.message ?: "Failed to read file as base64")
         }
     }
 

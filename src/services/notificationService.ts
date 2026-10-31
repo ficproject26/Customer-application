@@ -1,10 +1,11 @@
-import { PermissionsAndroid, Platform, NativeModules, Vibration, AppState } from 'react-native';
+import { PermissionsAndroid, Platform, NativeModules, Vibration, AppState, Linking, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastStore } from '../store/toastStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { API_URL_ANDROID, API_URL_IOS } from './env';
 
 export const FCM_TOKEN_STORAGE_KEY = 'connect_fcm_device_token';
+export const NOTIF_PERM_REQUESTED_KEY = 'connect_notif_perm_requested_v1';
 
 let messagingModule: any = null;
 try {
@@ -104,7 +105,20 @@ export function dispatchCustomerNotification(payload: CustomerNotificationPayloa
   try {
     const { SystemNotification } = NativeModules;
     if (SystemNotification) {
-      const resolvedChannel = channelId || (category === 'membership' ? 'connect_account_channel' : 'connect_orders_realtime_channel');
+      let resolvedChannel = channelId;
+      if (!resolvedChannel) {
+        const cat = String(category || '').toLowerCase();
+        if (cat === 'offer' || cat === 'promotion' || cat === 'deal') {
+          resolvedChannel = 'connect_offers_channel';
+        } else if (cat === 'membership' || cat === 'account' || cat === 'wallet') {
+          resolvedChannel = 'connect_account_channel';
+        } else if (cat === 'system' || cat === 'announcement') {
+          resolvedChannel = 'connect_default_channel';
+        } else {
+          resolvedChannel = 'connect_orders_realtime_channel';
+        }
+      }
+
       if (typeof SystemNotification.showSystemNotification === 'function') {
         SystemNotification.showSystemNotification(
           title,
@@ -146,17 +160,52 @@ export async function checkPendingSystemNotificationLaunch() {
 }
 
 /**
- * Request native Android & iOS push notification permissions
+ * Request native Android & iOS push notification permissions with user-friendly flow
  */
-export async function requestNotificationPermissions(): Promise<boolean> {
+export async function requestNotificationPermissions(isExplicitUserAction: boolean = false): Promise<boolean> {
   try {
     if (Platform.OS === 'android') {
       if (Platform.Version >= 33) {
-        const granted = await PermissionsAndroid.request(
+        const alreadyGranted = await PermissionsAndroid.check(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
         );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.warn('Android POST_NOTIFICATIONS permission denied');
+        if (alreadyGranted) {
+          return true;
+        }
+
+        const hasAskedBefore = await AsyncStorage.getItem(NOTIF_PERM_REQUESTED_KEY);
+        if (!isExplicitUserAction && hasAskedBefore) {
+          // Do not repeatedly prompt user unless they explicitly asked in UI
+          return false;
+        }
+
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          {
+            title: 'Push Notifications',
+            message: 'Connect Mobile needs notification permission to send live tracking, order progress, and booking updates directly to your notification bar.',
+            buttonPositive: 'Allow Notifications',
+            buttonNegative: 'Not Now',
+          }
+        );
+
+        await AsyncStorage.setItem(NOTIF_PERM_REQUESTED_KEY, 'true');
+
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          return true;
+        } else if (granted === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+          if (isExplicitUserAction) {
+            Alert.alert(
+              'Notifications Disabled',
+              'Push notifications are currently turned off. To get live delivery alerts and booking updates, please enable notifications in App Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+              ]
+            );
+          }
+          return false;
+        } else {
           return false;
         }
       }
@@ -180,7 +229,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 }
 
 /**
- * Register FCM device token with local storage & backend
+ * Register FCM device token with local storage & backend with user mapping
  */
 export async function registerFcmToken(): Promise<string | null> {
   try {
@@ -213,17 +262,33 @@ export async function registerFcmToken(): Promise<string | null> {
 }
 
 /**
- * Send token to backend via REST API
+ * Send token to backend via REST API with authenticated user mapping
  */
 async function sendTokenToBackend(token: string) {
   try {
+    let authHeader: Record<string, string> = { 'Content-Type': 'application/json' };
+    let userId: string | undefined;
+
+    try {
+      const authStore = require('../store/authStore').useAuthStore.getState();
+      const user = authStore.currentUser;
+      const authToken = authStore.token;
+      if (user) {
+        userId = user.customerId || user.registrationId || user.id;
+      }
+      if (authToken) {
+        authHeader['Authorization'] = `Bearer ${authToken}`;
+      }
+    } catch {}
+
     const response = await fetch(`${BACKEND_API_BASE}/notifications/register-token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeader,
       body: JSON.stringify({
         token,
         platform: Platform.OS,
         deviceId: `android_${Date.now()}`,
+        userId: userId || undefined,
       }),
     });
     const resData = await response.json();
@@ -293,6 +358,13 @@ export function handleNotificationNavigation(data: Record<string, string> | unde
  */
 export function setupFcmListeners(navRef?: any) {
   if (navRef) setNavigationRef(navRef);
+
+  // Initialize Android Notification Channels
+  try {
+    if (NativeModules.SystemNotification && typeof NativeModules.SystemNotification.initializeChannels === 'function') {
+      NativeModules.SystemNotification.initializeChannels();
+    }
+  } catch {}
 
   // Check if launched by tapping native system notification
   checkPendingSystemNotificationLaunch();
