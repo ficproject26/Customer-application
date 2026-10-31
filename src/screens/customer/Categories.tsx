@@ -112,48 +112,60 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
   // Curated high-resolution illustrations for every subcategory
   var SUBCAT_IMAGES = {
     // Products
-    Electronics: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&auto=format&fit=crop&q=70',
-    'IT & Office': 'https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?w=200&auto=format&fit=crop&q=70',
-    'Home Appliances': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=200&auto=format&fit=crop&q=70',
-    Furniture: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=70',
-    Fashion: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=200&auto=format&fit=crop&q=70',
-    Beauty: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&auto=format&fit=crop&q=70',
-    'Baby Care': 'https://images.unsplash.com/photo-1515488042361-404e9250afef?w=200&auto=format&fit=crop&q=70',
-    'Sports & Fitness': 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=200&auto=format&fit=crop&q=70',
-    Books: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=200&auto=format&fit=crop&q=70',
-    Gaming: 'https://images.unsplash.com/photo-1385846882-47137b678fae?w=200&auto=format&fit=crop&q=70',
-    'Home & Kitchen': 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=200&auto=format&fit=crop&q=70',
-    // Services (Home & Technician Services)
-    Plumbing: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=200&auto=format&fit=crop&q=70',
-    'AC Repair & Service': 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=200&auto=format&fit=crop&q=70',
-    Electrical: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=200&auto=format&fit=crop&q=70',
-    'Washing Machine Repair': 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=200&auto=format&fit=crop&q=70',
-    'Refrigerator Repair': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=200&auto=format&fit=crop&q=70',
-    'TV Repair': 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=200&auto=format&fit=crop&q=70',
-    'RO / Water Purifier': 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=200&auto=format&fit=crop&q=70',
-    'Microwave Repair': 'https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=200&auto=format&fit=crop&q=70',
-    'Geyser Repair': 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=200&auto=format&fit=crop&q=70',
-    Carpentry: 'https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=200&auto=format&fit=crop&q=70',
-    'CCTV Installation': 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=200&auto=format&fit=crop&q=70',
-    'Solar Service': 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=200&auto=format&fit=crop&q=70',
-    'Appliance Repair': 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=200&auto=format&fit=crop&q=70',
-    Painting: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=200&auto=format&fit=crop&q=70',
-    Cleaning: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200&auto=format&fit=crop&q=70',
-    'Pest Control': 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?w=200&auto=format&fit=crop&q=70',
+    Electronics: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&auto=format&fit=crop&q=80',
+    Furniture: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&auto=format&fit=crop&q=80',
+    Toys: 'https://images.unsplash.com/photo-1515488042361-404e9250afef?w=400&auto=format&fit=crop&q=80',
+    Stationary: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&auto=format&fit=crop&q=80',
+    'IT & Office': 'https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?w=400&auto=format&fit=crop&q=80',
+    'Home Appliances': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&auto=format&fit=crop&q=80',
+    Fashion: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&auto=format&fit=crop&q=80',
+    Beauty: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&auto=format&fit=crop&q=80',
+    'Baby Care': 'https://images.unsplash.com/photo-1515488042361-404e9250afef?w=400&auto=format&fit=crop&q=80',
+    'Sports & Fitness': 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80',
+    Books: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&auto=format&fit=crop&q=80',
+    Gaming: 'https://images.unsplash.com/photo-1385846882-47137b678fae?w=400&auto=format&fit=crop&q=80',
+    'Home & Kitchen': 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=400&auto=format&fit=crop&q=80',
+    // Services
+    Plumbers: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&auto=format&fit=crop&q=80',
+    Plumbing: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&auto=format&fit=crop&q=80',
+    Electrician: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&auto=format&fit=crop&q=80',
+    Electrical: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&auto=format&fit=crop&q=80',
+    'Electronic services': 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=80',
+    'AC Repair & Service': 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&auto=format&fit=crop&q=80',
+    'Washing Machine Repair': 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=400&auto=format&fit=crop&q=80',
+    'Refrigerator Repair': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&auto=format&fit=crop&q=80',
+    'TV Repair': 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&auto=format&fit=crop&q=80',
+    'RO / Water Purifier': 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=400&auto=format&fit=crop&q=80',
+    'Microwave Repair': 'https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=400&auto=format&fit=crop&q=80',
+    'Geyser Repair': 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=400&auto=format&fit=crop&q=80',
+    Carpentry: 'https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=400&auto=format&fit=crop&q=80',
+    'CCTV Installation': 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&auto=format&fit=crop&q=80',
+    'Solar Service': 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=400&auto=format&fit=crop&q=80',
+    'Appliance Repair': 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=80',
+    Painting: 'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&auto=format&fit=crop&q=80',
+    Cleaning: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&auto=format&fit=crop&q=80',
+    'Pest Control': 'https://images.unsplash.com/photo-1628177142898-93e36e4e3a50?w=400&auto=format&fit=crop&q=80',
     // Daily Needs
-    Grocery: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=200&auto=format&fit=crop&q=70',
-    'Fruits & Vegetables': 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=200&auto=format&fit=crop&q=70',
-    Dairy: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=200&auto=format&fit=crop&q=70',
-    Bakery: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&auto=format&fit=crop&q=70',
-    Beverages: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200&auto=format&fit=crop&q=70',
+    Diary: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&auto=format&fit=crop&q=80',
+    Dairy: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&auto=format&fit=crop&q=80',
+    Groceries: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=80',
+    Grocery: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=80',
+    'Fruits & Vegetables': 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&auto=format&fit=crop&q=80',
+    Bakery: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80',
+    Beverages: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=400&auto=format&fit=crop&q=80',
     // Food
-    Restaurants: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&auto=format&fit=crop&q=70',
-    'Fast Food': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&auto=format&fit=crop&q=70',
-    Cafes: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&auto=format&fit=crop&q=70',
-    Desserts: 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=200&auto=format&fit=crop&q=70',
-    // Stay (Curated Real Hotel & Resort Photos for 16 Categories)
-    Hotels: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&auto=format&fit=crop&q=80',
+    'South Indian': 'https://images.unsplash.com/photo-1610192244261-3f33de3f55e4?w=400&auto=format&fit=crop&q=80',
+    'North Indian': 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&auto=format&fit=crop&q=80',
+    Restaurants: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&auto=format&fit=crop&q=80',
+    'Fast Food': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&auto=format&fit=crop&q=80',
+    Cafes: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400&auto=format&fit=crop&q=80',
+    Desserts: 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=400&auto=format&fit=crop&q=80',
+    // Stay
+    Viila: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&auto=format&fit=crop&q=80',
+    Villa: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&auto=format&fit=crop&q=80',
+    Resort: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400&auto=format&fit=crop&q=80',
     Resorts: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400&auto=format&fit=crop&q=80',
+    Hotels: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&auto=format&fit=crop&q=80',
     Homestays: 'https://images.unsplash.com/photo-1587061949409-02df41d5e562?w=400&auto=format&fit=crop&q=80',
     'Service Apartments': 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&auto=format&fit=crop&q=80',
     'Vacation Rentals': 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&auto=format&fit=crop&q=80',
@@ -163,6 +175,16 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
     'Heritage Stay': 'https://images.unsplash.com/photo-1590073242678-70ee3fc28e8e?w=400&auto=format&fit=crop&q=80',
     'Couple Stay': 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=400&auto=format&fit=crop&q=80',
     'Family Stay': 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=400&auto=format&fit=crop&q=80',
+    // Travel
+    Bus: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400&auto=format&fit=crop&q=80',
+    Cab: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&auto=format&fit=crop&q=80',
+    Car: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&auto=format&fit=crop&q=80',
+    Bike: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=400&auto=format&fit=crop&q=80',
+    // Jobs
+    IT: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&auto=format&fit=crop&q=80',
+    'IT Jobs': 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&auto=format&fit=crop&q=80',
+    'Non-IT': 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400&auto=format&fit=crop&q=80',
+    'Non-IT Jobs': 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400&auto=format&fit=crop&q=80',
     'Medical Stay': 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400&auto=format&fit=crop&q=80',
     'Religious Stay': 'https://images.unsplash.com/photo-1548013146-72479768bada?w=400&auto=format&fit=crop&q=80',
     'International Stay': 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400&auto=format&fit=crop&q=80',
@@ -1054,7 +1076,7 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
         }
       }
       return items;
-    }, [filters.categoryType, selectedMainCategory]);
+    }, [filters.categoryType, selectedMainCategory, categoryHierarchyVersion]);
     var getLeftSidebarItems = () => leftSidebarItems;
 
     // Compile items for the right grid based on searchQuery, category selection, and active filters
@@ -1465,8 +1487,8 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       }
       return list;
     };
-    var rightItems = (0, _react.useMemo)(() => getFilteredItems(filters), [filters, searchQuery, selectedMainCategory, selectedSubcategory, apiProducts]);
-    var draftResultCount = (0, _react.useMemo)(() => getFilteredItems(draftFilters).length, [draftFilters, searchQuery, selectedMainCategory, selectedSubcategory, apiProducts]);
+    var rightItems = (0, _react.useMemo)(() => getFilteredItems(filters), [filters, searchQuery, selectedMainCategory, selectedSubcategory, apiProducts, categoryHierarchyVersion]);
+    var draftResultCount = (0, _react.useMemo)(() => getFilteredItems(draftFilters).length, [draftFilters, searchQuery, selectedMainCategory, selectedSubcategory, apiProducts, categoryHierarchyVersion]);
     var handleOpenFilterModal = () => {
       var activeCat = selectedMainCategory || 'All';
       var activeSub = filters.subCategory && filters.subCategory !== 'All' ? filters.subCategory : selectedSubcategory !== 'All' ? selectedSubcategory : 'All';

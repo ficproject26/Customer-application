@@ -57,13 +57,66 @@ export const SUBCATEGORY_FALLBACK_IMAGES: Record<string, string> = {
 // In-memory cache for fast lookups
 
 export const INITIAL_HIERARCHY: CategoryHierarchyMap = {
-  Products: { id: 'main_products', name: 'Products', subcategories: [] },
-  Services: { id: 'main_services', name: 'Services', subcategories: [] },
-  'Daily Needs': { id: 'main_daily_needs', name: 'Daily Needs', subcategories: [] },
-  Food: { id: 'main_food', name: 'Food', subcategories: [] },
-  Stay: { id: 'main_stay', name: 'Stay', subcategories: [] },
-  Travel: { id: 'main_travel', name: 'Travel', subcategories: [] },
-  Jobs: { id: 'main_jobs', name: 'Jobs', subcategories: [] },
+  Products: {
+    id: 'main_products',
+    name: 'Products',
+    subcategories: [
+      { id: 'sub_electronics', name: 'Electronics', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['Electronics'], children: [{ id: 'ch_air_cooler', name: 'Air Cooler' }, { id: 'ch_tv', name: 'TV' }, { id: 'ch_ceiling_fan', name: 'Ceiling Fan' }] },
+      { id: 'sub_furniture', name: 'Furniture', icon: '', banner: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&auto=format&fit=crop&q=80', children: [{ id: 'ch_sofa', name: 'Sofa' }, { id: 'ch_chair', name: 'Chair' }, { id: 'ch_cot', name: 'Cot' }, { id: 'ch_bean_bag', name: 'Bean Bag' }] },
+      { id: 'sub_toys', name: 'Toys', icon: '', banner: 'https://images.unsplash.com/photo-1515488042361-404e9250afef?w=400&auto=format&fit=crop&q=80', children: [] },
+      { id: 'sub_stationary', name: 'Stationary', icon: '', banner: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=400&auto=format&fit=crop&q=80', children: [] },
+    ],
+  },
+  Services: {
+    id: 'main_services',
+    name: 'Services',
+    subcategories: [
+      { id: 'sub_plumbers', name: 'Plumbers', icon: '', banner: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&auto=format&fit=crop&q=80', children: [{ id: 'ch_sanitary_plumbers', name: 'Sanitary Plumbers' }, { id: 'ch_water_supply_plumbers', name: 'Water Supply Plumbers' }] },
+      { id: 'sub_electrician', name: 'Electrician', icon: '', banner: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&auto=format&fit=crop&q=80', children: [{ id: 'ch_solar_technicians', name: 'Solar Technicians' }, { id: 'ch_lineman', name: 'Lineman' }] },
+      { id: 'sub_electronic_services', name: 'Electronic services', icon: '', banner: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=80', children: [] },
+      { id: 'sub_example', name: 'Example', icon: '', banner: '', children: [] },
+    ],
+  },
+  'Daily Needs': {
+    id: 'main_daily_needs',
+    name: 'Daily Needs',
+    subcategories: [
+      { id: 'sub_diary', name: 'Diary', icon: '', banner: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&auto=format&fit=crop&q=80', children: [{ id: 'ch_milk', name: 'Milk' }, { id: 'ch_paneer', name: 'Paneer' }, { id: 'ch_curd', name: 'Curd' }, { id: 'ch_butter', name: 'Butter' }] },
+      { id: 'sub_groceries', name: 'Groceries', icon: '', banner: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=80', children: [{ id: 'ch_toor_dal', name: 'Toor Dal' }, { id: 'ch_urad_dal', name: 'Urad Dal' }, { id: 'ch_chilli_powder', name: 'Chilli Powder' }] },
+    ],
+  },
+  Food: {
+    id: 'main_food',
+    name: 'Food',
+    subcategories: [
+      { id: 'sub_south_indian', name: 'South Indian', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['South Indian'], children: [{ id: 'ch_dosa', name: 'Dosa' }, { id: 'ch_idly', name: 'Idly' }, { id: 'ch_south_indian_meals', name: 'South Indian Meals' }] },
+      { id: 'sub_north_indian', name: 'North Indian', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['North indian'], children: [{ id: 'ch_naan', name: 'Naan' }, { id: 'ch_dal_makhani', name: 'Dal Makhani' }] },
+    ],
+  },
+  Stay: {
+    id: 'main_stay',
+    name: 'Stay',
+    subcategories: [
+      { id: 'sub_viila', name: 'Viila', icon: '', banner: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&auto=format&fit=crop&q=80', children: [{ id: 'ch_cluster_villas', name: 'Cluster Villas' }, { id: 'ch_standalone_villas', name: 'Standalone Villas' }] },
+      { id: 'sub_resort', name: 'Resort', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['Resorts'], children: [{ id: 'ch_beach', name: 'Beach' }, { id: 'ch_island', name: 'Island' }, { id: 'ch_mountain', name: 'Mountain' }] },
+    ],
+  },
+  Travel: {
+    id: 'main_travel',
+    name: 'Travel',
+    subcategories: [
+      { id: 'sub_bus', name: 'Bus', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['Bus'], children: [{ id: 'ch_ac_sleeper', name: 'A/C Sleeper' }, { id: 'ch_seater', name: 'Seater' }] },
+      { id: 'sub_cab', name: 'Cab', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['Car'], children: [] },
+    ],
+  },
+  Jobs: {
+    id: 'main_jobs',
+    name: 'Jobs',
+    subcategories: [
+      { id: 'sub_it', name: 'IT', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['IT Domain'], children: [{ id: 'ch_data_analyst', name: 'Data Analyst' }, { id: 'ch_full_stack_developer', name: 'Full Stack Developer' }] },
+      { id: 'sub_non_it', name: 'Non-IT', icon: '', banner: SUBCATEGORY_FALLBACK_IMAGES['Non-IT'], children: [{ id: 'ch_data_associate', name: 'Data Associate' }, { id: 'ch_system_administrator', name: 'System Administrator' }] },
+    ],
+  },
 };
 
 let cachedHierarchy: CategoryHierarchyMap = INITIAL_HIERARCHY;
@@ -227,7 +280,9 @@ export async function fetchCategoryHierarchy(skipCache = false): Promise<Categor
   }
 
   try {
-    const rawRes = await apiFetch('/categories', { skipCache }).catch(() => null);
+    const rawRes = await apiFetch('/api/public/categories', { skipCache })
+      .catch(() => apiFetch('/categories', { skipCache }))
+      .catch(() => null);
 
     let rawCategories: any[] = [];
     if (rawRes) {

@@ -121,6 +121,7 @@ export const useProductStore = create<ProductStoreState>()(
           !force &&
           state.categoryHierarchy &&
           Object.keys(state.categoryHierarchy).length > 0 &&
+          Object.values(state.categoryHierarchy).some(m => m?.subcategories?.length > 0) &&
           now - state.lastHierarchyFetched < HIERARCHY_CACHE_TTL
         ) {
           return state.categoryHierarchy;
@@ -134,7 +135,7 @@ export const useProductStore = create<ProductStoreState>()(
           try {
             // Concurrent fetch of categories and products
             const [rawRes, realProducts] = await Promise.all([
-              apiFetch('/categories').catch(() => null),
+              apiFetch('/api/public/categories').catch(() => apiFetch('/categories')).catch(() => null),
               get().loadProducts(false).catch(() => get().products),
             ]);
 
