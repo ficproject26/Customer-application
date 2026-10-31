@@ -1794,7 +1794,8 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
           navigation.navigate('ProductDetails', {
             productId: card.rawProduct.id || card.rawProduct._id,
             product: card.rawProduct,
-            item: card.rawProduct
+            item: card.rawProduct,
+            category: card.categoryName || card.rawProduct.category || card.rawProduct.mainCategory
           });
         }
       } else {

@@ -118,7 +118,7 @@ export default function RazorpayModal({
         <View style={[styles.banner, { backgroundColor: isDark ? '#1C2541' : '#FFFFFF' }]}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.merchantName, { color: isDark ? '#E2E8F0' : '#1E293B' }]}>{merchant}</Text>
-            <Text style={[styles.orderDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>{orderData.planName}</Text>
+            <Text style={[styles.orderDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>{orderData.planName || (orderData as any).description || 'Order Payment'}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={[styles.amountLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>Amount to Pay</Text>

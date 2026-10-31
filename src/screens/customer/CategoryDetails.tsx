@@ -1482,15 +1482,18 @@ export default function CategoryDetails() {
   const [isMyBookingsOpen, setIsMyBookingsOpen] = useState(false);
   const [bookingsTab, setBookingsTab] = useState<'Upcoming' | 'Completed' | 'Cancelled'>('Upcoming');
 
-  const getDiscountBadgeText = (priceStr?: string, origPriceStr?: string) => {
-    if (!priceStr || !origPriceStr) return '14% OFF';
+  const getDiscountBadgeText = (priceStr?: string, origPriceStr?: string, discountNum?: number) => {
+    if (typeof discountNum === 'number' && discountNum > 0) {
+      return `${discountNum}% OFF`;
+    }
+    if (!priceStr || !origPriceStr) return '';
     const p = parseInt(priceStr.replace(/[^\d]/g, ''), 10);
     const op = parseInt(origPriceStr.replace(/[^\d]/g, ''), 10);
     if (op > p && op > 0) {
       const pct = Math.round(((op - p) / op) * 100);
       return `${pct}% OFF`;
     }
-    return '14% OFF';
+    return '';
   };
 
   // Voice Search Animation
@@ -2065,6 +2068,13 @@ export default function CategoryDetails() {
           originalPrice: p.originalPrice ? (typeof p.originalPrice === 'number' ? `₹${p.originalPrice.toLocaleString('en-IN')}` : String(p.originalPrice)) : undefined,
           discountNum,
           image: resolveImageUrl(p.image || p.imageUrl) || 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=400&q=70',
+          images: p.images,
+          imageUrls: p.imageUrls,
+          gallery: p.gallery,
+          unit: p.unit,
+          specifications: p.specifications,
+          highlights: p.highlights,
+          vehicleNumber: p.vehicleNumber || p.vehicleRegNo || p.busNumber,
           assured: p.assured ?? true,
           rawProduct: p,
           brand: p.brand || p.brandName || '',
@@ -5120,7 +5130,7 @@ export default function CategoryDetails() {
                   <View style={styles.compact2ColGrid}>
                 {displayedServices.slice(0, page * PAGE_SIZE).map((service) => {
                   const isWishlisted = wishlistItems.some((w) => w.id === service.id);
-                  const discBadge = getDiscountBadgeText(service.price, service.originalPrice);
+                  const discBadge = getDiscountBadgeText(service.price, service.originalPrice, service.discountNum);
                   const isCartCategory = catMeta.actionType === 'cart';
                   const cardWidth = Math.floor((width - 32 - 12) / 2);
 
@@ -5156,9 +5166,11 @@ export default function CategoryDetails() {
                         <Image source={{ uri: service.image }} style={styles.compactImage} resizeMode="cover" />
                         
                         {/* Top-Left Discount Badge */}
-                        <View style={styles.compactDiscountBadge}>
-                          <Text style={styles.compactDiscountBadgeText}>{discBadge}</Text>
-                        </View>
+                        {Boolean(discBadge) && (
+                          <View style={styles.compactDiscountBadge}>
+                            <Text style={styles.compactDiscountBadgeText}>{discBadge}</Text>
+                          </View>
+                        )}
 
                         {/* Top-Right Circle Wishlist Button */}
                         <TouchableOpacity

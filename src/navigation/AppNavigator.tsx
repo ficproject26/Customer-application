@@ -189,6 +189,35 @@ const renderDeliveryDollarIcon = ({ color, size }: { color: string; size: number
   <TabIcon name="DollarSign" color={color} size={size} />
 );
 
+// --- HOME & CATEGORIES STACK NAVIGATORS FOR PERSISTENT BOTTOM TABS ---
+const HomeStack = createStackNavigator();
+function HomeStackNavigator() {
+  const colors = useThemeStore((state) => state.colors);
+  return (
+    <HomeStack.Navigator detachInactiveScreens={true} screenOptions={{ headerShown: false, cardStyle: { backgroundColor: colors.background } }}>
+      <HomeStack.Screen name="HomeMain" component={MemoizedHomeDashboard} />
+      <HomeStack.Screen name="CategoryDetails" component={CategoryDetails} />
+      <HomeStack.Screen name="ProductDetails" component={ProductDetails} />
+      <HomeStack.Screen name="StayDetails" component={StayDetails} />
+      <HomeStack.Screen name="JobDetails" component={JobDetailsScreen} />
+    </HomeStack.Navigator>
+  );
+}
+
+const CategoriesStack = createStackNavigator();
+function CategoriesStackNavigator() {
+  const colors = useThemeStore((state) => state.colors);
+  return (
+    <CategoriesStack.Navigator detachInactiveScreens={true} screenOptions={{ headerShown: false, cardStyle: { backgroundColor: colors.background } }}>
+      <CategoriesStack.Screen name="CategoriesMain" component={MemoizedCategories} />
+      <CategoriesStack.Screen name="CategoryDetails" component={CategoryDetails} />
+      <CategoriesStack.Screen name="ProductDetails" component={ProductDetails} />
+      <CategoriesStack.Screen name="StayDetails" component={StayDetails} />
+      <CategoriesStack.Screen name="JobDetails" component={JobDetailsScreen} />
+    </CategoriesStack.Navigator>
+  );
+}
+
 // --- CUSTOMER BOTTOM TAB NAVIGATION ---
 function CustomerTabNavigator() {
   const colors = useThemeStore((state) => state.colors);
@@ -227,7 +256,7 @@ function CustomerTabNavigator() {
     >
       <CustomerTab.Screen
         name="Home"
-        component={MemoizedHomeDashboard}
+        component={HomeStackNavigator}
         options={{
           tabBarIcon: renderHomeIcon,
           tabBarLabel: ({ color }) => (
@@ -237,7 +266,7 @@ function CustomerTabNavigator() {
       />
       <CustomerTab.Screen
         name="Categories"
-        component={MemoizedCategories}
+        component={CategoriesStackNavigator}
         options={{
           tabBarIcon: renderCategoriesIcon,
           tabBarLabel: ({ color }) => (

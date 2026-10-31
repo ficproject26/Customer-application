@@ -604,20 +604,7 @@ export default function CustomerProfile() {
 
             <View style={[styles.divider, { backgroundColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' }]} />
 
-            {/* Personal Information */}
-            <TouchableOpacity
-              style={styles.menuRow}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('EditProfile')}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: isLight ? '#F8FAFC' : 'rgba(255, 255, 255, 0.06)' }]}>
-                <Icons.User color={isLight ? '#0F172A' : '#FFFFFF'} size={16} />
-              </View>
-              <Text style={[styles.menuText, { color: colors.text }]}>Personal Information</Text>
-              <Icons.ChevronRight color="#94A3B8" size={16} />
-            </TouchableOpacity>
 
-            <View style={[styles.divider, { backgroundColor: isLight ? '#F1EAD8' : 'rgba(255, 255, 255, 0.06)' }]} />
 
             {/* Saved Addresses */}
             <TouchableOpacity

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -44,11 +44,14 @@ export interface Product {
   brand?: string;
   category: string;
   subcategory?: string;
+  mainCategory?: string;
+  subNavbarCategory?: string;
   image: string;
   gallery?: string[];
   description?: string;
   price: number;
   mrp?: number;
+  discountPercent?: number;
   rating?: number;
   ratingCount?: string;
   assured?: boolean;
@@ -67,7 +70,107 @@ export interface Product {
   vehicleNumber?: string;
   vehicleRegNo?: string;
   busNumber?: string;
+  unit?: string;
+  foodType?: string;
+  isVeg?: boolean;
+  cuisine?: string;
 }
+
+export const calculatePrices = (item: any) => {
+  let price = Number(item?.price || 0);
+  if (isNaN(price)) {
+    price = parseInt(String(item?.price || '0').replace(/[^\d]/g, ''), 10) || 0;
+  }
+  let originalPrice = Number(item?.originalPrice || item?.mrp || item?.original_price || 0);
+  if (isNaN(originalPrice) || originalPrice === 0) {
+    originalPrice = parseInt(String(item?.originalPrice || item?.mrp || '0').replace(/[^\d]/g, ''), 10) || 0;
+  }
+
+  let discountVal = item?.discountPercent || item?.discountPercentage;
+  if (!discountVal && typeof item?.discount === 'string') {
+    const match = item.discount.match(/(\d+)/);
+    if (match) discountVal = parseFloat(match[1]);
+  } else if (!discountVal && typeof item?.discount === 'number') {
+    discountVal = item.discount;
+  }
+
+  if (originalPrice > 0 && price > originalPrice) {
+    const temp = price;
+    price = originalPrice;
+    originalPrice = temp;
+  } else if ((!originalPrice || originalPrice <= price) && price > 0 && discountVal > 0 && discountVal < 100) {
+    originalPrice = Math.round(price / (1 - discountVal / 100));
+  }
+
+  const discountPercent = (originalPrice > price && originalPrice > 0)
+    ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    : (discountVal || 0);
+
+  return {
+    price,
+    mrp: originalPrice > price ? originalPrice : undefined,
+    discountPercent,
+  };
+};
+
+export const extractAllImages = (data: any, raw: any, fallback: string): string[] => {
+  const list: any[] = [];
+  if (data?.images && Array.isArray(data.images)) {
+    data.images.forEach((img: any) => {
+      if (typeof img === 'string') list.push(img);
+      else if (img && typeof img === 'object') list.push(img.url || img.src || img.uri || img.image || '');
+    });
+  }
+  if (data?.imageUrls && Array.isArray(data.imageUrls)) list.push(...data.imageUrls);
+  if (data?.gallery && Array.isArray(data.gallery)) list.push(...data.gallery);
+  if (data?.image) list.push(data.image);
+  if (data?.imageUrl) list.push(data.imageUrl);
+
+  if (raw?.images && Array.isArray(raw.images)) {
+    raw.images.forEach((img: any) => {
+      if (typeof img === 'string') list.push(img);
+      else if (img && typeof img === 'object') list.push(img.url || img.src || img.uri || img.image || '');
+    });
+  }
+  if (raw?.imageUrls && Array.isArray(raw.imageUrls)) list.push(...raw.imageUrls);
+  if (raw?.gallery && Array.isArray(raw.gallery)) list.push(...raw.gallery);
+  if (raw?.image) list.push(raw.image);
+  if (raw?.imageUrl) list.push(raw.imageUrl);
+
+  const cleaned = list
+    .map((item) => {
+      if (!item || typeof item !== 'string') return '';
+      const s = item.trim();
+      if (!s) return '';
+      return resolveImageUrl(s);
+    })
+    .filter((url) => Boolean(url && typeof url === 'string' && url.length > 5));
+
+  const deduplicated = Array.from(new Set(cleaned));
+  return deduplicated.length > 0 ? deduplicated : [fallback];
+};
+
+export const getCanonicalVertical = (item: any): 'Services' | 'Products' | 'Daily Needs' | 'Food' | 'Stay' | 'Travel' | 'Jobs' => {
+  if (!item) return 'Products';
+  const raw = [
+    item.mainCategory,
+    item.subNavbarCategory,
+    item.category,
+    item.subcategory,
+    item.subCategory,
+    item.tag,
+    item.type,
+  ].filter(Boolean).join(' ').toLowerCase().trim();
+
+  if (raw.includes('stay') || ['hotel', 'hotels', 'homestay', 'resort', 'resorts', 'villa', 'villas', 'pg', 'hostel', 'apartment', 'guest house', 'room'].some(k => raw.includes(k))) return 'Stay';
+  if (raw.includes('food') || ['restaurant', 'dining', 'bakery', 'biryani', 'catering', 'sweets', 'ice cream', 'fast food', 'beverage', 'juice', 'south indian', 'north indian', 'chinese', 'continental', 'dessert', 'snack', 'thali', 'dosa', 'parotta', 'pizza', 'burger', 'cafe'].some(k => raw.includes(k))) return 'Food';
+  if (raw.includes('daily need') || ['grocery', 'groceries', 'supermarket', 'vegetable', 'vegetables', 'fruits', 'fruit', 'rice', 'eggs', 'milk', 'dairy', 'pharmacy', 'medicine', 'organic', 'staples', 'personal care', 'provisions'].some(k => raw.includes(k))) return 'Daily Needs';
+  if (raw.includes('job') || ['hiring', 'recruitment', 'career', 'careers', 'it jobs', 'full time', 'part time', 'opening', 'vacancy', 'employment'].some(k => raw.includes(k))) return 'Jobs';
+  if (raw.includes('service') || ['hospital', 'doctor', 'clinic', 'repair', 'plumbing', 'plumber', 'plumbers', 'electrician', 'cleaning', 'salon', 'spa', 'fitness', 'gym', 'education', 'carpentry', 'carpenter', 'painter', 'home care', 'pest control', 'laundry', 'appliance'].some(k => raw.includes(k))) return 'Services';
+  if (raw.includes('travel') || ['tour', 'tours', 'cab', 'cabs', 'taxi', 'bus', 'buses', 'flight', 'train', 'car rental'].some(k => raw.includes(k))) return 'Travel';
+
+  return 'Products';
+};
 
 export const calculateDiscount = (mrp?: number, price?: number): number => {
   if (!mrp || !price || mrp <= price) return 0;
@@ -116,29 +219,24 @@ export default function ProductDetails() {
   const [imageError, setImageError] = useState(false);
 
   const [product, setProduct] = useState<Product>(() => {
-    const rawPrice = typeof rawItem?.price === 'number'
-      ? rawItem.price
-      : parseInt(String(rawItem?.price || '0').replace(/[^\d]/g, ''), 10) || 0;
-
-    const rawMrp = typeof rawItem?.originalPrice === 'number'
-      ? rawItem.originalPrice
-      : (typeof rawItem?.mrp === 'number' ? rawItem.mrp : parseInt(String(rawItem?.originalPrice || rawItem?.mrp || '0').replace(/[^\d]/g, ''), 10) || undefined);
-
-    const initialImg = extractImage(rawItem) || defaultFallbackImage;
+    const { price: rawPrice, mrp: rawMrp, discountPercent } = calculatePrices(rawItem);
+    const initialGallery = extractAllImages(null, rawItem, defaultFallbackImage);
+    const initialImg = initialGallery[0] || defaultFallbackImage;
 
     return {
       id: rawItem?.id || rawItem?._id || routeParams?.productId || `prod_${Date.now()}`,
       name: rawItem?.name || rawItem?.title || '',
       brand: rawItem?.brand || rawItem?.vendor || undefined,
-      category: categoryParam || rawItem?.category || 'Products',
+      category: categoryParam || rawItem?.category || rawItem?.mainCategory || 'Products',
       subcategory: rawItem?.subcategory || rawItem?.subCategory || undefined,
+      mainCategory: rawItem?.mainCategory,
+      subNavbarCategory: rawItem?.subNavbarCategory,
       image: initialImg,
-      gallery: (Array.isArray(rawItem?.gallery) && rawItem.gallery.length > 0)
-        ? rawItem.gallery.filter(Boolean)
-        : [initialImg],
+      gallery: initialGallery,
       description: rawItem?.desc || rawItem?.description || '',
       price: rawPrice,
-      mrp: rawMrp && rawMrp > rawPrice ? rawMrp : undefined,
+      mrp: rawMrp,
+      discountPercent,
       rating: rawItem?.rating ? parseFloat(String(rawItem.rating)) : 0,
       ratingCount: rawItem?.ratingCount ? String(rawItem.ratingCount) : '0',
       assured: Boolean(rawItem?.isAssured || rawItem?.assured),
@@ -149,6 +247,11 @@ export default function ProductDetails() {
       highlights: rawItem?.highlights && rawItem.highlights.length > 0 ? rawItem.highlights : (rawItem?.spec ? [rawItem.spec] : []),
       specifications: rawItem?.specifications && rawItem.specifications.length > 0 ? rawItem.specifications : (rawItem?.spec ? [{ label: 'Specification', val: rawItem.spec }] : []),
       variants: rawItem?.variants || undefined,
+      vehicleNumber: rawItem?.vehicleNumber || rawItem?.vehicleRegNo || rawItem?.busNumber,
+      unit: rawItem?.unit,
+      foodType: rawItem?.foodType || rawItem?.cuisine,
+      isVeg: rawItem?.isVeg ?? (rawItem?.vegNonVeg === 'veg' || rawItem?.foodType === 'veg'),
+      cuisine: rawItem?.cuisine || rawItem?.foodType,
     };
   });
 
@@ -167,25 +270,22 @@ export default function ProductDetails() {
           if (isCurrent && res && (res.data || res.product)) {
             const productData = res.data || res.product;
             setProduct((prev) => {
-              const resImg = extractImage(productData);
-              const finalImg = resImg || prev.image || extractImage(rawItem) || defaultFallbackImage;
-              let finalGallery = Array.isArray(productData.gallery) && productData.gallery.filter(Boolean).length > 0
-                ? productData.gallery.filter(Boolean).map(resolveImageUrl)
-                : (Array.isArray(prev.gallery) && prev.gallery.filter(Boolean).length > 0
-                    ? prev.gallery.filter(Boolean).map(resolveImageUrl)
-                    : [finalImg]);
-
-              if (!finalGallery.includes(finalImg)) {
-                finalGallery = [finalImg, ...finalGallery];
-              }
+              const { price: livePrice, mrp: liveMrp, discountPercent } = calculatePrices(productData);
+              const liveGallery = extractAllImages(productData, prev, defaultFallbackImage);
+              const finalImg = liveGallery[0] || prev.image || defaultFallbackImage;
 
               return {
                 ...prev,
                 ...productData,
-                price: typeof productData.price === 'number' ? productData.price : prev.price,
-                mrp: typeof productData.mrp === 'number' ? productData.mrp : (typeof productData.originalPrice === 'number' ? productData.originalPrice : prev.mrp),
+                price: livePrice > 0 ? livePrice : prev.price,
+                mrp: liveMrp || prev.mrp,
+                discountPercent: discountPercent || prev.discountPercent,
                 image: finalImg,
-                gallery: finalGallery,
+                gallery: liveGallery,
+                unit: productData.unit || prev.unit,
+                foodType: productData.foodType || prev.foodType,
+                isVeg: productData.isVeg ?? prev.isVeg,
+                cuisine: productData.cuisine || prev.cuisine,
               };
             });
           }
@@ -242,13 +342,13 @@ export default function ProductDetails() {
   const unitMrp = product.mrp ? product.mrp + extraPrice : undefined;
   const totalPrice = unitSellingPrice * qty;
 
-  const computedDiscountPct = calculateDiscount(unitMrp, unitSellingPrice);
-
-  const activeImage = extractImage(product) || extractImage(rawItem) || defaultFallbackImage;
+  const computedDiscountPct = product.discountPercent || calculateDiscount(unitMrp, unitSellingPrice);
 
   const gallery = (Array.isArray(product.gallery) && product.gallery.filter(Boolean).length > 0)
     ? product.gallery.filter(Boolean)
-    : [activeImage];
+    : [product.image || defaultFallbackImage];
+
+  const activeImage = gallery[selectedThumb] || gallery[0] || product.image || defaultFallbackImage;
 
   const isFavorite = wishlistItems.some((i) => i.id === product.id);
   const isInCart = cartItems.some((i) => i.id === product.id);
@@ -262,23 +362,27 @@ export default function ProductDetails() {
     ? `${product.name} (${selectedVariantSummary})`
     : product.name;
 
+  const canonicalVertical = useMemo(() => {
+    return getCanonicalVertical(product || rawItem);
+  }, [product, rawItem]);
+
   const catLower = (product?.category || '').toLowerCase().trim();
   const hasCart = isCartableCategory(product?.category, product?.name);
 
   // Determine Right button text
   let actionBtnText = 'Buy Now';
-  if (catLower.includes('job')) {
+  if (canonicalVertical === 'Jobs') {
     actionBtnText = 'Apply Now';
-  } else if (catLower.includes('rental')) {
-    actionBtnText = 'Rent Now';
-  } else if (catLower.includes('stay') || catLower.includes('hotel') || catLower.includes('resort')) {
+  } else if (canonicalVertical === 'Stay') {
     actionBtnText = 'Reserve / Book Stay';
-  } else if (catLower.includes('travel') || catLower.includes('flight') || catLower.includes('cab') || /\bbus\b/i.test(catLower)) {
+  } else if (canonicalVertical === 'Travel') {
     actionBtnText = 'Book Ticket';
-  } else if (catLower.includes('service') || catLower.includes('health') || catLower.includes('appoint') || catLower.includes('repair') || catLower.includes('clean')) {
+  } else if (canonicalVertical === 'Services') {
     actionBtnText = 'Book Service';
-  } else if (catLower.includes('food') || catLower.includes('dine') || catLower.includes('restaurant')) {
+  } else if (canonicalVertical === 'Food') {
     actionBtnText = 'Order Now';
+  } else if (canonicalVertical === 'Daily Needs') {
+    actionBtnText = 'Buy Now';
   }
 
   const handleAddToCart = () => {
@@ -398,7 +502,19 @@ export default function ProductDetails() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Icons.ChevronLeft color={colors.icon} size={22} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.headerText }]} numberOfLines={1}>{t('Product Details')}</Text>
+        <Text style={[styles.headerTitle, { color: colors.headerText }]} numberOfLines={1}>
+          {canonicalVertical === 'Services'
+            ? t('Service Details')
+            : canonicalVertical === 'Food'
+            ? t('Food Details')
+            : canonicalVertical === 'Daily Needs'
+            ? t('Item Details')
+            : canonicalVertical === 'Stay'
+            ? t('Stay Details')
+            : canonicalVertical === 'Travel'
+            ? t('Travel Details')
+            : t('Product Details')}
+        </Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.iconBtn}
@@ -475,6 +591,39 @@ export default function ProductDetails() {
         )}
 
         <View style={styles.content}>
+          {/* Category Breadcrumbs & Badges */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            <View style={{ backgroundColor: isDark ? 'rgba(245, 184, 0, 0.15)' : '#FFF8E6', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(245, 184, 0, 0.3)' : '#FDE68A' }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#F5B800' : '#B45309', textTransform: 'uppercase' }}>
+                {canonicalVertical}
+              </Text>
+            </View>
+            {Boolean(product.subcategory || product.category) && (
+              <View style={{ backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F1F5F9', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.subtext }}>
+                  {product.subcategory || product.category}
+                </Text>
+              </View>
+            )}
+            {canonicalVertical === 'Food' && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: product.isVeg ? (isDark ? 'rgba(5, 150, 105, 0.15)' : '#ECFDF5') : (isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEF2F2'), paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: product.isVeg ? '#A7F3D0' : '#FECACA' }}>
+                <View style={{ width: 10, height: 10, borderRadius: 2, borderWidth: 1.5, borderColor: product.isVeg ? '#059669' : '#DC2626', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: product.isVeg ? '#059669' : '#DC2626' }} />
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: product.isVeg ? '#059669' : '#DC2626' }}>
+                  {product.isVeg ? 'PURE VEG' : 'NON-VEG'}
+                </Text>
+              </View>
+            )}
+            {Boolean(product.unit) && (
+              <View style={{ backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#F8FAFC', borderWidth: 1, borderColor: isDark ? colors.cardBorder : '#E2E8F0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>
+                  {product.unit}
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Brand & Title */}
           {product.brand && (
             <Text style={[styles.brandText, { color: colors.primary }]}>{product.brand.toUpperCase()}</Text>
@@ -516,30 +665,122 @@ export default function ProductDetails() {
             )}
           </View>
 
-          {/* Delivery Information */}
+          {/* Delivery / Fulfilment Information */}
           <Text style={[styles.subtext, { color: colors.subtext }]}>
-            {t(product.deliveryInfo || 'Free delivery available for Connect Members')}
+            {t(product.deliveryInfo || (
+              canonicalVertical === 'Services'
+                ? 'Standard 60-minute doorstep arrival with guaranteed satisfaction'
+                : canonicalVertical === 'Food'
+                ? 'Express 30-45 mins doorstep food delivery'
+                : canonicalVertical === 'Daily Needs'
+                ? 'Same-day fresh delivery direct to your home'
+                : 'Free delivery available for Connect Members'
+            ))}
           </Text>
 
-          {/* Trust Features Row matching Screen 4 reference */}
+          {/* Trust Features Row tailored per vertical */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 14, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: isDark ? colors.cardBorder : '#F1EAD8' }}>
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Icons.Truck color="#FF6A00" size={20} />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Free Delivery</Text>
-              <Text style={{ fontSize: 9.5, color: '#64748B' }}>Orders over ₹499</Text>
-            </View>
-            <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Icons.RotateCcw color="#FF6A00" size={20} />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>7 Days Return</Text>
-              <Text style={{ fontSize: 9.5, color: '#64748B' }}>Easy replacement</Text>
-            </View>
-            <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Icons.ShieldCheck color="#FF6A00" size={20} />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>100% Secure</Text>
-              <Text style={{ fontSize: 9.5, color: '#64748B' }}>Verified Payment</Text>
-            </View>
+            {canonicalVertical === 'Services' ? (
+              <>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.MapPin color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Doorstep</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Verified expert visit</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.ShieldCheck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>30 Days Warranty</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Free service re-work</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Clock color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>60 Mins Arrival</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Punctual doorstep</Text>
+                </View>
+              </>
+            ) : canonicalVertical === 'Food' ? (
+              <>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Clock color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>30-45 Mins</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Express delivery</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.ShieldCheck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>FSSAI Hygienic</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Sanitized kitchen</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Package color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Hot & Fresh</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Insulated packing</Text>
+                </View>
+              </>
+            ) : canonicalVertical === 'Daily Needs' ? (
+              <>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Sparkles color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Farm Fresh</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>100% Quality checked</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Truck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Same Day</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Direct from stores</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.ShieldCheck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Best Value</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Wholesale pricing</Text>
+                </View>
+              </>
+            ) : canonicalVertical === 'Travel' ? (
+              <>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Clock color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>On-Time Trip</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Punctual schedule</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.ShieldCheck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Sanitized Ride</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Clean & comfortable</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.CheckCircle color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Instant E-Ticket</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Confirmed seat</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.Truck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>Free Delivery</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Orders over ₹499</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.RotateCcw color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>7 Days Return</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Easy replacement</Text>
+                </View>
+                <View style={{ width: 1, height: 28, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Icons.ShieldCheck color="#FF6A00" size={20} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text, marginTop: 4 }}>100% Secure</Text>
+                  <Text style={{ fontSize: 9.5, color: '#64748B' }}>Verified Payment</Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Product Category Specific Variants */}
@@ -631,49 +872,172 @@ export default function ProductDetails() {
             </View>
           )}
 
-          {/* Description */}
-          {product.description ? (
-            <View style={styles.sectionMargin}>
-              <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('Product Overview')}</Text>
-              <Text style={[styles.descText, { color: colors.subtext }]}>{t(product.description)}</Text>
-            </View>
-          ) : null}
-
-          {/* Key Highlights */}
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('Highlights & Features')}</Text>
-          <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            {product.highlights && product.highlights.length > 0 ? (
-              product.highlights.map((hl, i) => (
-                <View key={i} style={styles.hlRow}>
-                  <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-                  <Text style={[styles.hlText, { color: colors.text }]}>{t(hl)}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={[styles.unavailableText, { color: colors.muted }]}>{t('Information unavailable')}</Text>
-            )}
+          {/* Description / Overview */}
+          <View style={styles.sectionMargin}>
+            <Text style={[styles.sectionHeading, { color: colors.text }]}>
+              {canonicalVertical === 'Services' ? t('About Service') : (canonicalVertical === 'Food' ? t('About Food') : (canonicalVertical === 'Daily Needs' ? t('About Product') : t('Product Overview')))}
+            </Text>
+            <Text style={[styles.descText, { color: colors.subtext, lineHeight: 20 }]}>
+              {t(product.description || (
+                canonicalVertical === 'Services'
+                  ? `Professional doorstep ${product.name} service performed by background-verified and experienced specialists with specialized tools and guaranteed satisfaction.`
+                  : (canonicalVertical === 'Food'
+                      ? `Delicious and authentic ${product.name} prepared fresh to order using finest ingredients in a certified hygienic kitchen.`
+                      : (canonicalVertical === 'Daily Needs'
+                          ? `Freshly sourced high quality ${product.name} carefully selected, inspected, and delivered directly to your home.`
+                          : `High quality ${product.name} backed by authorized vendor assurance and verified Connect App standards.`))
+              ))}
+            </Text>
           </View>
 
-          {/* Technical Specifications */}
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('Specifications')}</Text>
+          {/* Highlights */}
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>
+            {canonicalVertical === 'Services' ? t('Service Highlights') : (canonicalVertical === 'Food' ? t('Food Highlights') : t('Highlights & Features'))}
+          </Text>
           <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            {product.specifications && product.specifications.length > 0 ? (
-              product.specifications.map((spec, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.specRow,
-                    i < (product.specifications?.length || 0) - 1 && [styles.specDivider, { borderBottomColor: colors.cardBorder }],
-                  ]}
-                >
-                  <Text style={[styles.specLabel, { color: colors.subtext }]}>{t(spec.label)}</Text>
-                  <Text style={[styles.specVal, { color: colors.text }]}>{t(spec.val)}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={[styles.unavailableText, { color: colors.muted }]}>{t('Information unavailable')}</Text>
-            )}
+            {(product.highlights && product.highlights.length > 0
+              ? product.highlights
+              : (canonicalVertical === 'Services'
+                  ? [
+                      'Certified & Background-Verified Specialists',
+                      'Upfront & Transparent Pricing with Zero Hidden Charges',
+                      '30-Day Service Guarantee & Re-work Assurance',
+                      'Genuine Spare Parts & Professional Equipment',
+                      'Punctual Doorstep Service with Post-Work Cleanup',
+                    ]
+                  : (canonicalVertical === 'Food'
+                      ? [
+                          '100% Fresh & Authentic Ingredients',
+                          'Freshly Prepared Upon Order Placement',
+                          'Hygienic Kitchen Preparation & FSSAI Standards',
+                          'Spill-Proof & Temperature-Retaining Packaging',
+                          'Contactless Express Delivery Within 30-45 Mins',
+                        ]
+                      : (canonicalVertical === 'Daily Needs'
+                          ? [
+                              'Farm-fresh produce & premium grocery selection',
+                              'Strict quality checks and grading before dispatch',
+                              'Hygienically weighed, packed, and sealed',
+                              'Same-day doorstep delivery with live tracking',
+                            ]
+                          : [
+                              '100% Genuine and authentic product',
+                              'Comprehensive manufacturer/seller warranty support',
+                              'Tested and verified quality standards',
+                              'Safe and secure doorstep delivery',
+                            ]))
+            )).map((hl, i) => (
+              <View key={i} style={styles.hlRow}>
+                <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.hlText, { color: colors.text }]}>{t(hl)}</Text>
+              </View>
+            ))}
           </View>
+
+          {/* Specifications / Included-Excluded for Services / Details */}
+          {canonicalVertical === 'Services' ? (
+            <>
+              {/* Service Key Specifications */}
+              <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('Service Details & Standards')}</Text>
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding: 12 }]}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  {[
+                    { label: 'Service Mode', val: 'Doorstep / At Home' },
+                    { label: 'Warranty', val: '30 Days Service Guarantee' },
+                    { label: 'Response Time', val: 'Within 60 Minutes' },
+                    { label: 'Technician', val: 'Verified & Background-Checked' },
+                  ].map((spec, i) => (
+                    <View key={i} style={{ width: '48%', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: isDark ? colors.cardBorder : '#E2E8F0' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: colors.subtext, textTransform: 'uppercase' }}>{spec.label}</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text, marginTop: 3 }}>{spec.val}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* What's Included */}
+              <Text style={[styles.sectionHeading, { color: colors.text }]}>{t("What's Included")}</Text>
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+                {[
+                  'Comprehensive initial inspection and fault diagnosis',
+                  'Professional service execution by certified specialist',
+                  'Standard professional tools and diagnostic equipment',
+                  'Post-repair functionality testing and quality check',
+                  'Complete workspace cleanup after service completion',
+                ].map((item, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+                    <Icons.Check color="#059669" size={16} />
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.text, flex: 1 }}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* What's Excluded */}
+              <Text style={[styles.sectionHeading, { color: colors.text }]}>{t("What's Excluded")}</Text>
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+                {[
+                  'Cost of replacement components, wires, pipes or spare parts (billed at standard rates with invoice)',
+                  'Major masonry, civil, or structural alterations unless booked separately',
+                ].map((item, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+                    <Icons.X color="#DC2626" size={16} />
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: colors.subtext, flex: 1 }}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Technical Specifications for Products / Details for other categories */}
+              <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                {canonicalVertical === 'Food' ? t('Food Details') : (canonicalVertical === 'Daily Needs' ? t('Pack & Product Info') : t('Specifications'))}
+              </Text>
+              <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+                {product.specifications && product.specifications.length > 0 ? (
+                  product.specifications.map((spec, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.specRow,
+                        i < (product.specifications?.length || 0) - 1 && [styles.specDivider, { borderBottomColor: colors.cardBorder }],
+                      ]}
+                    >
+                      <Text style={[styles.specLabel, { color: colors.subtext }]}>{t(spec.label)}</Text>
+                      <Text style={[styles.specVal, { color: colors.text }]}>{t(spec.val)}</Text>
+                    </View>
+                  ))
+                ) : (
+                  (canonicalVertical === 'Food' ? [
+                    { label: 'Classification', val: product.isVeg ? '100% Vegetarian' : 'Non-Vegetarian' },
+                    { label: 'Cuisine / Category', val: product.cuisine || product.foodType || product.subcategory || 'Specialty' },
+                    { label: 'Portion Size', val: product.unit || 'Serves 1-2 Persons' },
+                    { label: 'Packaging', val: 'Tamper-Evident Food Grade Box' },
+                  ] : (canonicalVertical === 'Daily Needs' ? [
+                    { label: 'Pack Quantity', val: product.unit || 'Standard Pack' },
+                    { label: 'Category', val: product.subcategory || product.category },
+                    { label: 'Freshness', val: 'Farm Direct / Fresh Daily' },
+                    { label: 'Storage Instructions', val: 'Store in a cool and dry place' },
+                  ] : [
+                    { label: 'Category', val: product.category },
+                    { label: 'Condition', val: 'Brand New / Genuine' },
+                    { label: 'Availability', val: product.availability || 'In Stock' },
+                    { label: 'Fulfilment', val: 'Connect Verified Partner' },
+                  ])).map((spec, i, arr) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.specRow,
+                        i < arr.length - 1 && [styles.specDivider, { borderBottomColor: colors.cardBorder }],
+                      ]}
+                    >
+                      <Text style={[styles.specLabel, { color: colors.subtext }]}>{t(spec.label)}</Text>
+                      <Text style={[styles.specVal, { color: colors.text }]}>{t(spec.val)}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            </>
+          )}
 
           {/* Seller / Vendor Details */}
           <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('Seller & Fulfillment')}</Text>

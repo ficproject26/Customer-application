@@ -1340,67 +1340,99 @@ export default function HomeDashboard() {
                       resizeMode="cover"
                     />
 
-                    {/* Gradient Overlay for Crisp Text Legibility (Seamless dark on left fading to transparent on right) */}
-                    <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
-                      <Defs>
-                        <SvgLinearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
-                          <Stop offset="0%" stopColor="#120E0B" stopOpacity="0.95" />
-                          <Stop offset="45%" stopColor="#120E0B" stopOpacity="0.85" />
-                          <Stop offset="70%" stopColor="#120E0B" stopOpacity="0.45" />
-                          <Stop offset="90%" stopColor="#120E0B" stopOpacity="0.10" />
-                          <Stop offset="100%" stopColor="#120E0B" stopOpacity="0.0" />
-                        </SvgLinearGradient>
-                      </Defs>
-                      <Rect width="100%" height="100%" fill={`url(#${gradId})`} />
-                    </Svg>
+                    {(() => {
+                      const isGraphicBanner = Boolean(
+                        banner.image &&
+                        (banner.image.includes('/uploads/') ||
+                         banner.image.includes('api.ficapp.in') ||
+                         banner.title?.toLowerCase().includes('diwali') ||
+                         banner.title?.toLowerCase().includes('offer') ||
+                         banner.categoryTag === 'GRAPHIC')
+                      );
 
-                    {/* Content Layer (Left-aligned, clear of right image subject) */}
-                    <View style={styles.bannerContent}>
-                      <View style={styles.bannerTopGroup}>
-                        {/* Header Pill: Tag Icon + Offer Label */}
-                        <View style={styles.bannerBadgeContainer}>
-                          <Icons.Tag color="#F59E0B" size={10} />
-                          <Text style={styles.bannerBadgeText}>
-                            {(banner.categoryTag || banner.badgeText || 'SPECIAL OFFER').toUpperCase()}
-                          </Text>
-                        </View>
+                      if (isGraphicBanner) {
+                        return (
+                          <View
+                            style={{
+                              position: 'absolute',
+                              bottom: 10,
+                              right: 12,
+                              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                              paddingHorizontal: 12,
+                              paddingVertical: 5,
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              borderColor: 'rgba(245, 158, 11, 0.4)',
+                            }}
+                          >
+                            <Text style={{ color: '#F59E0B', fontSize: 11, fontWeight: '800' }}>
+                              {banner.buttonText ? `${banner.buttonText} →` : 'Shop Now →'}
+                            </Text>
+                          </View>
+                        );
+                      }
 
-                        {/* Title & Two-Tone Headline */}
-                        <View style={styles.bannerTitleGroup}>
-                          <Text style={styles.bannerTitleWhite} numberOfLines={1}>
-                            {firstLine}
-                          </Text>
-                          <Text style={styles.bannerTitleAmber} numberOfLines={1}>
-                            {secondLine}
-                          </Text>
-                        </View>
+                      return (
+                        <>
+                          {/* Gradient Overlay for Crisp Text Legibility */}
+                          <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
+                            <Defs>
+                              <SvgLinearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+                                <Stop offset="0%" stopColor="#120E0B" stopOpacity="0.95" />
+                                <Stop offset="45%" stopColor="#120E0B" stopOpacity="0.85" />
+                                <Stop offset="70%" stopColor="#120E0B" stopOpacity="0.45" />
+                                <Stop offset="90%" stopColor="#120E0B" stopOpacity="0.10" />
+                                <Stop offset="100%" stopColor="#120E0B" stopOpacity="0.0" />
+                              </SvgLinearGradient>
+                            </Defs>
+                            <Rect width="100%" height="100%" fill={`url(#${gradId})`} />
+                          </Svg>
 
-                        {/* Subtitle / Description */}
-                        <Text style={styles.bannerSubtitle} numberOfLines={2}>
-                          {banner.subtitle || 'Get up to 50% OFF on your favourite items'}
-                        </Text>
-                      </View>
+                          {/* Content Layer */}
+                          <View style={styles.bannerContent}>
+                            <View style={styles.bannerTopGroup}>
+                              <View style={styles.bannerBadgeContainer}>
+                                <Icons.Tag color="#F59E0B" size={10} />
+                                <Text style={styles.bannerBadgeText}>
+                                  {(banner.categoryTag || banner.badgeText || 'SPECIAL OFFER').toUpperCase()}
+                                </Text>
+                              </View>
 
-                      {/* Action Button CTA */}
-                      <TouchableOpacity
-                        style={styles.bannerBtn}
-                        activeOpacity={0.85}
-                        onPressIn={() => setIsBannerPaused(true)}
-                        onPressOut={() => setIsBannerPaused(false)}
-                        onPress={() => navigation.navigate('CategoryDetails', { categoryName: banner.targetCategory || 'Products' })}
-                      >
-                        <Text style={styles.bannerBtnText}>
-                          {banner.buttonText ? `${banner.buttonText} →` : 'Order Now →'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                              <View style={styles.bannerTitleGroup}>
+                                <Text style={styles.bannerTitleWhite} numberOfLines={1}>
+                                  {firstLine}
+                                </Text>
+                                <Text style={styles.bannerTitleAmber} numberOfLines={1}>
+                                  {secondLine}
+                                </Text>
+                              </View>
 
-                    {/* Floating Red Circular Offer Badge in Top-Right Corner */}
-                    <View style={styles.bannerCircleBadge}>
-                      <Text style={styles.bannerCircleSmallText}>UP TO</Text>
-                      <Text style={styles.bannerCircleBigText}>{discountPercent}</Text>
-                      <Text style={styles.bannerCircleSmallText}>OFF</Text>
-                    </View>
+                              <Text style={styles.bannerSubtitle} numberOfLines={2}>
+                                {banner.subtitle || 'Get up to 50% OFF on your favourite items'}
+                              </Text>
+                            </View>
+
+                            <TouchableOpacity
+                              style={styles.bannerBtn}
+                              activeOpacity={0.85}
+                              onPressIn={() => setIsBannerPaused(true)}
+                              onPressOut={() => setIsBannerPaused(false)}
+                              onPress={() => navigation.navigate('CategoryDetails', { categoryName: banner.targetCategory || 'Products' })}
+                            >
+                              <Text style={styles.bannerBtnText}>
+                                {banner.buttonText ? `${banner.buttonText} →` : 'Order Now →'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={styles.bannerCircleBadge}>
+                            <Text style={styles.bannerCircleSmallText}>UP TO</Text>
+                            <Text style={styles.bannerCircleBigText}>{discountPercent}</Text>
+                            <Text style={styles.bannerCircleSmallText}>OFF</Text>
+                          </View>
+                        </>
+                      );
+                    })()}
                   </TouchableOpacity>
                 </View>
               );

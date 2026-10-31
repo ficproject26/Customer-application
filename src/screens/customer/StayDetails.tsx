@@ -22,7 +22,7 @@ import { useWishlistStore } from '../../store/wishlistStore';
 import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useOrderStore, Order } from '../../store/orderStore';
-import { apiFetch } from '../../services/api';
+import { apiFetch, resolveImageUrl } from '../../services/api';
 import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
 import { prepareRazorpayOrder } from '../../services/razorpayService';
 import { RAZORPAY_KEY_ID } from '../../services/env';
