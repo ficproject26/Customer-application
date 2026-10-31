@@ -821,10 +821,16 @@ export default function HomeDashboard() {
     navigation.navigate('CustomerTabs', { screen: 'Orders' });
 
     // 2. Non-blocking asynchronous sync
+    const matchedProd = (dbProducts || []).find((p: any) => p.name === name || p.title === name);
+    const resolvedVendor = matchedProd?.vendorId || matchedProd?.vendor_id || '';
+    const resolvedProdId = matchedProd?.id || matchedProd?._id || '';
+
     apiFetch('/orders', {
       method: 'POST',
       body: JSON.stringify({
-        vendor_id: 'v1',
+        vendor_id: resolvedVendor,
+        vendorId: resolvedVendor,
+        productId: resolvedProdId,
         customer_name: displayName,
         customer_phone: userPhone,
         customer_address: userAddress,
@@ -832,7 +838,18 @@ export default function HomeDashboard() {
         customer_longitude: 77.6289,
         product_details: name,
         amount: numPrice,
-        order_type: isBooking ? 'booking' : 'order'
+        order_type: isBooking ? 'booking' : 'order',
+        type: isBooking ? category : 'Order',
+        category: category,
+        items: [{
+          productId: resolvedProdId,
+          vendorId: resolvedVendor,
+          vendor_id: resolvedVendor,
+          name: name,
+          category: category,
+          price: numPrice,
+          quantity: 1
+        }]
       })
     })
       .then(() => {
@@ -934,17 +951,34 @@ export default function HomeDashboard() {
     navigation.navigate('CustomerTabs', { screen: 'Orders' });
 
     // 2. Non-blocking asynchronous sync
+    const resolvedVendor = product.vendorId || product.vendor_id || '';
+    const resolvedProdId = product.id || product._id || '';
+    const isBookingProduct = ['Services', 'Service', 'Stay', 'Travel', 'Food', 'Jobs'].includes(product.category || product.mainCategory || '');
+
     apiFetch('/orders', {
       method: 'POST',
       body: JSON.stringify({
-        vendor_id: 'v1',
+        vendor_id: resolvedVendor,
+        vendorId: resolvedVendor,
+        productId: resolvedProdId,
         customer_name: displayName,
         customer_phone: userPhone,
         customer_address: userAddress,
         customer_latitude: 12.9498,
         customer_longitude: 77.6289,
         product_details: product.name,
-        amount: numPrice
+        amount: numPrice,
+        type: isBookingProduct ? (product.category || product.mainCategory) : 'Order',
+        category: product.category || product.mainCategory || 'Products',
+        items: [{
+          productId: resolvedProdId,
+          vendorId: resolvedVendor,
+          vendor_id: resolvedVendor,
+          name: product.name,
+          category: product.category || product.mainCategory || 'Products',
+          price: numPrice,
+          quantity: 1
+        }]
       })
     })
       .then(() => {

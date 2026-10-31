@@ -3779,6 +3779,9 @@ export default function CategoryDetails() {
 
     addToCart({
       id: schedulingItem.id,
+      productId: schedulingItem.id || schedulingItem._id,
+      vendorId: schedulingItem.vendorId || schedulingItem.vendor_id,
+      vendor_id: schedulingItem.vendorId || schedulingItem.vendor_id,
       name: schedulingItem.name,
       price: priceStr || String(schedulingItem.price || '₹299'),
       category: categoryName || schedulingItem.mainCategory || effectiveCat || 'Services',
@@ -5058,6 +5061,9 @@ export default function CategoryDetails() {
                                         const defDropping = service.droppingPoints?.[0] || `${service.to || 'Chennai'} CMBT Bus Stand (06:00 AM)`;
                                         addToCart({
                                           id: service.id,
+                                          productId: service.id || service._id,
+                                          vendorId: service.vendorId || (service as any).vendor_id,
+                                          vendor_id: service.vendorId || (service as any).vendor_id,
                                           name: service.name,
                                           price: service.price || '₹499',
                                           category: 'Travel',
