@@ -238,13 +238,13 @@ export default function LiveTracking() {
 
   // Phone Call Action Handler
   const handleCallPartner = () => {
-    const rawPhone = effectivePartner?.phone || '+919845122319';
+    const rawPhone = String(effectivePartner?.phone || '+919845122319');
     const cleanNumber = rawPhone.replace(/[^\d+]/g, '');
     const url = `tel:${cleanNumber}`;
 
     Alert.alert(
       'Call Delivery Partner',
-      `Dial ${effectivePartner.name} at ${effectivePartner.phone}?`,
+      `Dial ${effectivePartner?.name || 'Delivery Partner'} at ${effectivePartner?.phone || '+919845122319'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -252,7 +252,7 @@ export default function LiveTracking() {
           style: 'default',
           onPress: () => {
             Linking.openURL(url).catch((err) => {
-              Alert.alert('Unable to place call', 'Please dial ' + effectivePartner.phone + ' directly.');
+              Alert.alert('Unable to place call', 'Please dial ' + (effectivePartner?.phone || '+919845122319') + ' directly.');
             });
           },
         },
@@ -261,8 +261,8 @@ export default function LiveTracking() {
   };
 
   const handleMessagePartner = () => {
-    const phone = effectivePartner?.phone || '+919845122319';
-    const textMsg = `Hello ${effectivePartner.name}, I am tracking my express order #${order?.order_number || activeOrderId}.`;
+    const phone = String(effectivePartner?.phone || '+919845122319');
+    const textMsg = `Hello ${effectivePartner?.name || 'Partner'}, I am tracking my express order #${order?.order_number || activeOrderId}.`;
     Linking.openURL(`sms:${phone.replace(/[^\d+]/g, '')}?body=${encodeURIComponent(textMsg)}`).catch(() => {});
   };
 

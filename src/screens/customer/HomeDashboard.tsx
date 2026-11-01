@@ -210,7 +210,7 @@ export default function HomeDashboard() {
 
   // Auth Store Hooks
   const currentUser = useAuthStore((state) => state.currentUser);
-  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser.name && currentUser.name.toLowerCase().includes('guest'));
+  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser?.name && typeof currentUser.name === 'string' && currentUser.name.toLowerCase().includes('guest'));
   const logout = useAuthStore((state) => state.logout);
   const pendingProduct = useAuthStore((state) => state.pendingPurchaseProduct);
   const setPendingProduct = useAuthStore((state) => state.setPendingPurchaseProduct);

@@ -3716,11 +3716,11 @@ export default function CategoryDetails() {
           Alert.alert('Missing Name', `Please enter full name for Person ${i + 1}.`);
           return;
         }
-        if (!trv.aadhar || trv.aadhar.replace(/[^\d]/g, '').length !== 12) {
+        if (!trv.aadhar || String(trv.aadhar).replace(/[^\d]/g, '').length !== 12) {
           Alert.alert('Validation Error', `Please enter a valid 12-digit Aadhaar Card Number for Person ${i + 1} (${trv.name || 'Person ' + (i + 1)}).`);
           return;
         }
-        if (!trv.phone || trv.phone.replace(/[^\d]/g, '').length !== 10) {
+        if (!trv.phone || String(trv.phone).replace(/[^\d]/g, '').length !== 10) {
           Alert.alert('Validation Error', `Please enter a valid 10-digit Mobile Number for Person ${i + 1} (${trv.name || 'Person ' + (i + 1)}).`);
           return;
         }
@@ -6378,11 +6378,11 @@ export default function CategoryDetails() {
                             Alert.alert('Missing Name', `Please enter full name for Person ${i + 1}.`);
                             return;
                           }
-                          if (!trv.aadhar || trv.aadhar.replace(/[^\d]/g, '').length !== 12) {
+                          if (!trv.aadhar || String(trv.aadhar).replace(/[^\d]/g, '').length !== 12) {
                             Alert.alert('Validation Error', `Please enter a valid 12-digit Aadhaar Card Number for Person ${i + 1} (${trv.name || 'Person ' + (i + 1)}).`);
                             return;
                           }
-                          if (!trv.phone || trv.phone.replace(/[^\d]/g, '').length !== 10) {
+                          if (!trv.phone || String(trv.phone).replace(/[^\d]/g, '').length !== 10) {
                             Alert.alert('Validation Error', `Please enter a valid 10-digit Mobile Number for Person ${i + 1} (${trv.name || 'Person ' + (i + 1)}).`);
                             return;
                           }

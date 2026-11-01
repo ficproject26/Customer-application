@@ -369,11 +369,11 @@ export default function MyAddresses() {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
-      a.name.toLowerCase().includes(q) ||
-      a.label.toLowerCase().includes(q) ||
-      a.street.toLowerCase().includes(q) ||
-      a.city.toLowerCase().includes(q) ||
-      a.pincode.includes(q)
+      String(a.name || '').toLowerCase().includes(q) ||
+      String(a.label || '').toLowerCase().includes(q) ||
+      String(a.street || '').toLowerCase().includes(q) ||
+      String(a.city || '').toLowerCase().includes(q) ||
+      String(a.pincode || '').includes(q)
     );
   });
 

@@ -263,7 +263,7 @@ export const useAuthStore = create<AuthState>()(
   updateMembership: async (tier: 'silver' | 'gold' | 'diamond') => {
     const state = get();
     if (!state.currentUser || !state.currentUser.id) return;
-    const isGuest = Boolean(state.currentUser.isGuest || (state.currentUser.name && state.currentUser.name.toLowerCase().includes('guest')));
+    const isGuest = Boolean(state.currentUser.isGuest || (state.currentUser.name && typeof state.currentUser.name === 'string' && state.currentUser.name.toLowerCase().includes('guest')));
     const uId = state.currentUser.id;
 
     // 1. Immediately update store with 0ms UI delay
@@ -293,7 +293,7 @@ export const useAuthStore = create<AuthState>()(
   addWalletBalance: (amount: number) => {
     set((state) => {
       if (!state.currentUser) return state;
-      const isGuest = Boolean(state.currentUser.isGuest || (state.currentUser.name && state.currentUser.name.toLowerCase().includes('guest')));
+      const isGuest = Boolean(state.currentUser.isGuest || (state.currentUser.name && typeof state.currentUser.name === 'string' && state.currentUser.name.toLowerCase().includes('guest')));
       const uId = state.currentUser.id;
       const current = state.currentUser.walletBalance ?? 0;
       const updated = current + amount;
@@ -310,7 +310,7 @@ export const useAuthStore = create<AuthState>()(
   deductWalletBalance: (amount: number) => {
     const state = get();
     if (!state.currentUser) return false;
-    const isGuest = Boolean(state.currentUser.isGuest || (state.currentUser.name && state.currentUser.name.toLowerCase().includes('guest')));
+    const isGuest = Boolean(state.currentUser.isGuest || (state.currentUser.name && typeof state.currentUser.name === 'string' && state.currentUser.name.toLowerCase().includes('guest')));
     const uId = state.currentUser.id;
     const current = state.currentUser.walletBalance ?? 0;
     if (current < amount) return false;

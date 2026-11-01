@@ -175,12 +175,12 @@ export default function EditProfile() {
 
   // Validation
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  const phoneDigits = phone.replace(/[^\d]/g, '');
+  const phoneDigits = String(phone || '').replace(/[^\d]/g, '');
   const cleanPhone = phoneDigits.slice(-10);
   const isPhoneValid = cleanPhone.length === 10 && /^[6-9]\d{9}$/.test(cleanPhone);
-  const isEmailValid = emailRegex.test(email.trim());
-  const isNameValid = name.trim().length >= 2 && /^[a-zA-Z\s'.]+$/.test(name.trim());
-  const isDobValid = !dob.trim() || /^\d{4}-\d{2}-\d{2}$/.test(dob.trim());
+  const isEmailValid = emailRegex.test(String(email || '').trim());
+  const isNameValid = String(name || '').trim().length >= 2 && /^[a-zA-Z\s'.]+$/.test(String(name || '').trim());
+  const isDobValid = !String(dob || '').trim() || /^\d{4}-\d{2}-\d{2}$/.test(String(dob || '').trim());
 
   const isValid = isNameValid && isEmailValid && isPhoneValid && isDobValid;
 

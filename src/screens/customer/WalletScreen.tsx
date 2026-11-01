@@ -286,9 +286,9 @@ export default function WalletScreen() {
     if (!txSearchQuery.trim()) return true;
     const q = txSearchQuery.toLowerCase();
     return (
-      tx.title.toLowerCase().includes(q) ||
-      tx.subtitle.toLowerCase().includes(q) ||
-      tx.referenceId.toLowerCase().includes(q)
+      String(tx.title || '').toLowerCase().includes(q) ||
+      String(tx.subtitle || '').toLowerCase().includes(q) ||
+      String(tx.referenceId || '').toLowerCase().includes(q)
     );
   });
 

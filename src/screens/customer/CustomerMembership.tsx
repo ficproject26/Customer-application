@@ -672,7 +672,7 @@ export default function CustomerMembership() {
       return;
     }
 
-    const rawPrice = plan.price.replace(/[^0-9]/g, '');
+    const rawPrice = String(plan.price || '').replace(/[^0-9]/g, '');
     const priceNum = parseInt(rawPrice, 10) || 999;
     const isUpgrade = currentLevel > 0 && targetLevel > currentLevel;
 

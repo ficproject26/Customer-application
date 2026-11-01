@@ -52,7 +52,7 @@ function ProductCardComponent({ item, onPress, onPlaceOrder }: ProductCardProps)
 
   const currentUser = useAuthStore((state) => state.currentUser);
   const isGuestUser = useMemo(() => {
-    return !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser.name && currentUser.name.toLowerCase().includes('guest'));
+    return !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser?.name && typeof currentUser.name === 'string' && currentUser.name.toLowerCase().includes('guest'));
   }, [currentUser]);
 
   const computedDiscount = useMemo(() => {

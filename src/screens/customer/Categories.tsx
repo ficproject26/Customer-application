@@ -590,7 +590,7 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
       // dynamically map vendor products with category === 'Travel'
       apiProducts.forEach(p => {
         if (p.category === 'Travel' || p.categoryName === 'Travel' || p.categoryKey === 'Travel' || p.busSchedule || p.boardingPoints || p.droppingPoints) {
-          var rawType = (p.vehicleType || p.subCategory || 'Bus').toLowerCase();
+          var rawType = String(p.vehicleType || p.subCategory || 'Bus').toLowerCase();
           var vType = rawType.includes('bike') ? 'Bike' : rawType.includes('cab') || rawType.includes('car') || rawType.includes('taxi') ? 'Cab' : 'Bus';
           var bps = Array.isArray(p.boardingPoints) ? p.boardingPoints.map(bp => typeof bp === 'string' ? bp : `${bp.point || bp.city || 'Pickup'}${bp.time ? ` (${bp.time})` : ''}`) : ['Central Hub'];
           var dps = Array.isArray(p.droppingPoints) ? p.droppingPoints.map(dp => typeof dp === 'string' ? dp : `${dp.point || dp.city || 'Drop'}${dp.time ? ` (${dp.time})` : ''}`) : ['Destination Hub'];
@@ -623,8 +623,8 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
           });
         }
       });
-      var cleanFrom = travelFrom.trim().toLowerCase();
-      var cleanTo = travelTo.trim().toLowerCase();
+      var cleanFrom = String(travelFrom || '').trim().toLowerCase();
+      var cleanTo = String(travelTo || '').trim().toLowerCase();
       var currentType = travelVehicleType;
       return list.filter(item => {
         // 1. Vehicle Type Match
@@ -633,19 +633,26 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
         // 2. Query search filter (if search bar is typed)
         if (searchQuery.trim()) {
           var q = searchQuery.trim().toLowerCase();
-          var matchesQuery = item.name.toLowerCase().includes(q) || item.operator.toLowerCase().includes(q) || item.from.toLowerCase().includes(q) || item.to.toLowerCase().includes(q);
+          var matchesQuery = String(item.name || '').toLowerCase().includes(q) ||
+            String(item.operator || '').toLowerCase().includes(q) ||
+            String(item.from || '').toLowerCase().includes(q) ||
+            String(item.to || '').toLowerCase().includes(q);
           if (!matchesQuery) return false;
         }
 
         // 3. From filter (if entered)
         if (cleanFrom) {
-          var fromMatches = item.from.toLowerCase().includes(cleanFrom) || item.name.toLowerCase().includes(cleanFrom) || item.boardingPoints.some(bp => bp.toLowerCase().includes(cleanFrom));
+          var fromMatches = String(item.from || '').toLowerCase().includes(cleanFrom) ||
+            String(item.name || '').toLowerCase().includes(cleanFrom) ||
+            (Array.isArray(item.boardingPoints) && item.boardingPoints.some(bp => String(bp || '').toLowerCase().includes(cleanFrom)));
           if (!fromMatches) return false;
         }
 
         // 4. To filter (if entered)
         if (cleanTo) {
-          var toMatches = item.to.toLowerCase().includes(cleanTo) || item.name.toLowerCase().includes(cleanTo) || item.droppingPoints.some(dp => dp.toLowerCase().includes(cleanTo));
+          var toMatches = String(item.to || '').toLowerCase().includes(cleanTo) ||
+            String(item.name || '').toLowerCase().includes(cleanTo) ||
+            (Array.isArray(item.droppingPoints) && item.droppingPoints.some(dp => String(dp || '').toLowerCase().includes(cleanTo)));
           if (!toMatches) return false;
         }
         return true;
@@ -2788,7 +2795,7 @@ if ("android" === 'android' && _reactNative.UIManager.setLayoutAnimationEnabledE
                   from: 'Bangalore',
                   to: 'Mysore'
                 }].map((preset, idx) => {
-                  var isMatched = travelFrom.toLowerCase() === preset.from.toLowerCase() && travelTo.toLowerCase() === preset.to.toLowerCase();
+                  var isMatched = String(travelFrom || '').toLowerCase() === String(preset.from || '').toLowerCase() && String(travelTo || '').toLowerCase() === String(preset.to || '').toLowerCase();
                   return /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.TouchableOpacity, {
                     style: [styles.travelPresetChip, {
                       backgroundColor: isMatched ? '#F5B800' : isLight ? '#F1F5F9' : 'rgba(255, 255, 255, 0.08)',

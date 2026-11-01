@@ -100,8 +100,12 @@ export default function StayDetails() {
 
   const defaultRoomName = (stay.roomClass || 'Deluxe Room').toUpperCase();
   const defaultRoomGuests = `${stay.numberOfGuests || '2 Guests'} • ${stay.bedType || '1 King Bed'}${stay.roomView ? ` • ${stay.roomView}` : ''}`;
+  const hasBreakfastInAmenities = Array.isArray(stay.amenities)
+    ? stay.amenities.some((a: any) => typeof a === 'string' && (a.includes('Breakfast') || a.includes('Free Breakfast')))
+    : (typeof stay.amenities === 'string' ? (stay.amenities.includes('Breakfast') || stay.amenities.includes('Free Breakfast')) : false);
+
   const defaultRoomInclusions = [
-    stay.freeBreakfast !== false && (stay.freeBreakfast || stay.amenities?.includes('Breakfast') || stay.amenities?.includes('Free Breakfast')) ? 'Breakfast included' : null,
+    stay.freeBreakfast !== false && (stay.freeBreakfast || hasBreakfastInAmenities) ? 'Breakfast included' : null,
     stay.freeCancellation !== false ? 'Free cancellation' : null,
     'Free Wi-Fi',
     stay.roomSize ? `${stay.roomSize}` : null,
@@ -494,8 +498,8 @@ export default function StayDetails() {
   };
 
   // Amenities list icon resolver
-  const renderAmenityIcon = (amen: string) => {
-    const a = amen.toLowerCase();
+  const renderAmenityIcon = (amen: any) => {
+    const a = String(typeof amen === 'string' ? amen : amen?.name || '').toLowerCase();
     if (a.includes('pool') || a.includes('swim')) return <Icons.Waves color="#059669" size={16} />;
     if (a.includes('wifi') || a.includes('internet')) return <Icons.Wifi color="#059669" size={16} />;
     if (a.includes('breakfast') || a.includes('food') || a.includes('dining')) return <Icons.Coffee color="#059669" size={16} />;
@@ -789,7 +793,7 @@ export default function StayDetails() {
 
             {/* Quick Policy & Inclusion Highlights */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-              {stay.freeBreakfast !== false && (stay.freeBreakfast || stay.amenities?.includes('Breakfast') || stay.amenities?.includes('Free Breakfast')) && (
+              {stay.freeBreakfast !== false && (stay.freeBreakfast || hasBreakfastInAmenities) && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isLight ? '#ECFDF5' : 'rgba(5, 150, 105, 0.15)', borderWidth: 1, borderColor: '#A7F3D0', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8, gap: 5 }}>
                   <Icons.Coffee color="#059669" size={13} />
                   <Text style={{ fontSize: 11, fontWeight: '800', color: '#059669' }}>Free Breakfast Included</Text>

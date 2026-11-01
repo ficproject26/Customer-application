@@ -66,7 +66,7 @@ const JobCardComponent = memo(function JobCard({ job, onPress, onApply }: JobCar
   const showToast = useToastStore((state) => state.showToast);
 
   const currentUser = useAuthStore((state) => state.currentUser);
-  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser.name && currentUser.name.toLowerCase().includes('guest'));
+  const isGuestUser = !currentUser || currentUser.isGuest || currentUser.id === 'guest_user' || Boolean(currentUser?.name && typeof currentUser.name === 'string' && currentUser.name.toLowerCase().includes('guest'));
 
   const [hasApplied, setHasApplied] = useState(false);
 
