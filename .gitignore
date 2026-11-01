@@ -85,3 +85,6 @@ travel_screen_check.png
 # logs
 *.log
 
+# APK binaries
+*.apk
+
