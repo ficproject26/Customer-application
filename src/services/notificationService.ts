@@ -287,8 +287,9 @@ async function sendTokenToBackend(token: string) {
       body: JSON.stringify({
         token,
         platform: Platform.OS,
-        deviceId: `android_${Date.now()}`,
+        deviceId: `android_${userId || 'guest'}`,
         userId: userId || undefined,
+        role: 'customer',
       }),
     });
     const resData = await response.json();
@@ -296,6 +297,28 @@ async function sendTokenToBackend(token: string) {
   } catch (err) {
     // Non-critical background failure logged safely
     console.warn('Failed to send FCM token to backend:', err);
+  }
+}
+
+/**
+ * Unregister FCM token on user logout
+ */
+export async function unregisterFcmToken(token?: string, userId?: string) {
+  try {
+    const fcmToken = token || (await AsyncStorage.getItem(FCM_TOKEN_STORAGE_KEY));
+    if (!fcmToken && !userId) return;
+
+    await fetch(`${BACKEND_API_BASE}/notifications/unregister-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: fcmToken || undefined,
+        userId: userId || undefined,
+      }),
+    });
+    console.log('[NotificationService] Deactivated FCM token on backend successfully.');
+  } catch (err) {
+    console.warn('[NotificationService] Unregister token error:', err);
   }
 }
 

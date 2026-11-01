@@ -177,6 +177,11 @@ export const useAuthStore = create<AuthState>()(
     if (callback) callback({ id: 'guest', name: 'Guest', email: '', role: 'customer', isGuest: true });
   },
   logout: () => {
+    const curUserId = get().currentUser?.id;
+    try {
+      const { unregisterFcmToken } = require('../services/notificationService');
+      unregisterFcmToken(undefined, curUserId);
+    } catch {}
     clearSessionAndUserData();
     const { setAuthToken } = require('../services/api');
     setAuthToken(null);

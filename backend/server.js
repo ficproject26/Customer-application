@@ -21,6 +21,9 @@ const Assignment = require('./models/Assignment');
 const Earning = require('./models/Earning');
 const Business = require('./models/Business');
 const Customer = require('./models/Customer');
+const DeviceToken = require('./models/DeviceToken');
+const Notification = require('./models/Notification');
+const { sendPushNotification } = require('./services/pushService');
 
 const app = express();
 const server = http.createServer(app);
@@ -66,7 +69,6 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Serve uploaded product images as static files
 const fs = require('fs');
-const path = require('path');
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
@@ -197,37 +199,127 @@ app.post('/api/upload', (req, res) => {
 });
 
 
-app.post('/api/notifications/register-token', (req, res) => {
-  const { token, platform } = req.body;
-  if (token) {
+app.post('/api/notifications/register-token', async (req, res) => {
+  try {
+    const { token, platform = 'android', userId, role = 'customer', deviceId, appVersion } = req.body;
+    if (!token) {
+      return res.status(400).json({ status: 'error', message: 'Token is required' });
+    }
     registeredFcmTokens.add(token);
-    console.log(`[FCM Backend] Registered token (${platform}):`, token);
+
+    if (userId) {
+      try {
+        await DeviceToken.findOneAndUpdate(
+          { userId: String(userId), fcmToken: token },
+          {
+            userId: String(userId),
+            role: role || 'customer',
+            fcmToken: token,
+            platform: platform || 'android',
+            deviceId: deviceId || `android_${userId}`,
+            appVersion: appVersion || '1.0.0',
+            isActive: true,
+            lastSeenAt: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+      } catch (dbErr) {
+        console.warn('[FCM Backend] DeviceToken upsert notice:', dbErr.message);
+      }
+    }
+
+    console.log(`[FCM Backend] Registered token (${platform}, role: ${role}, user: ${userId || 'anonymous'}):`, token);
     return res.json({
       status: 'success',
-      message: 'FCM Device token registered successfully',
+      message: 'FCM Device token registered and mapped successfully',
       tokenCount: registeredFcmTokens.size,
     });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
   }
-  return res.status(400).json({ status: 'error', message: 'Token is required' });
+});
+
+app.post('/api/notifications/unregister-token', async (req, res) => {
+  try {
+    const { token, userId, deviceId } = req.body;
+    if (token) {
+      registeredFcmTokens.delete(token);
+      try {
+        await DeviceToken.updateMany(
+          { fcmToken: token },
+          { $set: { isActive: false, lastSeenAt: new Date() } }
+        );
+      } catch (e) {}
+    } else if (userId) {
+      try {
+        const q = { userId: String(userId) };
+        if (deviceId) q.deviceId = deviceId;
+        await DeviceToken.updateMany(q, { $set: { isActive: false, lastSeenAt: new Date() } });
+      } catch (e) {}
+    }
+    console.log(`[FCM Backend] Deactivated token for user: ${userId || 'unknown'}`);
+    return res.json({ status: 'success', message: 'FCM token deactivated successfully' });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 app.post('/api/notifications/send-push', async (req, res) => {
-  const { token, title, body, screen, data } = req.body;
-  const targetToken = token || Array.from(registeredFcmTokens)[0];
+  try {
+    const { token, userId, role = 'customer', title, body, screen = 'Orders', targetId = '', category = 'order', data = {} } = req.body;
+    console.log(`[FCM Backend] Send push request: "${title}" - "${body}" (role: ${role}, user: ${userId || 'all'})`);
 
-  console.log(`[FCM Backend] Send push request received: "${title}" - "${body}" (screen: ${screen || 'Orders'})`);
-
-  return res.json({
-    status: 'success',
-    message: 'FCM Push Notification payload dispatched successfully',
-    targetToken: targetToken || 'All registered devices',
-    payload: {
+    const result = await sendPushNotification({
+      userId,
+      role,
       title: title || 'Order Update',
-      body: body || 'Your order is being processed.',
+      body: body || 'Your order status has been updated.',
       screen: screen || 'Orders',
-      data: data || { screen: screen || 'Orders' },
-    },
-  });
+      targetId: String(targetId || ''),
+      category: category || 'order',
+      data: data || {},
+      socketServer: io,
+    });
+
+    return res.json({
+      status: 'success',
+      message: 'FCM Push Notification payload dispatched successfully',
+      result,
+    });
+  } catch (err) {
+    console.error('[FCM Backend] send-push error:', err.message);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+app.get('/api/notifications/history', async (req, res) => {
+  try {
+    const { userId, role, limit = 50 } = req.query;
+    if (!userId) {
+      return res.json({ status: 'success', notifications: [], unreadCount: 0 });
+    }
+    const query = { userId: String(userId) };
+    if (role && role !== 'all') query.role = role;
+    const notifications = await Notification.find(query).sort({ createdAt: -1 }).limit(Number(limit));
+    const unreadCount = await Notification.countDocuments({ ...query, isRead: false });
+    return res.json({ status: 'success', notifications, unreadCount });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+app.put('/api/notifications/mark-read', async (req, res) => {
+  try {
+    const { notificationId, userId } = req.body;
+    if (notificationId) {
+      await Notification.findByIdAndUpdate(notificationId, { isRead: true, readAt: new Date() });
+    } else if (userId) {
+      await Notification.updateMany({ userId: String(userId), isRead: false }, { isRead: true, readAt: new Date() });
+    }
+    return res.json({ status: 'success', message: 'Notifications marked as read' });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
 });
 
 // ==========================================
@@ -999,6 +1091,25 @@ app.put('/api/vendor/orders/:id/status', async (req, res) => {
     io.emit('customer_order_status', payload);
     io.emit('job_application_updated', payload);
 
+    // Dispatches Android Push Notification to Customer Mobile App
+    const custId = order.user_id || order.userId;
+    const isJobOrder = order.category === 'Jobs' || String(order.order_number || '').startsWith('JOB') || String(order.id || '').startsWith('ord_job');
+    sendPushNotification({
+      userId: custId,
+      role: 'customer',
+      title: joyful.title || 'Order Status Update',
+      body: joyful.desc || joyful.body || `Order #${order.order_number || order.id} is now ${order.status}.`,
+      category: isJobOrder ? 'job' : (order.category || 'order'),
+      screen: 'Orders',
+      targetId: order.id || order.order_number,
+      data: {
+        orderId: order.id || order.order_number,
+        order_number: order.order_number || order.id,
+        status: order.status,
+      },
+      socketServer: io,
+    }).catch((pushErr) => console.warn('[PushService] Order status push error:', pushErr.message));
+
     res.json({ success: true, data: order, notification: joyful });
   } catch (err) {
     console.error('[Order Status Error]:', err.message);
@@ -1360,6 +1471,41 @@ app.post('/api/orders', async (req, res) => {
       order: newOrder.toObject ? newOrder.toObject() : newOrder
     });
 
+    // Dispatches Android Push Notifications to Customer and Vendor
+    const custId = newOrder.user_id || newOrder.userId;
+    const vendorId = newOrder.vendor_id || newOrder.vendorId;
+    const orderTitle = isJobOrder ? '📋 Application Submitted' : '📦 Order Placed Successfully';
+    const orderBody = isJobOrder
+      ? `Your application #${newOrder.order_number} has been submitted.`
+      : `Order #${newOrder.order_number} for ${newOrder.product_details || 'items'} has been placed.`;
+
+    sendPushNotification({
+      userId: custId,
+      role: 'customer',
+      title: orderTitle,
+      body: orderBody,
+      category: isJobOrder ? 'job' : 'order',
+      screen: 'Orders',
+      targetId: newOrder.id || newOrder.order_number,
+      data: { orderId: newOrder.id, order_number: newOrder.order_number },
+      socketServer: io,
+    }).catch(() => {});
+
+    // Notify Vendor Mobile App
+    sendPushNotification({
+      userId: vendorId,
+      role: 'vendor',
+      title: isJobOrder ? '📋 New Job Application Received' : '🛒 New Order Received!',
+      body: isJobOrder
+        ? `New application #${newOrder.order_number} from ${newOrder.customer_name || 'Candidate'}.`
+        : `New order #${newOrder.order_number} (${newOrder.product_details || 'Items'}) - ₹${newOrder.total_amount || newOrder.price || 0}.`,
+      category: isJobOrder ? 'job' : 'order',
+      screen: 'Orders',
+      targetId: newOrder.id || newOrder.order_number,
+      data: { orderId: newOrder.id, order_number: newOrder.order_number, segment: isJobOrder ? 'Jobs' : 'Orders' },
+      socketServer: io,
+    }).catch(() => {});
+
     return res.json({ status: 'success', data: newOrder });
   } catch (err) {
     return res.status(500).json({ status: 'error', message: err.message });
@@ -1375,6 +1521,34 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
     );
     if (!order) return res.status(404).json({ status: 'error', message: 'Order not found' });
     io.emit('order_status_updated', { orderId: order.id, status: 'Cancelled' });
+
+    // Notify Customer & Vendor of cancellation
+    const custId = order.user_id || order.userId;
+    const vendorId = order.vendor_id || order.vendorId;
+    sendPushNotification({
+      userId: custId,
+      role: 'customer',
+      title: '❌ Order Cancelled',
+      body: `Your order #${order.order_number || order.id} has been cancelled.`,
+      category: 'order',
+      screen: 'Orders',
+      targetId: order.id || order.order_number,
+      data: { orderId: order.id, status: 'Cancelled' },
+      socketServer: io,
+    }).catch(() => {});
+
+    sendPushNotification({
+      userId: vendorId,
+      role: 'vendor',
+      title: '❌ Order Cancelled by Customer',
+      body: `Order #${order.order_number || order.id} was cancelled.`,
+      category: 'order',
+      screen: 'Orders',
+      targetId: order.id || order.order_number,
+      data: { orderId: order.id, status: 'Cancelled' },
+      socketServer: io,
+    }).catch(() => {});
+
     res.json({ status: 'success', message: 'Order cancelled successfully', data: order });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
