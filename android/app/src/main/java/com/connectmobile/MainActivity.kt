@@ -23,8 +23,23 @@ class MainActivity : ReactActivity() {
   }
 
   private fun handleNotificationIntent(intent: Intent?) {
-    if (intent != null && intent.hasExtra("screen")) {
-      NotificationModule.pendingNotificationData = intent.extras
+    if (intent != null && intent.extras != null) {
+      val extras = intent.extras!!
+      val hasNotificationPayload = extras.containsKey("screen") ||
+          extras.containsKey("targetScreen") ||
+          extras.containsKey("orderId") ||
+          extras.containsKey("bookingId") ||
+          extras.containsKey("category") ||
+          extras.containsKey("targetId") ||
+          extras.containsKey("notificationId") ||
+          extras.containsKey("google.message_id")
+
+      if (hasNotificationPayload) {
+        if (!extras.containsKey("screen") && extras.containsKey("targetScreen")) {
+          intent.putExtra("screen", extras.getString("targetScreen"))
+        }
+        NotificationModule.pendingNotificationData = intent.extras
+      }
     }
   }
 

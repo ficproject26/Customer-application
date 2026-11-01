@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar, StyleSheet } from 'react-native';
+import { StatusBar, StyleSheet, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import Snackbar from './src/components/Snackbar';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useThemeStore } from './src/store/themeStore';
-import { registerFcmToken, setupFcmListeners, setNavigationRef } from './src/services/notificationService';
+import { registerFcmToken, setupFcmListeners, setNavigationRef, startKeepAliveService } from './src/services/notificationService';
 import socketService from './src/services/socket';
 
 const queryClient = new QueryClient({
@@ -43,6 +43,9 @@ export default function App() {
       // Initialize Real-time Socket Connection
       socketService.connect();
 
+      // Start native background keep-alive service to guarantee background order alerts
+      startKeepAliveService();
+
       // Initialize FCM Push Notifications and Listeners
       setNavigationRef(navigationRef);
       (async () => {
@@ -55,7 +58,16 @@ export default function App() {
       })();
     }, 400);
 
-    return () => clearTimeout(bgTimer);
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        startKeepAliveService();
+      }
+    });
+
+    return () => {
+      clearTimeout(bgTimer);
+      appStateSub.remove();
+    };
   }, [navigationRef]);
 
   const baseTheme = isDark ? DarkTheme : DefaultTheme;

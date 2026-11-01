@@ -5,7 +5,7 @@ interface ToastState {
   message: string;
   actionText?: string;
   onAction?: () => void;
-  showToast: (message: string, actionText?: string, onAction?: () => void) => void;
+  showToast: (message: string, actionText?: string, onAction?: () => void, duration?: number) => void;
   hideToast: () => void;
 }
 
@@ -16,7 +16,7 @@ export const useToastStore = create<ToastState>((set) => ({
   message: '',
   actionText: undefined,
   onAction: undefined,
-  showToast: (message, actionText, onAction) => {
+  showToast: (message, actionText, onAction, duration = 15000) => {
     if (autoHideTimer) clearTimeout(autoHideTimer);
     set({
       visible: true,
@@ -25,9 +25,10 @@ export const useToastStore = create<ToastState>((set) => ({
       onAction,
     });
 
+    // Automatically dismiss the in-app notification popup after 15 seconds
     autoHideTimer = setTimeout(() => {
       set({ visible: false });
-    }, 3200);
+    }, duration);
   },
   hideToast: () => {
     if (autoHideTimer) clearTimeout(autoHideTimer);

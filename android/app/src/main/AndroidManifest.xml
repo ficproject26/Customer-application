@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Optional hardware features to prevent Package Manager hardware exclusions -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -36,6 +40,13 @@
         android:name="com.google.firebase.messaging.default_notification_channel_id"
         android:value="connect_default_channel"
         tools:replace="android:value" />
+
+      <!-- Background Keep-Alive Service for Real-Time Background & Minimized Notifications -->
+      <service
+        android:name=".CustomerKeepAliveService"
+        android:enabled="true"
+        android:exported="false"
+        android:foregroundServiceType="dataSync" />
 
       <activity
         android:name=".MainActivity"

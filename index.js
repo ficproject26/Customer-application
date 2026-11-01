@@ -14,7 +14,7 @@ try {
       if (remoteMessage) {
         const title = remoteMessage.notification?.title || remoteMessage.data?.title || 'Connect Alert';
         const body = remoteMessage.notification?.body || remoteMessage.data?.body || remoteMessage.data?.message || 'New update received';
-        const screen = remoteMessage.data?.screen || (remoteMessage.data?.category === 'offer' ? 'Home' : 'Orders');
+        const screen = remoteMessage.data?.screen || remoteMessage.data?.targetScreen || (remoteMessage.data?.category === 'offer' ? 'Home' : 'Orders');
         const targetId = remoteMessage.data?.orderId || remoteMessage.data?.targetId || remoteMessage.data?.bookingId || '';
         const rawCategory = (remoteMessage.data?.category || '').toLowerCase();
         

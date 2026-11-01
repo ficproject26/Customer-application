@@ -149,19 +149,51 @@ class NotificationModule(private val reactContext: ReactApplicationContext) : Re
     fun getPendingNotificationData(promise: Promise) {
         try {
             val extras = pendingNotificationData
-            if (extras != null && extras.containsKey("screen")) {
-                val map = Arguments.createMap()
-                for (key in extras.keySet()) {
-                    val value = extras.get(key)
-                    map.putString(key, value?.toString() ?: "")
+            if (extras != null) {
+                val hasNotif = extras.containsKey("screen") ||
+                    extras.containsKey("targetScreen") ||
+                    extras.containsKey("orderId") ||
+                    extras.containsKey("bookingId") ||
+                    extras.containsKey("targetId") ||
+                    extras.containsKey("category")
+
+                if (hasNotif) {
+                    val map = Arguments.createMap()
+                    for (key in extras.keySet()) {
+                        val value = extras.get(key)
+                        map.putString(key, value?.toString() ?: "")
+                    }
+                    if (!extras.containsKey("screen")) {
+                        val resolvedScreen = extras.getString("targetScreen")
+                            ?: if (extras.containsKey("orderId") || extras.containsKey("bookingId") || extras.containsKey("targetId")) "Orders" else "Home"
+                        map.putString("screen", resolvedScreen)
+                    }
+                    pendingNotificationData = null
+                    promise.resolve(map)
+                    return
                 }
-                pendingNotificationData = null
-                promise.resolve(map)
-            } else {
-                promise.resolve(null)
             }
+            promise.resolve(null)
         } catch (e: Exception) {
             promise.resolve(null)
+        }
+    }
+
+    @ReactMethod
+    fun startKeepAliveService() {
+        try {
+            CustomerKeepAliveService.start(reactContext)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @ReactMethod
+    fun stopKeepAliveService() {
+        try {
+            CustomerKeepAliveService.stop(reactContext)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
