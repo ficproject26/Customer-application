@@ -320,37 +320,87 @@ class SocketServiceClient {
       try {
         const authStore = require('../store/authStore').useAuthStore.getState();
         const curUser = authStore.currentUser;
-        const curId = String(curUser?.id || curUser?.customerId || '').toLowerCase().trim();
         const curEmail = String(curUser?.email || '').toLowerCase().trim();
         const curPhone = String(curUser?.phone || '').replace(/\D/g, '').slice(-10);
 
-        const oCustId = String(data.customer_id || data.customerId || data.memberId || data.user_id || '').toLowerCase().trim();
+        const userIdentifiers = [
+          curUser?.id,
+          curUser?._id,
+          curUser?.customerId,
+          curUser?.registrationId,
+          curUser?.memberId,
+        ].filter(Boolean).map((s: any) => String(s).toLowerCase().trim());
+
+        const orderCustIdentifiers = [
+          data.customer_id,
+          data.customerId,
+          data.memberId,
+          data.user_id,
+          data.userId,
+        ].filter(Boolean).map((s: any) => String(s).toLowerCase().trim());
+
         const oEmail = String(data.customer_email || data.candidateEmail || data.email || '').toLowerCase().trim();
         const oPhone = String(data.customer_phone || data.candidatePhone || data.phone || '').replace(/\D/g, '').slice(-10);
 
-        const isForMe = Boolean(
-          (curId && oCustId && (curId === oCustId || curId.includes(oCustId) || oCustId.includes(curId))) ||
-          (curEmail && oEmail && curEmail === oEmail) ||
-          (curPhone && oPhone && curPhone.length >= 7 && (curPhone.endsWith(oPhone) || oPhone.endsWith(curPhone)))
-        );
+        const idMatch = userIdentifiers.length > 0 && orderCustIdentifiers.length > 0 &&
+          userIdentifiers.some(uid => orderCustIdentifiers.some(oid => uid === oid || uid.includes(oid) || oid.includes(uid)));
+        const emailMatch = Boolean(curEmail && oEmail && curEmail === oEmail);
+        const phoneMatch = Boolean(curPhone && oPhone && curPhone.length >= 7 && (curPhone.endsWith(oPhone) || oPhone.endsWith(curPhone)));
+
+        const isForMe = idMatch || emailMatch || phoneMatch;
 
         if (isForMe) {
           const { clearApiCache } = require('./api');
           clearApiCache('/orders');
           useOrderStore.getState().loadAllOrders(true).catch(() => {});
 
+          const rawCategory = String(data.category || data.type || (data.items && data.items[0]?.category) || '').toLowerCase();
+          const isJob = rawCategory.includes('job');
+          const isTravel = rawCategory.includes('travel') || rawCategory.includes('bus');
+          const isStay = rawCategory.includes('stay') || rawCategory.includes('hotel');
+          const isService = rawCategory.includes('service');
+          const isBooking = isTravel || isStay || isService;
+
+          let notifTitle = 'Order Placed! 🛍️';
+          let notifIcon = 'Package';
+          let actionLabel = 'View Order';
+          let actionType: 'order' | 'booking' | 'job' = 'order';
+
+          if (isJob) {
+            notifTitle = 'Job Application Submitted! 💼';
+            notifIcon = 'Briefcase';
+            actionLabel = 'View Job';
+            actionType = 'job';
+          } else if (isTravel) {
+            notifTitle = 'Travel Booking Confirmed! 🚍';
+            notifIcon = 'Bus';
+            actionLabel = 'View Booking';
+            actionType = 'booking';
+          } else if (isStay) {
+            notifTitle = 'Stay Booking Confirmed! 🏨';
+            notifIcon = 'Hotel';
+            actionLabel = 'View Booking';
+            actionType = 'booking';
+          } else if (isService) {
+            notifTitle = 'Service Booking Confirmed! 🛠️';
+            notifIcon = 'Wrench';
+            actionLabel = 'View Booking';
+            actionType = 'booking';
+          }
+
           dispatchCustomerNotification({
-            title: `Order Placed! 🛍️`,
-            body: `Your order #${data.order_number || data.id} was confirmed.`,
-            icon: 'Package',
-            category: 'order',
-            actionLabel: 'View Order',
-            actionType: 'order',
-            orderType: 'order',
+            title: notifTitle,
+            body: `Your ${actionType} #${data.order_number || data.id} was confirmed.`,
+            icon: notifIcon,
+            category: actionType,
+            actionLabel,
+            actionType,
+            orderType: actionType,
             orderId: data.id || data.order_number,
+            bookingId: isBooking ? (data.id || data.order_number) : undefined,
             targetScreen: 'Orders',
             targetParams: {
-              activeTab: 'my orders',
+              activeTab: isBooking ? 'my bookings' : isJob ? 'job applied' : 'my orders',
               orderId: data.id || data.order_number,
             },
           });
