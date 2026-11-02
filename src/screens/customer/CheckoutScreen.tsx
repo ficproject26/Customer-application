@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCartStore, isCartableCategory } from '../../store/cartStore';
 import { useOrderStore, Order } from '../../store/orderStore';
 import { useToastStore } from '../../store/toastStore';
-import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated, resolveFreshCustomerId } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useTranslation } from '../../store/languageStore';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -577,7 +577,7 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
     showToast(editingAddressId ? 'Address updated' : 'New address saved');
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     const authUser = useAuthStore.getState().currentUser;
     if (!isUserAuthenticated(authUser)) {
       useAuthGuardStore.getState().showAuthModal('complete checkout and place your order');
@@ -629,12 +629,15 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
       });
 
       const primaryCartVendor = (cartItems[0] as any)?.vendorId || (cartItems[0] as any)?.vendor_id || '';
+      const resolvedFreshCustId = await resolveFreshCustomerId().catch(() => '');
+      const effectiveCustId = resolvedFreshCustId || authUser?.customerId || authUser?.registrationId || authUser?.id || '';
+
       const newOrder: Order = {
         id: orderId,
         order_number: orderId,
         user_id: authUser?.id || '',
-        customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
-        customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+        customer_id: effectiveCustId,
+        customerId: effectiveCustId,
         vendor_id: primaryCartVendor,
         vendor_name: (cartItems[0] as any)?.vendorName || 'Connect Store',
         category: resolvedOrderCategory as any,
@@ -707,8 +710,8 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
           vendorId: primaryCartVendor,
           userId: authUser?.id || '',
           user_id: authUser?.id || '',
-          customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
-          customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+          customer_id: effectiveCustId,
+          customerId: effectiveCustId,
           customer_name: authUser?.name || selectedAddressObj?.name || 'Customer',
           memberName: authUser?.name || selectedAddressObj?.name || 'Customer',
           customer_phone: contactPhone,
@@ -798,14 +801,16 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
     });
 
     const authUser = useAuthStore.getState().currentUser;
+    const resolvedFreshCustId = await resolveFreshCustomerId().catch(() => '');
+    const effectiveCustId = resolvedFreshCustId || authUser?.customerId || authUser?.registrationId || authUser?.id || '';
     const contactPhone = selectedAddressObj?.phone?.trim() || authUser?.phone?.trim() || '';
     const primaryCartVendor = (cartItems[0] as any)?.vendorId || (cartItems[0] as any)?.vendor_id || '';
     const newOrder: Order = {
       id: confirmedOrderId,
       order_number: confirmedOrderId,
       user_id: authUser?.id || '',
-      customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
-      customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+      customer_id: effectiveCustId,
+      customerId: effectiveCustId,
       vendor_id: primaryCartVendor,
       vendor_name: (cartItems[0] as any)?.vendorName || 'Connect Store',
       category: resolvedOrderCategory as any,
@@ -879,8 +884,8 @@ const EMPTY_GUEST_ADDRESS: CustomerAddress = {
           vendorId: primaryCartVendor,
           userId: authUser?.id || '',
           user_id: authUser?.id || '',
-          customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
-          customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
+          customer_id: effectiveCustId,
+          customerId: effectiveCustId,
           customer_name: authUser?.name || selectedAddressObj?.name || 'Customer',
           memberName: authUser?.name || selectedAddressObj?.name || 'Customer',
           customer_phone: contactPhone,

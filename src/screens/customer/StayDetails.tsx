@@ -20,7 +20,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import * as Icons from 'lucide-react-native';
 import { useThemeStore } from '../../store/themeStore';
 import { useWishlistStore } from '../../store/wishlistStore';
-import { useAuthStore, isUserAuthenticated } from '../../store/authStore';
+import { useAuthStore, isUserAuthenticated, resolveFreshCustomerId } from '../../store/authStore';
 import { useAuthGuardStore } from '../../store/authGuardStore';
 import { useOrderStore, Order } from '../../store/orderStore';
 import { apiFetch, resolveImageUrl } from '../../services/api';
@@ -1610,12 +1610,14 @@ export default function StayDetails() {
                     <TouchableOpacity
                       style={[styles.modalCtaBtn, { flex: 2 }]}
                       activeOpacity={0.85}
-                      onPress={() => {
+                      onPress={async () => {
                         const newId = `CN-STAY-${Date.now().toString().slice(-6)}`;
                         setConfirmedBookingId(newId);
 
                         if (paymentMethod === 'Pay at Hotel') {
                           const authUser = useAuthStore.getState().currentUser;
+                          const resolvedFreshCustId = await resolveFreshCustomerId().catch(() => '');
+                          const effectiveCustId = resolvedFreshCustId || authUser?.customerId || authUser?.registrationId || authUser?.id || '';
                           const guestNameVal = guestList[0]?.fullName || guestName || authUser?.name || 'Customer';
                           const guestPhoneVal = guestList[0]?.phoneNumber || guestMobile || authUser?.phone || '';
                           const guestEmailVal = guestEmail || authUser?.email || '';
@@ -1626,6 +1628,8 @@ export default function StayDetails() {
                             vendor_id: stay.vendorId || stay.vendor_id || '',
                             vendorId: stay.vendorId || stay.vendor_id || '',
                             productId: stay.id || stay._id,
+                            customerId: effectiveCustId,
+                            customer_id: effectiveCustId,
                             vendor_name: stay.name || 'Luxury Resort & Stay',
                             category: 'Stay',
                             order_type: 'booking',
@@ -1665,8 +1669,8 @@ export default function StayDetails() {
                               vendor_id: stay.vendorId || stay.vendor_id || '',
                             vendorId: stay.vendorId || stay.vendor_id || '',
                             productId: stay.id || stay._id,
-                              customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
-                              customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+                              customerId: effectiveCustId,
+                              customer_id: effectiveCustId,
                               customer_name: guestNameVal,
                               customer_phone: guestPhoneVal,
                               customer_email: guestEmailVal,
@@ -1884,6 +1888,8 @@ export default function StayDetails() {
           }).catch((err) => console.warn('Background stay payment verify notice:', err));
 
           const authUser = useAuthStore.getState().currentUser;
+          const resolvedFreshCustId = await resolveFreshCustomerId().catch(() => '');
+          const effectiveCustId = resolvedFreshCustId || authUser?.customerId || authUser?.registrationId || authUser?.id || '';
           const guestNameVal = guestList[0]?.fullName || guestName || authUser?.name || 'Customer';
           const guestPhoneVal = guestList[0]?.phoneNumber || guestMobile || authUser?.phone || '';
           const guestEmailVal = guestEmail || authUser?.email || '';
@@ -1897,8 +1903,8 @@ export default function StayDetails() {
               vendor_id: stay.vendorId || stay.vendor_id || '',
                             vendorId: stay.vendorId || stay.vendor_id || '',
                             productId: stay.id || stay._id,
-              customerId: authUser?.customerId || authUser?.registrationId || authUser?.id,
-              customer_id: authUser?.customerId || authUser?.registrationId || authUser?.id,
+              customerId: effectiveCustId,
+              customer_id: effectiveCustId,
               customer_name: guestNameVal,
               customer_phone: guestPhoneVal,
               customer_email: guestEmailVal,

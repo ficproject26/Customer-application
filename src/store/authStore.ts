@@ -342,12 +342,26 @@ export const useAuthStore = create<AuthState>()(
     const uId = state.currentUser.id;
 
     try {
-      let response: any = await apiFetch(`/auth/customer-profile?userId=${encodeURIComponent(uId)}`, {
+      let targetParam = '';
+      if (state.currentUser.customerId && String(state.currentUser.customerId).startsWith('FIC-CUS-')) {
+        targetParam = `customerId=${encodeURIComponent(state.currentUser.customerId)}`;
+      } else if (state.currentUser.email) {
+        targetParam = `email=${encodeURIComponent(state.currentUser.email)}`;
+      } else if (state.currentUser.phone) {
+        targetParam = `phone=${encodeURIComponent(state.currentUser.phone)}`;
+      } else {
+        targetParam = `userId=${encodeURIComponent(uId)}`;
+      }
+
+      let response: any = await apiFetch(`/auth/customer-profile?${targetParam}`, {
         method: 'GET',
         skipCache: true,
       });
       if (!response || response.status === 'error' || response.error || response.code === 'FORBIDDEN_IDOR' || response.status === 403) {
         response = await apiFetch('/auth/customer-profile', { method: 'GET', skipCache: true });
+      }
+      if ((!response || !response.data) && state.currentUser.email) {
+        response = await apiFetch(`/auth/customer-profile?email=${encodeURIComponent(state.currentUser.email)}`, { method: 'GET', skipCache: true }).catch(() => null);
       }
 
       const membershipRes: any = await apiFetch('/membership/status', { method: 'GET', skipCache: true }).catch(() => null);
@@ -468,7 +482,37 @@ export const useAuthStore = create<AuthState>()(
           const { setAuthToken } = require('../services/api');
           setAuthToken(state.token);
         }
+        if (state?.currentUser && !state.currentUser.isGuest) {
+          setTimeout(() => {
+            useAuthStore.getState().fetchProfile().catch(() => {});
+          }, 100);
+        }
       },
     }
   )
 );
+
+export async function resolveFreshCustomerId(): Promise<string> {
+  const authState = useAuthStore.getState();
+  let user = authState.currentUser;
+  if (!user || user.isGuest) return '';
+
+  if (user.customerId && String(user.customerId).startsWith('FIC-CUS-')) {
+    return user.customerId;
+  }
+  if (user.registrationId && String(user.registrationId).startsWith('FIC-CUS-')) {
+    return user.registrationId;
+  }
+
+  try {
+    const updatedUser = await authState.fetchProfile();
+    if (updatedUser?.customerId && String(updatedUser.customerId).startsWith('FIC-CUS-')) {
+      return updatedUser.customerId;
+    }
+    if (updatedUser?.registrationId && String(updatedUser.registrationId).startsWith('FIC-CUS-')) {
+      return updatedUser.registrationId;
+    }
+  } catch {}
+
+  return user.customerId || user.registrationId || user.id || '';
+}

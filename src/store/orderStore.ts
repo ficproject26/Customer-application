@@ -392,15 +392,11 @@ export const useOrderStore = create<OrderState>()(
           let cId = '';
           let cPhone = '';
           try {
-            const authStore = require('./authStore').useAuthStore.getState();
-            let curUser = authStore.currentUser;
-            cId = curUser?.customerId || curUser?.registrationId || '';
-            if (!cId && curUser && !curUser.isGuest) {
-              const prof = await authStore.fetchProfile().catch(() => null);
-              if (prof) {
-                cId = prof.customerId || prof.registrationId || (prof.id && !prof.id.startsWith('customer_') ? prof.id : '');
-                curUser = prof;
-              }
+            const { useAuthStore, resolveFreshCustomerId } = require('./authStore');
+            let curUser = useAuthStore.getState().currentUser;
+            cId = await resolveFreshCustomerId().catch(() => '');
+            if (!cId) {
+              cId = curUser?.customerId || curUser?.registrationId || '';
             }
             if (!cId && curUser?.id && !curUser.id.startsWith('customer_')) {
               cId = curUser.id;
@@ -408,6 +404,8 @@ export const useOrderStore = create<OrderState>()(
             cPhone = (curUser?.phone || '').replace(/[^\d]/g, '').slice(-10);
             if (cId && !curUser?.isGuest) {
               queryParam = `?customerId=${encodeURIComponent(cId)}`;
+            } else if (curUser?.email && !curUser?.isGuest) {
+              queryParam = `?email=${encodeURIComponent(curUser.email)}`;
             }
           } catch {}
           const res = await apiFetch(`/orders${queryParam}`, { skipCache: true });

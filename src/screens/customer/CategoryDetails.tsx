@@ -51,7 +51,7 @@ import {
 import { useThemeStore } from '../../store/themeStore';
 import JobCard, { JobItem } from '../../components/JobCard';
 import { useOrderStore } from '../../store/orderStore';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, resolveFreshCustomerId } from '../../store/authStore';
 import { useWishlistStore } from '../../store/wishlistStore';
 import RazorpayModal, { RazorpayOrderDetails } from '../../components/RazorpayModal';
 import { prepareRazorpayOrder } from '../../services/razorpayService';
@@ -3891,7 +3891,8 @@ export default function CategoryDetails() {
     }));
 
     const curAuthUser = useAuthStore.getState().currentUser;
-    const resolvedCustId = curAuthUser?.customerId || curAuthUser?.registrationId || curAuthUser?.id || '';
+    const resolvedFreshCustId = await resolveFreshCustomerId().catch(() => '');
+    const resolvedCustId = resolvedFreshCustId || curAuthUser?.customerId || curAuthUser?.registrationId || curAuthUser?.id || '';
     const resolvedCustEmail = curAuthUser?.email || '';
     const effectiveCategory = bookingInfo.effectiveCat === 'Stay' ? 'Stay' : isTravelBooking ? 'Travel' : (bookingInfo.effectiveCat || 'Services');
     const resolvedVendorId = bookingInfo.item?.vendorId || bookingInfo.item?.vendor_id || '';
