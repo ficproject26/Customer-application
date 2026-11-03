@@ -1712,12 +1712,12 @@ export default function CategoryDetails() {
 
   // Subcategories / Roles list matching active category & subCategory
   const availableSubcats = useMemo(() => {
-    if (categoryName === 'Jobs' || categoryName === 'Jobs & Careers') {
+    if (categoryName === 'Jobs' || categoryName === 'Jobs & Careers' || categoryName === 'Job') {
       const incomingSub = routeParams.subCategoryName;
       if (incomingSub && incomingSub !== 'All') {
         const set = new Set<string>();
-        // Roles from SIDEBAR_DATA['Job']
-        const jobSidebar = SIDEBAR_DATA['Job']?.subcategories;
+        // Roles from SIDEBAR_DATA['Jobs'] or SIDEBAR_DATA['Job']
+        const jobSidebar = (SIDEBAR_DATA['Jobs'] || SIDEBAR_DATA['Job'])?.subcategories;
         if (jobSidebar) {
           const matchKey = Object.keys(jobSidebar).find(
             (k) => k.toLowerCase() === incomingSub.toLowerCase() || k.toLowerCase().includes(incomingSub.toLowerCase()) || incomingSub.toLowerCase().includes(k.toLowerCase())
@@ -1729,12 +1729,13 @@ export default function CategoryDetails() {
         // Roles / child categories from dynamic vendor jobs in apiProducts
         apiProducts.forEach((p: any) => {
           const cat = String(p.category || p.vendorType || '').toLowerCase();
-          if (cat.includes('job')) {
+          const pMain = String(p.mainCategory || '').toLowerCase();
+          if (cat.includes('job') || pMain.includes('job') || cat === 'it' || cat === 'non-it') {
             const pSub = String(p.subCategory || p.subcategory || '').trim().toLowerCase();
             const targetSub = incomingSub.trim().toLowerCase();
-            if (pSub === targetSub || pSub.includes(targetSub) || targetSub.includes(pSub)) {
-              const child = p.itemType || p.childCategory || p.role;
-              if (child && typeof child === 'string' && child.trim()) {
+            if (pSub === targetSub || pSub.includes(targetSub) || targetSub.includes(pSub) || cat === targetSub) {
+              const child = p.itemType || p.childCategory || p.role || p.subcategory;
+              if (child && typeof child === 'string' && child.trim() && child.toLowerCase() !== targetSub) {
                 set.add(child.trim());
               }
             }
@@ -1743,16 +1744,21 @@ export default function CategoryDetails() {
         return ['All', ...Array.from(set)];
       }
 
-      // If no subcategory passed or it is 'All', list all Job subcategories
+      // If no subcategory passed or it is 'All', list all Job subcategories (ensuring 'IT' and 'Non-IT')
       const set = new Set<string>();
-      const jobSidebar = SIDEBAR_DATA['Job']?.subcategories || {};
+      const jobSidebar = (SIDEBAR_DATA['Jobs'] || SIDEBAR_DATA['Job'])?.subcategories || {};
       Object.keys(jobSidebar).forEach((k) => set.add(k));
+      set.add('IT');
+      set.add('Non-IT');
       apiProducts.forEach((p: any) => {
         const cat = String(p.category || p.vendorType || '').toLowerCase();
-        if (cat.includes('job')) {
+        const pMain = String(p.mainCategory || '').toLowerCase();
+        if (cat.includes('job') || pMain.includes('job')) {
           const pSub = p.subCategory || p.subcategory;
           if (pSub && typeof pSub === 'string' && pSub.trim()) {
-            set.add(pSub.trim());
+            if (pSub.toLowerCase() === 'it' || pSub.toLowerCase() === 'non-it') {
+              set.add(pSub.trim());
+            }
           }
         }
       });
@@ -2050,14 +2056,16 @@ export default function CategoryDetails() {
         }
 
         if (targetCategory === 'jobs' || targetCategory === 'job') {
-          return pCat === 'jobs' || pCat === 'job' || pCat.includes('job') || pCat === 'it' || pCat === 'non-it' || pSub.includes('job') || pSub.includes('hiring') || pSub.includes('developer') || pSub.includes('analyst') || pSub.includes('administrator');
+          return pCat === 'jobs' || pCat === 'job' || pCat.includes('job') || pCat === 'it' || pCat === 'non-it' || pSub.includes('job') || pSub.includes('hiring') || pSub.includes('developer') || pSub.includes('analyst') || pSub.includes('administrator') || pSub.includes('associate');
         }
 
         if (targetCategory === 'services' || targetCategory === 'service') {
           return pCat === 'services' || pCat === 'service' || pCat.includes('service') || pCat.includes('plumb') || pCat.includes('electric') || pSub.includes('repair') || pSub.includes('plumb') || pSub.includes('electric') || pSub.includes('cleaning') || pSub.includes('ac');
         }
 
-        if (targetCategory === 'electronics' || targetCategory === 'electronic') {
+        if (targetCategory === 'electronics' || targetCategory === 'electronic' || targetCategory === 'electrical') {
+          const isFurniture = pCat.includes('furniture') || pSub.includes('sofa') || pSub.includes('cot') || pSub.includes('chair') || pSub.includes('bean bag') || pName.includes('chair') || pName.includes('sofa') || pName.includes('cot') || pName.includes('bean bag');
+          if (isFurniture) return false;
           return (
             pSub.includes('electronic') ||
             pCat.includes('electronic') ||
@@ -2066,7 +2074,28 @@ export default function CategoryDetails() {
             pName.includes('iphone') ||
             pName.includes('phone') ||
             pName.includes('smart') ||
-            pCat === 'products'
+            pSub.includes('air cooler') ||
+            pSub.includes('tv') ||
+            pSub.includes('ceiling fan') ||
+            pName.includes('cooler') ||
+            pName.includes('tv') ||
+            pName.includes('fan')
+          );
+        }
+
+        if (targetCategory === 'furniture') {
+          const isElec = pCat.includes('electronic') || pSub.includes('electronic') || pSub.includes('air cooler') || pSub.includes('tv') || pSub.includes('ceiling fan');
+          if (isElec) return false;
+          return (
+            pCat.includes('furniture') ||
+            pSub.includes('sofa') ||
+            pSub.includes('cot') ||
+            pSub.includes('chair') ||
+            pSub.includes('bean bag') ||
+            pName.includes('sofa') ||
+            pName.includes('cot') ||
+            pName.includes('chair') ||
+            pName.includes('bean bag')
           );
         }
 
@@ -2267,13 +2296,23 @@ export default function CategoryDetails() {
             );
           }
 
+          // Strict isolation guard for 'IT' vs 'Non-IT' jobs
+          if (targetSub === 'it') {
+            const isNonIT = sCat === 'non-it' || sSub === 'non-it' || sCat.includes('non-it') || sSub.includes('non-it') || sSub.includes('data associate') || sSub.includes('system administrator') || pName.includes('data associate') || pName.includes('system administrator');
+            if (isNonIT) return false;
+          }
+          if (targetSub === 'non-it' || targetSub === 'non it') {
+            const isPureIT = sCat === 'it' || sSub === 'it' || sSub.includes('full stack') || sSub.includes('developer') || pName.includes('full stack developer');
+            if (isPureIT) return false;
+          }
+
           // 1. Direct match on category (e.g. s.category === 'Electrician' when selectedSubcat === 'Electrician')
-          if (sCat && (sCat === targetSub || sCat.includes(targetSub) || targetSub.includes(sCat))) {
+          if (sCat && (sCat === targetSub || (targetSub !== 'it' && (sCat.includes(targetSub) || targetSub.includes(sCat))))) {
             return true;
           }
 
           // 2. Direct match on subcategory (e.g. s.subcategory === 'Solar Technicians')
-          if (sSub && (sSub === targetSub || sSub.includes(targetSub) || targetSub.includes(sSub))) {
+          if (sSub && (sSub === targetSub || (targetSub !== 'it' && (sSub.includes(targetSub) || targetSub.includes(sSub))))) {
             return true;
           }
 
@@ -2290,20 +2329,44 @@ export default function CategoryDetails() {
             return true;
           }
 
-          // Smart Electronics subcategory group matching
-          if (targetSub === 'electronics' || targetSub === 'electronic') {
-            const isElec = ['electronic', 'laptop', 'charger', 'mobile', 'phone', 'headphone', 'watch', 'camera', 'it', 'appliance', 'computer', 'accessory', 'gadget', 'fan', 'cooler', 'tv'].some(
-              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term) || mCat.includes(term)
+          // Smart Electronics subcategory group matching: Strictly exclude Furniture
+          if (targetSub === 'electronics' || targetSub === 'electronic' || targetSub === 'electrical') {
+            const isFurniture = sCat.includes('furniture') || sSub.includes('sofa') || sSub.includes('cot') || sSub.includes('chair') || sSub.includes('bean bag') || pName.includes('chair') || pName.includes('sofa') || pName.includes('cot') || pName.includes('bean bag');
+            if (isFurniture) return false;
+            const isElec = ['electronic', 'laptop', 'charger', 'mobile', 'phone', 'headphone', 'watch', 'camera', 'appliance', 'computer', 'accessory', 'gadget', 'fan', 'cooler', 'tv', 'air cooler', 'ceiling fan'].some(
+              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term)
             );
             if (isElec) return true;
           }
 
-          // Smart IT & Office subcategory group matching
+          // Smart Furniture subcategory group matching: Strictly exclude Electronics
+          if (targetSub === 'furniture') {
+            const isElec = sCat.includes('electronic') || sSub.includes('electronic') || sSub.includes('air cooler') || sSub.includes('tv') || sSub.includes('ceiling fan');
+            if (isElec) return false;
+            const isFurn = ['furniture', 'sofa', 'cot', 'chair', 'bean bag', 'table', 'bed', 'desk', 'cushion'].some(
+              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term)
+            );
+            if (isFurn) return true;
+          }
+
+          // Smart IT Jobs subcategory group matching: Strictly exclude Non-IT jobs
           if (targetSub === 'it & office' || targetSub === 'it') {
-            const isIT = ['it', 'office', 'laptop', 'computer', 'desk', 'charger', 'accessory', 'software', 'hardware', 'developer', 'analyst', 'administrator'].some(
-              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term) || mCat.includes(term)
+            const isNonIT = sCat === 'non-it' || sSub.includes('data associate') || sSub.includes('system administrator') || pName.includes('data associate') || pName.includes('system administrator');
+            if (isNonIT) return false;
+            const isIT = ['it', 'software', 'developer', 'analyst', 'full stack', 'frontend', 'backend', 'engineer', 'coder', 'programmer'].some(
+              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term)
             );
             if (isIT) return true;
+          }
+
+          // Smart Non-IT Jobs subcategory group matching: Strictly exclude IT developer roles
+          if (targetSub === 'non-it' || targetSub === 'non it') {
+            const isPureIT = sCat === 'it' || sSub.includes('full stack') || sSub.includes('developer') || pName.includes('full stack developer');
+            if (isPureIT) return false;
+            const isNonIT = ['non-it', 'non it', 'data associate', 'system administrator', 'associate', 'administrator', 'operations', 'sales', 'field', 'support', 'executive'].some(
+              (term) => sSub.includes(term) || sCat.includes(term) || iType.includes(term) || pName.includes(term)
+            );
+            if (isNonIT) return true;
           }
 
           return (
@@ -3549,38 +3612,75 @@ export default function CategoryDetails() {
     const incomingSub = routeParams.subCategoryName;
 
     return allJobs.filter((job: JobItem) => {
-      // 1. Department / SubCategory filter (e.g. 'IT', 'Non-IT')
+      const normRole = (job.itemType || '').trim().toLowerCase();
+      const normTitle = (job.title || '').trim().toLowerCase();
+      const normDept = (job.department || '').trim().toLowerCase();
+
+      // 1. Department / SubCategory filter from route params (e.g. 'IT', 'Non-IT')
       if (incomingSub && incomingSub !== 'All') {
         const normIncoming = incomingSub.trim().toLowerCase();
-        const normDept = (job.department || '').trim().toLowerCase();
-        const matchDept =
-          normDept === normIncoming ||
-          normDept.includes(normIncoming) ||
-          normIncoming.includes(normDept) ||
-          (normIncoming === 'it' && (normDept.includes('it') || normDept.includes('tech') || normDept.includes('software')));
-        if (!matchDept) return false;
+        if (normIncoming === 'it') {
+          const isNonIT = normDept === 'non-it' || normDept.includes('non-it') ||
+            normRole.includes('data associate') || normRole.includes('system administrator') ||
+            normTitle.includes('data associate') || normTitle.includes('system administrator');
+          if (isNonIT) return false;
+        } else if (normIncoming === 'non-it' || normIncoming === 'non it') {
+          const isPureIT = normDept === 'it' ||
+            normRole.includes('data analyst') || normRole.includes('full stack') || normRole.includes('developer') ||
+            normTitle.includes('data analyst') || normTitle.includes('full stack') || normTitle.includes('developer');
+          if (isPureIT) return false;
+        } else {
+          const matchDept =
+            normDept === normIncoming ||
+            normDept.includes(normIncoming) ||
+            normIncoming.includes(normDept);
+          if (!matchDept) return false;
+        }
       }
 
       // 2. Child Category / Role filter or Tab Filter
-      if (selectedSubcat !== 'All') {
+      if (selectedSubcat !== 'All' && selectedSubcat !== 'All Jobs') {
         const normSelected = selectedSubcat.trim().toLowerCase();
-        const normRole = (job.itemType || '').trim().toLowerCase();
-        const normTitle = (job.title || '').trim().toLowerCase();
-        const normDept = (job.department || '').trim().toLowerCase();
-        const matchRoleOrSkill =
-          normRole === normSelected ||
-          normRole.includes(normSelected) ||
-          normSelected.includes(normRole) ||
-          normTitle.includes(normSelected) ||
-          normDept.includes(normSelected) ||
-          job.skills.some((s) => s.toLowerCase().includes(normSelected));
 
-        const isIntern = job.itemType === 'INTERNSHIP' || (job.employmentType || '').toLowerCase().includes('intern');
-        if (selectedSubcat === 'Internships' && !isIntern) return false;
-        if (selectedSubcat === 'Full-Time Jobs' && isIntern) return false;
+        // Strict IT Filter
+        if (normSelected === 'it') {
+          const isNonIT = normDept === 'non-it' || normDept.includes('non-it') ||
+            normRole.includes('data associate') || normRole.includes('system administrator') ||
+            normTitle.includes('data associate') || normTitle.includes('system administrator');
+          if (isNonIT) return false;
 
-        if (selectedSubcat !== 'Internships' && selectedSubcat !== 'Full-Time Jobs' && !matchRoleOrSkill) {
-          return false;
+          const isIT = normDept === 'it' ||
+            normRole.includes('data analyst') || normRole.includes('full stack') || normRole.includes('developer') ||
+            normTitle.includes('data analyst') || normTitle.includes('full stack') || normTitle.includes('developer');
+          if (!isIT) return false;
+        }
+        // Strict Non-IT Filter
+        else if (normSelected === 'non-it' || normSelected === 'non it') {
+          const isPureIT = normDept === 'it' ||
+            normRole.includes('data analyst') || normRole.includes('full stack') || normRole.includes('developer') ||
+            normTitle.includes('data analyst') || normTitle.includes('full stack') || normTitle.includes('developer');
+          if (isPureIT) return false;
+
+          const isNonIT = normDept === 'non-it' || normDept.includes('non-it') ||
+            normRole.includes('data associate') || normRole.includes('system administrator') ||
+            normTitle.includes('data associate') || normTitle.includes('system administrator');
+          if (!isNonIT) return false;
+        }
+        // Specific Role or Internship
+        else {
+          const isIntern = job.itemType === 'INTERNSHIP' || (job.employmentType || '').toLowerCase().includes('intern');
+          if (selectedSubcat === 'Internships' && !isIntern) return false;
+          if (selectedSubcat === 'Full-Time Jobs' && isIntern) return false;
+
+          if (selectedSubcat !== 'Internships' && selectedSubcat !== 'Full-Time Jobs') {
+            const matchRole =
+              normRole === normSelected ||
+              normRole.includes(normSelected) ||
+              normSelected.includes(normRole) ||
+              normTitle.includes(normSelected) ||
+              job.skills.some((s) => s.toLowerCase() === normSelected || (normSelected.length > 3 && s.toLowerCase().includes(normSelected)));
+            if (!matchRole) return false;
+          }
         }
       }
 

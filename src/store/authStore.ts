@@ -113,6 +113,10 @@ export const useAuthStore = create<AuthState>()(
     if (user.id && !user.isGuest) {
       setTimeout(() => {
         get().fetchProfile().catch(() => {});
+        try {
+          const { registerFcmToken } = require('../services/notificationService');
+          registerFcmToken().catch(() => {});
+        } catch {}
       }, 50);
     }
   },
@@ -428,6 +432,12 @@ export const useAuthStore = create<AuthState>()(
             socketService.connect(mergedUser.id, mergedUser.role || 'customer', state.token || undefined, mergedUser.customerId);
           } catch {}
         }
+        if (mergedUser.id && !mergedUser.isGuest) {
+          try {
+            const { registerFcmToken } = require('../services/notificationService');
+            registerFcmToken().catch(() => {});
+          } catch {}
+        }
         return mergedUser;
       }
     } catch (err) {
@@ -450,25 +460,33 @@ export const useAuthStore = create<AuthState>()(
       AsyncStorage.setItem(`connect_user_membership_${uId}`, fields.membership).catch(() => {});
     }
 
-    apiFetch('/auth/customer-profile', {
-      method: 'PUT',
-      body: { ...fields, userId: uId, id: uId },
-    })
-      .then((response) => {
-        if (response && (response.status === 'success' || response.success) && (response.data || response.user)) {
-          const profData = response.data || response.user;
-          const finalUser = {
-            ...updatedUser,
-            ...profData,
-            membership: fields.membership || profData.membership || updatedUser.membership,
-            avatar: fields.avatar !== undefined ? fields.avatar : (profData.avatar || updatedUser.avatar),
-          };
-          set({ currentUser: finalUser });
-        }
-      })
-      .catch((err) => {
-        console.warn('Background profile sync notice:', err);
+    try {
+      // Do NOT send client-generated `userId: uId` or `id: uId` which triggers backend 403 FORBIDDEN_IDOR!
+      // The backend extracts user identity securely from JWT authUser.
+      const payload: any = { ...fields };
+      delete payload.userId;
+      delete payload.id;
+      delete payload._id;
+
+      const response: any = await apiFetch('/auth/customer-profile', {
+        method: 'PUT',
+        body: payload,
       });
+
+      if (response && (response.status === 'success' || response.success) && (response.data || response.user)) {
+        const profData = response.data || response.user;
+        const finalUser = {
+          ...updatedUser,
+          ...profData,
+          membership: fields.membership || profData.membership || updatedUser.membership,
+          avatar: fields.avatar !== undefined ? fields.avatar : (profData.avatar || updatedUser.avatar),
+        };
+        set({ currentUser: finalUser });
+        return finalUser;
+      }
+    } catch (err) {
+      console.warn('Profile update notice:', err);
+    }
 
     return updatedUser;
   },

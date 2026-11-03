@@ -337,7 +337,7 @@ export async function registerFcmToken(): Promise<string | null> {
 /**
  * Send token to backend via REST API across verified customer endpoints with full role & identity mapping
  */
-async function sendTokenToBackend(token: string) {
+export async function sendTokenToBackend(token: string) {
   try {
     let authHeader: Record<string, string> = { 'Content-Type': 'application/json' };
     let userId: string | undefined;
@@ -350,8 +350,14 @@ async function sendTokenToBackend(token: string) {
       const user = authStore.currentUser;
       const authToken = authStore.token;
       if (user) {
-        userId = user.id || user._id || user.customerId || user.registrationId;
-        customerId = user.customerId || user.registrationId || user.id;
+        const canonicalCustId = (user.customerId && String(user.customerId).startsWith('FIC-CUS-'))
+          ? user.customerId
+          : (user.registrationId && String(user.registrationId).startsWith('FIC-CUS-'))
+            ? user.registrationId
+            : undefined;
+        // Prioritize canonical customer ID so MongoDB fcm_tokens has userId: 'FIC-CUS-...'
+        userId = canonicalCustId || user.customerId || user.registrationId || user.id || user._id;
+        customerId = canonicalCustId || user.customerId || user.registrationId || user.id;
         phone = user.phone || user.contactNumber;
         email = user.email;
       }
@@ -364,8 +370,8 @@ async function sendTokenToBackend(token: string) {
       token,
       fcmToken: token,
       platform: Platform.OS,
-      deviceId: `android_${userId || 'customer'}_${Platform.Version}`,
-      userId: userId || undefined,
+      deviceId: `android_${customerId || userId || 'customer'}_${Platform.Version}`,
+      userId: customerId || userId,
       customerId: customerId || undefined,
       registrationId: customerId || undefined,
       phone,

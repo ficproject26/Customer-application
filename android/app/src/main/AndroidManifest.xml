@@ -38,8 +38,16 @@
       <!-- FCM Default Notification Channel -->
       <meta-data
         android:name="com.google.firebase.messaging.default_notification_channel_id"
-        android:value="connect_default_channel"
+        android:value="connect_orders_realtime_channel"
         tools:replace="android:value" />
+
+      <!-- FCM Default Notification Icon & Color -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_icon"
+        android:resource="@mipmap/ic_launcher" />
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_color"
+        android:resource="@color/white" />
 
       <!-- Background Keep-Alive Service for Real-Time Background & Minimized Notifications -->
       <service

@@ -75,6 +75,10 @@ export function buildSidebarData(hierarchy: CategoryHierarchyMap): SidebarDataTy
     }
   });
 
+  // Support both canonical plural and singular alias keys
+  data['Product'] = data['Products'];
+  data['Job'] = data['Jobs'];
+
   return data;
 }
 
