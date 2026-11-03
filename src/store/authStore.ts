@@ -114,7 +114,9 @@ export const useAuthStore = create<AuthState>()(
       setTimeout(() => {
         get().fetchProfile().catch(() => {});
         try {
-          const { registerFcmToken } = require('../services/notificationService');
+          const { registerFcmToken, syncCustomerSession, startKeepAliveService } = require('../services/notificationService');
+          syncCustomerSession(user, token);
+          startKeepAliveService();
           registerFcmToken().catch(() => {});
         } catch {}
       }, 50);
@@ -183,8 +185,9 @@ export const useAuthStore = create<AuthState>()(
   logout: () => {
     const curUserId = get().currentUser?.id;
     try {
-      const { unregisterFcmToken, stopKeepAliveService } = require('../services/notificationService');
+      const { unregisterFcmToken, stopKeepAliveService, clearCustomerSession } = require('../services/notificationService');
       unregisterFcmToken(undefined, curUserId);
+      clearCustomerSession();
       stopKeepAliveService();
     } catch {}
     clearSessionAndUserData();
@@ -434,7 +437,9 @@ export const useAuthStore = create<AuthState>()(
         }
         if (mergedUser.id && !mergedUser.isGuest) {
           try {
-            const { registerFcmToken } = require('../services/notificationService');
+            const { registerFcmToken, syncCustomerSession, startKeepAliveService } = require('../services/notificationService');
+            syncCustomerSession(mergedUser, state.token);
+            startKeepAliveService();
             registerFcmToken().catch(() => {});
           } catch {}
         }

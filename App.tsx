@@ -8,7 +8,8 @@ import AppNavigator from './src/navigation/AppNavigator';
 import Snackbar from './src/components/Snackbar';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { useThemeStore } from './src/store/themeStore';
-import { registerFcmToken, setupFcmListeners, setNavigationRef, startKeepAliveService } from './src/services/notificationService';
+import { useAuthStore } from './src/store/authStore';
+import { registerFcmToken, setupFcmListeners, setNavigationRef, startKeepAliveService, syncCustomerSession } from './src/services/notificationService';
 import socketService from './src/services/socket';
 
 const queryClient = new QueryClient({
@@ -45,6 +46,13 @@ export default function App() {
 
       // Start native background keep-alive service to guarantee background order alerts
       startKeepAliveService();
+      try {
+        const curUser = useAuthStore.getState().currentUser;
+        const curToken = useAuthStore.getState().token;
+        if (curUser) {
+          syncCustomerSession(curUser, curToken);
+        }
+      } catch (e) {}
 
       // Initialize FCM Push Notifications and Listeners
       setNavigationRef(navigationRef);
@@ -61,6 +69,13 @@ export default function App() {
     const appStateSub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'background' || nextState === 'inactive') {
         startKeepAliveService();
+        try {
+          const curUser = useAuthStore.getState().currentUser;
+          const curToken = useAuthStore.getState().token;
+          if (curUser) {
+            syncCustomerSession(curUser, curToken);
+          }
+        } catch (e) {}
       }
     });
 

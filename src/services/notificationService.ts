@@ -276,6 +276,41 @@ export function stopKeepAliveService() {
 }
 
 /**
+ * Synchronize authenticated customer session to Android Native SharedPreferences
+ * so the autonomous background polling thread can fetch updates even when JS is terminated.
+ */
+export function syncCustomerSession(user: any, token?: string | null) {
+  try {
+    const { SystemNotification } = NativeModules;
+    if (SystemNotification && typeof SystemNotification.syncCustomerSession === 'function') {
+      const cId = user?.customerId || user?.registrationId || user?.id || '';
+      const t = token || '';
+      const email = user?.email || null;
+      const phone = user?.phone || null;
+      SystemNotification.syncCustomerSession(cId, t, 'https://api.ficapp.in', email, phone);
+      console.log('[NotificationService] Synced customer session to native keep-alive poller for:', cId);
+    }
+  } catch (e: any) {
+    console.warn('[NotificationService] syncCustomerSession error:', e);
+  }
+}
+
+/**
+ * Clear customer session on logout
+ */
+export function clearCustomerSession() {
+  try {
+    const { SystemNotification } = NativeModules;
+    if (SystemNotification && typeof SystemNotification.clearCustomerSession === 'function') {
+      SystemNotification.clearCustomerSession();
+      console.log('[NotificationService] Cleared customer session from native keep-alive poller.');
+    }
+  } catch (e: any) {
+    console.warn('[NotificationService] clearCustomerSession error:', e);
+  }
+}
+
+/**
  * Register FCM device token with local storage & backend with user mapping
  */
 export async function registerFcmToken(): Promise<string | null> {
