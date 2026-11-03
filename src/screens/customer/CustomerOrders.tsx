@@ -717,7 +717,7 @@ export default function CustomerOrders() {
   useFocusEffect(
     useCallback(() => {
       const task = InteractionManager.runAfterInteractions(() => {
-        loadAllOrders().catch(() => {});
+        loadAllOrders(true).catch(() => {});
       });
       return () => task.cancel();
     }, [loadAllOrders])
@@ -2102,7 +2102,7 @@ export default function CustomerOrders() {
     [selectedDateFilter, customStartDate, customEndDate]
   );
 
-  // Orders strictly scoped to current user session (with fallback)
+  // Orders strictly scoped to current user session (with multi-device identifier matching)
   const userOrders = useMemo(() => {
     if (!currentUser || currentUser.isGuest || !isAuthenticated) {
       // Guest or non-authenticated user only sees local orders placed as guest in this session
@@ -2110,26 +2110,42 @@ export default function CustomerOrders() {
         (o) => o.user_id === 'guest_user' || o.customer_id === 'guest_user' || (o as any).userId === 'guest_user'
       );
     }
-    const cId = currentUser.id || (currentUser as any)._id || '';
-    const custIdTarget = (currentUser as any).customerId || (currentUser as any).registrationId || '';
+    const userIdentifiers = [
+      currentUser.id,
+      (currentUser as any)._id,
+      (currentUser as any).customerId,
+      (currentUser as any).registrationId,
+      (currentUser as any).memberId,
+    ].filter(Boolean).map((s: any) => String(s).toLowerCase().trim());
+
     const cEmail = (currentUser.email || '').toLowerCase().trim();
     const cPhone = (currentUser.phone || '').replace(/[^\d]/g, '').slice(-10);
 
     return allOrders.filter((o) => {
-      // 1. Direct ID match
-      const oCustId = o.customer_id || (o as any).customerId || (o as any).registrationId || o.user_id || (o as any).userId || (o as any).memberId;
-      if (cId && oCustId && (String(oCustId) === String(cId) || (cId.includes('_') && String(oCustId).endsWith(cId.split('_')[1])))) return true;
-      if (custIdTarget && oCustId && String(oCustId) === String(custIdTarget)) return true;
+      // 1. Direct ID match across any identifier
+      const oIdentifiers = [
+        o.customer_id,
+        (o as any).customerId,
+        (o as any).registrationId,
+        o.user_id,
+        (o as any).userId,
+        (o as any).memberId,
+      ].filter(Boolean).map((s: any) => String(s).toLowerCase().trim());
+
+      const idMatch = userIdentifiers.some(uid =>
+        oIdentifiers.some(oid => uid === oid || uid.includes(oid) || oid.includes(uid))
+      );
+      if (idMatch) return true;
 
       // 2. Phone match (last 10 digits)
       const rawPhone = o.customer_phone || (o as any).customerPhone || (o as any).candidatePhone || (o as any).phone || '';
       const cleanOPhone = String(rawPhone).replace(/[^\d]/g, '').slice(-10);
-      if (cPhone && cPhone.length === 10 && cleanOPhone.length === 10 && cleanOPhone === cPhone) {
+      if (cPhone && cPhone.length >= 7 && cleanOPhone.length >= 7 && (cPhone.endsWith(cleanOPhone) || cleanOPhone.endsWith(cPhone))) {
         return true;
       }
 
       // 3. Email match
-      const rawEmail = (o as any).customer_email || (o as any).customerEmail || (o as any).applicant_email || (o as any).candidateEmail || '';
+      const rawEmail = (o as any).customer_email || (o as any).customerEmail || (o as any).applicant_email || (o as any).candidateEmail || (o as any).email || '';
       const cleanOEmail = String(rawEmail).toLowerCase().trim();
       if (cEmail && cleanOEmail && cleanOEmail === cEmail) {
         return true;

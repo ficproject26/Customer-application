@@ -131,6 +131,34 @@ class SocketServiceClient {
 
         // Setup real-time order status listener and cross-platform sync
         this.setupOrderStatusListener(sock);
+
+        // Silent reconciliation of customer profile, orders and notifications on connect
+        try {
+          const authStore = require('../store/authStore').useAuthStore;
+          const u = authStore.getState().currentUser;
+          if (u && !u.isGuest) {
+            authStore.getState().fetchProfile().catch(() => {});
+            const orderStore = require('../store/orderStore').useOrderStore;
+            orderStore.getState().loadAllOrders(true).catch(() => {});
+            const notifStore = require('../store/notificationStore').useNotificationStore;
+            notifStore.getState().fetchNotifications().catch(() => {});
+          }
+        } catch (e) {}
+      });
+
+      sock.io?.on('reconnect', () => {
+        console.log('[Socket Client]: Socket reconnected, reconciling customer data...');
+        try {
+          const authStore = require('../store/authStore').useAuthStore;
+          const u = authStore.getState().currentUser;
+          if (u && !u.isGuest) {
+            authStore.getState().fetchProfile().catch(() => {});
+            const orderStore = require('../store/orderStore').useOrderStore;
+            orderStore.getState().loadAllOrders(true).catch(() => {});
+            const notifStore = require('../store/notificationStore').useNotificationStore;
+            notifStore.getState().fetchNotifications().catch(() => {});
+          }
+        } catch (e) {}
       });
 
       sock.on('connect_error', (err: any) => {

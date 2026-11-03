@@ -421,20 +421,25 @@ export const useOrderStore = create<OrderState>()(
               if (o.order_number) backendOrderNumSet.add(String(o.order_number));
             });
 
-            // Retain only local offline orders that belong to THIS customer
+            // Retain only recent optimistic local offline orders that belong to THIS customer (within 5 mins)
             const localOnly = current.filter((o: any) => {
               const matchesBackend =
                 (o.id && backendIdSet.has(String(o.id))) ||
                 (o._id && backendIdSet.has(String(o._id))) ||
                 (o.order_number && backendOrderNumSet.has(String(o.order_number)));
               if (matchesBackend) return false;
+              const isRecentOptimistic = (now - new Date(o.created_at || 0).getTime()) < 300000;
+              if (!isRecentOptimistic) return false;
+
               const oCustId = o.customerId || o.customer_id || o.user_id || o.userId;
               const oPhone = String(o.customer_phone || o.customerPhone || o.candidatePhone || '').replace(/[^\d]/g, '').slice(-10);
               const belongsToCurUser = (cId && oCustId === cId) || (cPhone && cPhone.length === 10 && oPhone === cPhone);
               return Boolean(belongsToCurUser);
             });
 
-            set({ allOrders: [...res.data, ...localOnly].map(normalizeStoredOrderCategory) });
+            const mergedList = [...res.data, ...localOnly].map(normalizeStoredOrderCategory);
+            mergedList.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+            set({ allOrders: mergedList });
           }
         } catch (err) {
           console.warn('Failed to load all orders from API, using offline persistent state:', err);

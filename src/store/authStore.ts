@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';
 import { apiFetch, clearApiCache } from '../services/api';
 import { useCartStore } from './cartStore';
 import { useWishlistStore } from './wishlistStore';
@@ -473,6 +474,18 @@ export const useAuthStore = create<AuthState>()(
       delete payload.id;
       delete payload._id;
 
+      if (payload.avatar && typeof payload.avatar === 'string' && (payload.avatar.startsWith('file:') || payload.avatar.startsWith('content:'))) {
+        try {
+          const cleanPath = payload.avatar.replace('file://', '');
+          const b64 = await RNFS.readFile(cleanPath, 'base64');
+          if (b64) {
+            payload.avatar = `data:image/jpeg;base64,${b64}`;
+          }
+        } catch (e) {
+          console.warn('[authStore] RNFS avatar conversion warning:', e);
+        }
+      }
+
       const response: any = await apiFetch('/auth/customer-profile', {
         method: 'PUT',
         body: payload,
@@ -484,8 +497,9 @@ export const useAuthStore = create<AuthState>()(
           ...updatedUser,
           ...profData,
           membership: fields.membership || profData.membership || updatedUser.membership,
-          avatar: fields.avatar !== undefined ? fields.avatar : (profData.avatar || updatedUser.avatar),
+          avatar: profData.avatar || profData.photo || fields.avatar || updatedUser.avatar,
         };
+        clearApiCache('/auth/customer-profile');
         set({ currentUser: finalUser });
         return finalUser;
       }

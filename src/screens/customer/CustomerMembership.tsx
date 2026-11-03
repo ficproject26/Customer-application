@@ -389,6 +389,7 @@ interface HeroMembershipCardProps {
   memberId: string;
   isFlipped: boolean;
   onFlip: () => void;
+  validThru?: string;
 }
 
 const HeroMembershipCard: React.FC<HeroMembershipCardProps> = ({
@@ -397,6 +398,7 @@ const HeroMembershipCard: React.FC<HeroMembershipCardProps> = ({
   memberId,
   isFlipped,
   onFlip,
+  validThru = '12/27',
 }) => {
   const animatedValue = useRef(new Animated.Value(isFlipped ? 180 : 0)).current;
 
@@ -513,7 +515,7 @@ const HeroMembershipCard: React.FC<HeroMembershipCardProps> = ({
               <View style={styles.heroValidThruRow}>
                 <View>
                   <Text style={styles.heroValidLabel}>Valid Thru</Text>
-                  <Text style={styles.heroValidDate}>12/27</Text>
+                  <Text style={styles.heroValidDate}>{validThru}</Text>
                 </View>
                 <View style={styles.heroSubtleArrow}>
                   <Icons.ChevronRight color="#FFFFFF" size={13} />
@@ -616,39 +618,81 @@ export default function CustomerMembership() {
   const [razorpayModalVisible, setRazorpayModalVisible] = useState(false);
   const [razorpayOrder, setRazorpayOrder] = useState<RazorpayOrderDetails | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [serverMembership, setServerMembership] = useState<{
+    membershipId?: string | null;
+    startDate?: string | null;
+    expiryDate?: string | null;
+    membershipTier?: string | null;
+    membershipStatus?: string | null;
+  } | null>(null);
 
-  // Member ID generation / sync
-  const userNum = isGuest ? 'GUEST' : (currentUser?.id ? currentUser.id.replace(/[^\d]/g, '') || '1793084393349' : '1793084393349');
-  const getMemberIdForPlan = (plan: TierPlan) => `CN-${plan.type.toUpperCase()}-${userNum}`;
+  // Authoritative Member ID generation / sync
+  const getMemberIdForPlan = (plan: TierPlan) => {
+    if (isGuest) return 'CN-GUEST';
+    if (serverMembership?.membershipId) {
+      return serverMembership.membershipId;
+    }
+    const cId = currentUser?.customerId || currentUser?.registrationId;
+    if (cId) {
+      const cleanNum = cId.replace(/^[A-Za-z]+-[A-Za-z]+-/, '').replace(/^[A-Za-z]+-/, '');
+      return `CN-${plan.type.toUpperCase()}-${cleanNum}`;
+    }
+    const userNum = currentUser?.id ? currentUser.id.replace(/[^\d]/g, '') || '1793084393349' : '1793084393349';
+    return `CN-${plan.type.toUpperCase()}-${userNum}`;
+  };
+
+  const getValidThruText = () => {
+    if (serverMembership?.expiryDate) {
+      try {
+        const d = new Date(serverMembership.expiryDate);
+        if (!isNaN(d.getTime())) {
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = String(d.getFullYear()).slice(-2);
+          return `${month}/${year}`;
+        }
+      } catch {}
+    }
+    return '12/27';
+  };
 
   // Sync membership status in background from MongoDB Atlas
   useEffect(() => {
     let isMounted = true;
 
-    apiFetch('/membership/status')
-      .then((res) => {
-        if (!isMounted) return;
-        const liveTier = (res?.membershipTier || res?.tier || '').toLowerCase();
-        if (['silver', 'gold', 'diamond'].includes(liveTier)) {
-          useAuthStore.getState().updateProfile({
-            membershipTier: liveTier,
-            membership: liveTier as 'silver' | 'gold' | 'diamond',
-            membershipHistory: Array.isArray(res?.membershipHistory) ? res.membershipHistory : undefined,
-          });
-        }
-      })
-      .catch(() => {});
+    const fetchStatus = () => {
+      apiFetch('/membership/status', { skipCache: true })
+        .then((res) => {
+          if (!isMounted) return;
+          if (res && res.success) {
+            setServerMembership(res);
+            const liveTier = (res?.membershipTier || res?.tier || '').toLowerCase();
+            if (['silver', 'gold', 'diamond'].includes(liveTier)) {
+              useAuthStore.getState().updateProfile({
+                membershipTier: liveTier,
+                membership: liveTier as 'silver' | 'gold' | 'diamond',
+                membershipHistory: Array.isArray(res?.membershipHistory) ? res.membershipHistory : undefined,
+              });
+            }
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchStatus();
 
     const onMembershipUpdated = () => {
+      fetchStatus();
       useAuthStore.getState().fetchProfile().catch(() => {});
     };
     socketService.on('membership_updated', onMembershipUpdated);
     socketService.on('membership:updated', onMembershipUpdated);
+    socketService.on('customer_profile_updated', onMembershipUpdated);
 
     return () => {
       isMounted = false;
       socketService.off('membership_updated', onMembershipUpdated);
       socketService.off('membership:updated', onMembershipUpdated);
+      socketService.off('customer_profile_updated', onMembershipUpdated);
     };
   }, []);
 
@@ -920,6 +964,7 @@ export default function CustomerMembership() {
                 memberId={getMemberIdForPlan(selectedPlan)}
                 isFlipped={isFlipped}
                 onFlip={() => setIsFlipped((prev) => !prev)}
+                validThru={getValidThruText()}
               />
             </View>
 
@@ -1074,7 +1119,7 @@ export default function CustomerMembership() {
                     <Text style={[styles.detailsTableLabel, { color: colors.textSecondary }]}>
                       Valid Thru
                     </Text>
-                    <Text style={[styles.detailsTableValue, { color: colors.text }]}>12/27</Text>
+                    <Text style={[styles.detailsTableValue, { color: colors.text }]}>{getValidThruText()}</Text>
                   </View>
 
                   <View style={styles.detailsTableRow}>
@@ -1153,7 +1198,7 @@ export default function CustomerMembership() {
                 <Icons.CheckCircle2 color="#FFFFFF" size={18} strokeWidth={2.5} />
                 <View>
                   <Text style={styles.activeOwnedBtnText}>Current Active Membership</Text>
-                  <Text style={styles.activeOwnedBtnSub}>Privileges active through 12/27</Text>
+                  <Text style={styles.activeOwnedBtnSub}>Privileges active through {getValidThruText()}</Text>
                 </View>
               </View>
             ) : isSelectedLower ? (

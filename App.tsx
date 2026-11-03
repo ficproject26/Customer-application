@@ -51,6 +51,13 @@ export default function App() {
         const curToken = useAuthStore.getState().token;
         if (curUser) {
           syncCustomerSession(curUser, curToken);
+          if (!curUser.isGuest) {
+            useAuthStore.getState().fetchProfile().catch(() => {});
+            const { useOrderStore } = require('./src/store/orderStore');
+            useOrderStore.getState().loadAllOrders(true).catch(() => {});
+            const { useNotificationStore } = require('./src/store/notificationStore');
+            useNotificationStore.getState().fetchNotifications().catch(() => {});
+          }
         }
       } catch (e) {}
 

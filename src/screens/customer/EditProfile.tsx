@@ -20,6 +20,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Icons from 'lucide-react-native';
 import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
+import RNFS from 'react-native-fs';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { apiFetch } from '../../services/api';
@@ -120,6 +121,7 @@ export default function EditProfile() {
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [selectedPhotoBase64, setSelectedPhotoBase64] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
 
   // OTP Verification States
@@ -298,6 +300,7 @@ export default function EditProfile() {
         maxWidth: 800,
         maxHeight: 800,
         saveToPhotos: false,
+        includeBase64: true,
       },
       (response: ImagePickerResponse) => {
         if (response.didCancel) return;
@@ -306,7 +309,12 @@ export default function EditProfile() {
           return;
         }
         if (response.assets && response.assets.length > 0 && response.assets[0].uri) {
-          setSelectedPhotoUri(response.assets[0].uri);
+          const asset = response.assets[0];
+          setSelectedPhotoUri(asset.uri || null);
+          if (asset.base64) {
+            const mime = asset.type || 'image/jpeg';
+            setSelectedPhotoBase64(`data:${mime};base64,${asset.base64}`);
+          }
           setZoomScale(1);
           setCropModalVisible(true);
         }
@@ -325,6 +333,7 @@ export default function EditProfile() {
         maxWidth: 800,
         maxHeight: 800,
         selectionLimit: 1,
+        includeBase64: true,
       },
       (response: ImagePickerResponse) => {
         if (response.didCancel) return;
@@ -333,7 +342,12 @@ export default function EditProfile() {
           return;
         }
         if (response.assets && response.assets.length > 0 && response.assets[0].uri) {
-          setSelectedPhotoUri(response.assets[0].uri);
+          const asset = response.assets[0];
+          setSelectedPhotoUri(asset.uri || null);
+          if (asset.base64) {
+            const mime = asset.type || 'image/jpeg';
+            setSelectedPhotoBase64(`data:${mime};base64,${asset.base64}`);
+          }
           setZoomScale(1);
           setCropModalVisible(true);
         }
@@ -344,6 +358,7 @@ export default function EditProfile() {
   // Remove Photo -> Shows customer initials
   const handleRemovePhoto = () => {
     setActionSheetVisible(false);
+    setSelectedPhotoBase64('');
     setAvatar('');
   };
 
@@ -376,13 +391,31 @@ export default function EditProfile() {
     setSaveLoading(true);
     setBannerError(null);
 
+    // Ensure avatar is converted to base64 data URI so backend uploads to AWS S3
+    let avatarPayload = avatar;
+    if (avatar && avatar !== initialSnapshot?.avatar) {
+      if (selectedPhotoBase64) {
+        avatarPayload = selectedPhotoBase64;
+      } else if (avatar.startsWith('file:') || avatar.startsWith('content:')) {
+        try {
+          const cleanPath = avatar.replace('file://', '');
+          const base64Data = await RNFS.readFile(cleanPath, 'base64');
+          if (base64Data) {
+            avatarPayload = `data:image/jpeg;base64,${base64Data}`;
+          }
+        } catch (fsErr) {
+          console.warn('[EditProfile] RNFS base64 conversion warning:', fsErr);
+        }
+      }
+    }
+
     const patchPayload: Partial<typeof currentUser> = {
       name: name.trim(),
       email: email.trim(),
       phone: cleanPhone,
       dob: dob.trim(),
       gender,
-      avatar,
+      avatar: avatarPayload,
       emailVerified,
       phoneVerified,
     };
@@ -390,6 +423,10 @@ export default function EditProfile() {
     try {
       const updated = await updateProfile(patchPayload);
       if (updated) {
+        if (updated.avatar) {
+          setAvatar(updated.avatar);
+        }
+        setInitialSnapshot(updated);
         Alert.alert('Profile Saved', 'Your profile details were updated successfully.', [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
