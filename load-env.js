@@ -36,7 +36,24 @@ const apiUrlIos = (vars.API_URL_IOS || apiUrl).replace(/\/+$/, '');
 const socketUrlAndroid = (vars.SOCKET_URL_ANDROID || backendUrl).replace(/\/+$/, '');
 const socketUrlIos = (vars.SOCKET_URL_IOS || backendUrl).replace(/\/+$/, '');
 const razorpayKeyId = vars.RAZORPAY_KEY_ID || '';
-const cloudinaryCloudName = vars.CLOUDINARY_CLOUD_NAME || '';
+
+// Parse Cloudinary configuration (extracts cloud name & public api key if CLOUDINARY_URL provided)
+let cloudinaryCloudName = vars.CLOUDINARY_CLOUD_NAME || '';
+let cloudinaryApiKey = vars.CLOUDINARY_API_KEY || '';
+
+if (vars.CLOUDINARY_URL) {
+  const match = vars.CLOUDINARY_URL.match(/cloudinary:\/\/([^:]+):([^@]+)@([a-zA-Z0-9_\-]+)/);
+  if (match) {
+    if (!cloudinaryApiKey) cloudinaryApiKey = match[1];
+    if (!cloudinaryCloudName) cloudinaryCloudName = match[3];
+  } else {
+    const cloudNameMatch = vars.CLOUDINARY_URL.match(/@([a-zA-Z0-9_\-]+)/);
+    if (cloudNameMatch && !cloudinaryCloudName) {
+      cloudinaryCloudName = cloudNameMatch[1];
+    }
+  }
+}
+
 const vendorBackendUrl = (vars.VENDOR_BACKEND_URL || '').replace(/\/+$/, '');
 const port = vars.PORT || '';
 
@@ -50,6 +67,7 @@ export const SOCKET_URL_ANDROID = '${socketUrlAndroid}';
 export const SOCKET_URL_IOS = '${socketUrlIos}';
 export const RAZORPAY_KEY_ID = '${razorpayKeyId}';
 export const CLOUDINARY_CLOUD_NAME = '${cloudinaryCloudName}';
+export const CLOUDINARY_API_KEY = '${cloudinaryApiKey}';
 export const VENDOR_BACKEND_URL = '${vendorBackendUrl}';
 export const PORT = '${port}';
 `;
