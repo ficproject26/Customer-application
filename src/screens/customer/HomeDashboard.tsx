@@ -1388,7 +1388,7 @@ export default function HomeDashboard() {
                       const isGraphicBanner = Boolean(
                         banner.image &&
                         (banner.image.includes('/uploads/') ||
-                         banner.image.includes('api.ficapp.in') ||
+                         banner.image.includes('/api/media/') ||
                          banner.title?.toLowerCase().includes('diwali') ||
                          banner.title?.toLowerCase().includes('offer') ||
                          banner.categoryTag === 'GRAPHIC')

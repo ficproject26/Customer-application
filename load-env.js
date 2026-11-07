@@ -27,19 +27,21 @@ envContent.split('\n').forEach(line => {
   }
 });
 
-// Cleanly derive client endpoints
-const backendUrl = (vars.BACKEND_URL || 'https://api.ficapp.in').replace(/\/+$/, '');
-const apiUrl = (vars.API_URL || `${backendUrl}/api`).replace(/\/+$/, '');
+// Cleanly derive client endpoints from centralized API_BASE_URL or BACKEND_URL
+const rawBase = vars.API_BASE_URL || vars.BACKEND_URL || '';
+const backendUrl = rawBase ? rawBase.trim().replace(/\/+$/, '') : '';
+const apiUrl = (vars.API_URL || (backendUrl ? `${backendUrl}/api` : '')).replace(/\/+$/, '');
 const apiUrlAndroid = (vars.API_URL_ANDROID || apiUrl).replace(/\/+$/, '');
 const apiUrlIos = (vars.API_URL_IOS || apiUrl).replace(/\/+$/, '');
 const socketUrlAndroid = (vars.SOCKET_URL_ANDROID || backendUrl).replace(/\/+$/, '');
 const socketUrlIos = (vars.SOCKET_URL_IOS || backendUrl).replace(/\/+$/, '');
-const razorpayKeyId = vars.RAZORPAY_KEY_ID || 'rzp_test_THLM17MgXLM2tP';
-const cloudinaryCloudName = vars.CLOUDINARY_CLOUD_NAME || 'yvsm7ze0';
-const vendorBackendUrl = (vars.VENDOR_BACKEND_URL || 'http://127.0.0.1:8002').replace(/\/+$/, '');
-const port = vars.PORT || '8001';
+const razorpayKeyId = vars.RAZORPAY_KEY_ID || '';
+const cloudinaryCloudName = vars.CLOUDINARY_CLOUD_NAME || '';
+const vendorBackendUrl = (vars.VENDOR_BACKEND_URL || '').replace(/\/+$/, '');
+const port = vars.PORT || '';
 
 const fileContent = `// Automatically generated from .env - DO NOT EDIT DIRECTLY
+export const API_BASE_URL = '${backendUrl}';
 export const BACKEND_URL = '${backendUrl}';
 export const API_URL = '${apiUrl}';
 export const API_URL_ANDROID = '${apiUrlAndroid}';

@@ -1,18 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { API_URL_ANDROID, API_URL_IOS } from './env';
+import { API_URL_ANDROID, API_URL_IOS, API_URL, BACKEND_URL } from './env';
 
 const CONFIGURED_API_URL = Platform.select({
-  android: API_URL_ANDROID || 'https://api.ficapp.in/api',
-  ios: API_URL_IOS || 'https://api.ficapp.in/api',
-  default: 'https://api.ficapp.in/api',
-}) || 'https://api.ficapp.in/api';
+  android: API_URL_ANDROID || API_URL,
+  ios: API_URL_IOS || API_URL,
+  default: API_URL,
+}) || API_URL || '';
 
 const CANDIDATE_URLS = Array.from(
-  new Set([CONFIGURED_API_URL, 'https://api.ficapp.in/api'].filter(Boolean))
+  new Set([CONFIGURED_API_URL].filter(Boolean))
 );
 
-let activeBackendUrl = CANDIDATE_URLS[0];
+let activeBackendUrl = CANDIDATE_URLS[0] || '';
 let currentAuthToken: string | null = null;
 let tokenLoadedPromise: Promise<string | null> | null = null;
 
@@ -63,7 +63,7 @@ export function resolveImageUrl(url: any): string {
   if (trimmed.startsWith('data:image')) return trimmed;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   if (trimmed.includes('/uploads/')) {
-    const origin = (activeBackendUrl || 'https://api.ficapp.in/api').replace(/\/api\/?$/, '');
+    const origin = (activeBackendUrl || BACKEND_URL || '').replace(/\/api\/?$/, '');
     const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
     return `${origin}${cleanPath}`;
   }

@@ -1,28 +1,23 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform, Vibration, NativeModules, AppState } from 'react-native';
-import { SOCKET_URL_ANDROID, SOCKET_URL_IOS } from './env';
+import { SOCKET_URL_ANDROID, SOCKET_URL_IOS, BACKEND_URL } from './env';
 import { useOrderStore } from '../store/orderStore';
 import { useToastStore } from '../store/toastStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { dispatchCustomerNotification } from './notificationService';
 
 const CONFIGURED_SOCKET_URL = Platform.select({
-  android: SOCKET_URL_ANDROID || 'https://api.ficapp.in',
-  ios: SOCKET_URL_IOS || 'https://api.ficapp.in',
-  default: 'https://api.ficapp.in',
-}) || 'https://api.ficapp.in';
+  android: SOCKET_URL_ANDROID || BACKEND_URL,
+  ios: SOCKET_URL_IOS || BACKEND_URL,
+  default: BACKEND_URL,
+}) || BACKEND_URL || '';
 
-const CANDIDATE_SOCKET_URLS = [
+const CANDIDATE_SOCKET_URLS = Array.from(new Set([
   CONFIGURED_SOCKET_URL,
   SOCKET_URL_ANDROID,
   SOCKET_URL_IOS,
-  'https://api.ficapp.in',
-  'http://10.0.2.2:8001',
-  'http://localhost:8001',
-  'http://10.0.2.2:5000',
-  'http://localhost:5000',
-  'http://10.0.2.2:8000',
-].filter(Boolean);
+  BACKEND_URL
+].filter(Boolean)));
 
 class SocketServiceClient {
   private socket: any = null;

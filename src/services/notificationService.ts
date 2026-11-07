@@ -2,7 +2,7 @@ import { PermissionsAndroid, Platform, NativeModules, Vibration, AppState, Linki
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastStore } from '../store/toastStore';
 import { useNotificationStore } from '../store/notificationStore';
-import { API_URL_ANDROID, API_URL_IOS } from './env';
+import { API_URL_ANDROID, API_URL_IOS, API_URL, BACKEND_URL } from './env';
 
 export const FCM_TOKEN_STORAGE_KEY = 'connect_fcm_device_token';
 export const NOTIF_PERM_REQUESTED_KEY = 'connect_notif_perm_requested_v1';
@@ -21,10 +21,10 @@ export function setNavigationRef(ref: any) {
 }
 
 const BACKEND_API_BASE = Platform.select({
-  android: API_URL_ANDROID || 'https://api.ficapp.in/api',
-  ios: API_URL_IOS || 'https://api.ficapp.in/api',
-  default: 'https://api.ficapp.in/api',
-}) || 'https://api.ficapp.in/api';
+  android: API_URL_ANDROID || API_URL,
+  ios: API_URL_IOS || API_URL,
+  default: API_URL,
+}) || API_URL || '';
 
 export interface CustomerNotificationPayload {
   title: string;
@@ -287,7 +287,7 @@ export function syncCustomerSession(user: any, token?: string | null) {
       const t = token || '';
       const email = user?.email || null;
       const phone = user?.phone || null;
-      SystemNotification.syncCustomerSession(cId, t, 'https://api.ficapp.in', email, phone);
+      SystemNotification.syncCustomerSession(cId, t, BACKEND_URL, email, phone);
       console.log('[NotificationService] Synced customer session to native keep-alive poller for:', cId);
     }
   } catch (e: any) {
